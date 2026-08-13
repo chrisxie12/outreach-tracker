@@ -195,8 +195,8 @@ V61.Pages = V61.Pages || {};
 
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.wrench + ' Data</div></div><div class="panel-body">' +
       '<div class="danger-zone">' +
-      '<div style="font-weight:700;margin-bottom:6px">Reset sample data</div>' +
-      '<p style="font-size:12.5px;color:var(--text-3);margin-bottom:12px">Remove all ' + leadCount + ' sample leads, clients, proposals and activity, and start with a clean database.</p>' +
+      '<div style="font-weight:700;margin-bottom:6px">Clear all data</div>' +
+      '<p style="font-size:12.5px;color:var(--text-3);margin-bottom:12px">Remove all ' + leadCount + ' leads, clients, proposals and activity, and start with a clean database.</p>' +
       '<div style="display:flex;gap:8px"><button class="btn btn-danger" id="clear-data">' + I.trash + " Clear all data</button></div></div></div></div>" +
       "</div>" +
 
@@ -219,7 +219,7 @@ V61.Pages = V61.Pages || {};
     if (clear) clear.addEventListener("click", () => {
       UI.confirmDialog("Clear all data?", "This permanently removes every lead, client, proposal and payment from this browser.", () => {
         localStorage.removeItem(S().KEY);
-        S().load(); V61.Toast.success("Database cleared — sample data restored"); V61.App.nav("#/dashboard");
+        S().load(); V61.Toast.success("Database cleared — you're starting fresh"); V61.App.nav("#/dashboard");
       });
     });
   }

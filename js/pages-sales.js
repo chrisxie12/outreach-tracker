@@ -22,11 +22,13 @@ V61.Pages = V61.Pages || {};
   function renderServices() {
     const el = document.getElementById("content");
     const svcs = S().db.services;
+    const active = svcs.filter((s) => s.active);
+    const minPrice = svcs.length ? Math.min(...svcs.map((s) => s.price)) : 0;
     el.innerHTML =
       '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">Business</div>' +
-      '<h1 class="page-title">Services</h1><p class="page-sub">' + svcs.filter((s) => s.active).length + " active services · starting from GH₵ " + Math.min(...svcs.map((s) => s.price)) + "</p></div>" +
+      '<h1 class="page-title">Services</h1><p class="page-sub">' + active.length + " active service" + (active.length === 1 ? "" : "s") + (svcs.length ? " · starting from GH₵ " + minPrice : "") + "</p></div>" +
       '<div class="page-actions"><button class="btn btn-primary" data-cmd="addService">' + I.plus + " Add Service</button></div></div>" +
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">' +
+      (svcs.length ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">' +
       svcs.map((s) =>
         '<div class="card" style="display:flex;flex-direction:column;gap:8px;' + (s.active ? "" : "opacity:.55") + '">' +
         '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px"><div style="font-weight:700;font-size:14.5px">' + U().escapeHtml(s.name) + "</div>" +
@@ -34,7 +36,7 @@ V61.Pages = V61.Pages || {};
         '<p style="font-size:12.5px;color:var(--text-3);line-height:1.55;flex:1">' + U().escapeHtml(s.description || "") + "</p>" +
         '<div style="display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--text-2)"><b style="font-size:15px;color:var(--text)">' + U().formatMoney(s.price) + '</b><span>' + I.clock + " ~" + s.deliveryDays + " days</span>" +
         '<div style="margin-left:auto;display:flex;gap:4px"><button class="icon-btn" data-cmd="editService:' + s.id + '">' + I.pencil + '</button><button class="icon-btn" data-cmd="toggleService:' + s.id + '">' + (s.active ? I.eye : I.refresh) + '</button><button class="icon-btn" data-cmd="delService:' + s.id + '">' + I.trash + "</button></div></div></div>"
-      ).join("") + "</div>";
+      ).join("") + "</div>" : UI.emptyState("package", "No services yet.", "Add your service offerings so you can build proposals from your catalog.", '<button class="btn btn-primary" data-cmd="addService">' + I.plus + " Add Service</button>"));
     UI.bind(el);
   }
 
@@ -86,20 +88,25 @@ V61.Pages = V61.Pages || {};
     const lead = S().byId("leads", leadId);
     if (!lead) { V61.Toast.error("Lead not found"); return; }
     const biz = S().businessOf(lead);
-    const items = S().db.services.filter((s) => s.active).slice(0, 3).map((s) => ({ serviceId: s.id, name: s.name, qty: 1, price: s.price }));
+    const svcs = S().db.services.filter((s) => s.active);
+    const items = svcs.length ? svcs.slice(0, 3).map((s) => ({ serviceId: s.id, name: s.name, qty: 1, price: s.price })) : [{ serviceId: null, name: "", qty: 1, price: 0 }];
     let subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     let discount = 0;
 
     const m = UI.openModal({ title: "Create Proposal — " + (biz ? biz.name : ""), icon: I.fileText, size: "modal-xl" });
 
+    function itemPrice(row) {
+      const sel = row.querySelector("select");
+      if (sel) { const svc = svcs.find((x) => x.id === sel.value); return svc ? svc.price : 0; }
+      return Number(row.querySelector(".p-price").value) || 0;
+    }
+
     function totals() {
-      const st = S().db.services;
       const qs = m.body.querySelectorAll(".prop-item-row");
       let sub = 0;
       qs.forEach((row) => {
-        const sel = row.querySelector("select"); const q = Number(row.querySelector(".input").value) || 1;
-        const svc = st.find((x) => x.id === sel.value);
-        const price = svc ? svc.price : 0;
+        const q = Number(row.querySelector(".p-qty").value) || 1;
+        const price = itemPrice(row);
         sub += price * q;
         row.querySelector(".line-total").textContent = U().formatMoney(price * q);
       });
@@ -112,15 +119,22 @@ V61.Pages = V61.Pages || {};
     }
 
     function itemHtml(i) {
-      return '<div class="prop-item-row"><select class="select" style="width:auto;flex:1">' +
-        S().db.services.filter((s) => s.active).map((s) => '<option value="' + s.id + '"' + (s.id === i.serviceId ? " selected" : "") + ">" + U().escapeHtml(s.name) + " (" + U().formatMoney(s.price) + ")</option>").join("") +
-        '</select><input class="input" type="number" min="1" value="' + i.qty + '"><span class="line-total" style="width:80px;text-align:right;font-weight:700">' + U().formatMoney(i.price * i.qty) + '</span>' +
+      if (i.serviceId && svcs.some((s) => s.id === i.serviceId)) {
+        return '<div class="prop-item-row"><select class="select" style="width:auto;flex:1">' +
+          svcs.map((s) => '<option value="' + s.id + '"' + (s.id === i.serviceId ? " selected" : "") + ">" + U().escapeHtml(s.name) + " (" + U().formatMoney(s.price) + ")</option>").join("") +
+          '</select><input class="input p-qty" type="number" min="1" value="' + i.qty + '"><span class="line-total" style="width:80px;text-align:right;font-weight:700">' + U().formatMoney(i.price * i.qty) + '</span>' +
+          '<button class="icon-btn" data-del-item>' + I.trash + "</button></div>";
+      }
+      return '<div class="prop-item-row"><input class="input p-name" placeholder="Service or deliverable" value="' + U().escapeHtml(i.name || "") + '" style="flex:1;min-width:160px">' +
+        '<input class="input p-price" type="number" min="0" placeholder="Price (GH₵)" value="' + (i.price || "") + '" style="width:110px">' +
+        '<input class="input p-qty" type="number" min="1" value="' + i.qty + '"><span class="line-total" style="width:80px;text-align:right;font-weight:700">' + U().formatMoney(i.price * i.qty) + '</span>' +
         '<button class="icon-btn" data-del-item>' + I.trash + "</button></div>";
     }
 
     m.setBody(
       '<div class="field"><label>Proposal title</label><input class="input" id="p-title" value="' + U().escapeHtml(biz.name + " — Website & Digital Growth") + '"></div>' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px"><b style="font-size:13px">Services</b><button class="btn btn-sm" data-add-item>' + I.plus + " Add service</button></div>" +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px"><b style="font-size:13px">' + (svcs.length ? "Services" : "Line items") + '</b><button class="btn btn-sm" data-add-item>' + I.plus + " Add " + (svcs.length ? "service" : "item") + "</button></div>" +
+      (!svcs.length ? '<p style="font-size:12px;color:var(--text-3);margin-bottom:8px">No services in your catalog yet — add line items manually, or add services from the Services page first.</p>' : "") +
       '<div class="stack" id="prop-items">' + items.map(itemHtml).join("") + "</div>" +
       '<div class="field-row" style="margin-top:12px"><div class="field"><label>Discount (GH₵)</label><input class="input" id="p-discount" type="number" min="0" value="0"></div>' +
       '<div class="field"><label>Valid until</label><input class="input" id="p-valid" type="date" value="' + new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) + '"></div></div>' +
@@ -133,14 +147,15 @@ V61.Pages = V61.Pages || {};
     m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-save>' + I.fileText + " Create Proposal</button>");
 
     m.body.querySelector("[data-add-item]").addEventListener("click", () => {
-      const first = S().db.services.find((s) => s.active);
-      if (!first) return;
-      m.body.querySelector("#prop-items").insertAdjacentHTML("beforeend", itemHtml({ serviceId: first.id, qty: 1, price: first.price }));
+      const first = svcs.find((s) => s.active);
+      const item = first ? { serviceId: first.id, qty: 1, price: first.price } : { serviceId: null, name: "", qty: 1, price: 0 };
+      m.body.querySelector("#prop-items").insertAdjacentHTML("beforeend", itemHtml(item));
       bindItems(); totals();
     });
     function bindItems() {
       m.body.querySelectorAll("[data-del-item]").forEach((b) => b.addEventListener("click", () => { b.closest(".prop-item-row").remove(); totals(); }));
       m.body.querySelectorAll(".prop-item-row select, .prop-item-row .input").forEach((x) => x.addEventListener("change", totals));
+      m.body.querySelectorAll(".prop-item-row .p-price, .prop-item-row .p-qty").forEach((x) => x.addEventListener("input", totals));
     }
     bindItems();
     m.body.querySelector("#p-discount").addEventListener("input", totals);
@@ -149,11 +164,18 @@ V61.Pages = V61.Pages || {};
       const title = m.body.querySelector("#p-title").value.trim() || "Proposal";
       const lineItems = [];
       m.body.querySelectorAll(".prop-item-row").forEach((row) => {
-        const svc = S().db.services.find((x) => x.id === row.querySelector("select").value);
-        const qty = Number(row.querySelector(".input").value) || 1;
-        lineItems.push({ serviceId: svc.id, name: svc.name, qty, price: svc.price });
+        const sel = row.querySelector("select");
+        const qty = Number(row.querySelector(".p-qty").value) || 1;
+        if (sel) {
+          const svc = svcs.find((x) => x.id === sel.value);
+          if (svc) lineItems.push({ serviceId: svc.id, name: svc.name, qty, price: svc.price });
+        } else {
+          const name = row.querySelector(".p-name").value.trim();
+          const price = Number(row.querySelector(".p-price").value) || 0;
+          if (name) lineItems.push({ serviceId: null, name, qty, price });
+        }
       });
-      if (!lineItems.length) { V61.Toast.error("Add at least one service"); return; }
+      if (!lineItems.length) { V61.Toast.error("Add at least one line item"); return; }
       const total = Math.max(0, subtotal - discount);
       const p = { id: U().uid("p"), leadId: lead.id, title, status: "draft", items: lineItems, subtotal, discount, total,
         deliverables: m.body.querySelector("#p-deliverables").value.trim(), paymentTerms: m.body.querySelector("#p-terms").value.trim(),
@@ -316,6 +338,7 @@ V61.Pages = V61.Pages || {};
   }
   function addClientService(clientId) {
     const c = S().byId("clients", clientId);
+    if (!S().db.services.length) { V61.Toast.error("Add services to your catalog first"); return; }
     const m = UI.openModal({ title: "Add Service to Client", icon: I.package });
     m.setBody('<div class="field"><label>Service</label><select class="select" id="cs-svc">' + S().db.services.map((s) => '<option value="' + s.id + '">' + U().escapeHtml(s.name) + "</option>").join("") + "</select></div>" +
       '<div class="field"><label>Status</label><select class="select" id="cs-status"><option value="planned">Planned</option><option value="in_progress">In progress</option><option value="done">Completed</option></select></div>');

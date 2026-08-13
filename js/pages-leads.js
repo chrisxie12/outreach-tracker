@@ -44,7 +44,7 @@ V61.Pages = V61.Pages || {};
     const m = UI.openModal({ title: existing ? "Edit Lead" : "Add Lead", icon: existing ? I.pencil : I.plus, size: "lg" });
     const cats = catList().map((c) => '<option' + (b && b.category === c ? " selected" : "") + ">" + U().escapeHtml(c) + "</option>").join("");
     m.setBody(
-      '<div class="field"><label>Business name *</label><input class="input" id="f-name" value="' + U().escapeHtml(b ? b.name : "") + '" placeholder="e.g. Accra Heights Restaurant"></div>' +
+      '<div class="field"><label>Business name *</label><input class="input" id="f-name" value="' + U().escapeHtml(b ? b.name : "") + '" placeholder="e.g. Business name"></div>' +
       '<div class="field-row"><div class="field"><label>Category</label><input class="input" id="f-cat" list="cat-list" value="' + U().escapeHtml(b ? b.category : "") + '" placeholder="e.g. Restaurant"><datalist id="cat-list">' + cats + "</datalist></div>" +
       '<div class="field"><label>City / Area</label><input class="input" id="f-city" value="' + U().escapeHtml(b ? b.city : "") + '" placeholder="e.g. Osu, Accra"></div></div>' +
       '<div class="field"><label>Address</label><input class="input" id="f-address" value="' + U().escapeHtml(b ? b.address : "") + '"></div>' +
@@ -569,7 +569,7 @@ V61.Pages = V61.Pages || {};
   function addContact(leadId) {
     const lead = S().byId("leads", leadId);
     const m = UI.openModal({ title: "Add Contact", icon: I.users });
-    m.setBody('<div class="field"><label>Name *</label><input class="input" id="c-name" placeholder="e.g. Kwame Mensah"></div>' +
+    m.setBody('<div class="field"><label>Name *</label><input class="input" id="c-name" placeholder="e.g. Contact name"></div>' +
       '<div class="field"><label>Role</label><input class="input" id="c-role" placeholder="e.g. Owner, Manager"></div>' +
       '<div class="field-row"><div class="field"><label>Phone</label><input class="input" id="c-phone"></div><div class="field"><label>WhatsApp</label><input class="input" id="c-wa"></div></div>' +
       '<div class="field"><label>Email</label><input class="input" id="c-email"></div>');
