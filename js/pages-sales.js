@@ -120,14 +120,14 @@ V61.Pages = V61.Pages || {};
 
     function itemHtml(i) {
       if (i.serviceId && svcs.some((s) => s.id === i.serviceId)) {
-        return '<div class="prop-item-row"><select class="select" style="width:auto;flex:1">' +
+        return '<div class="prop-item-row"><select class="select grow">' +
           svcs.map((s) => '<option value="' + s.id + '"' + (s.id === i.serviceId ? " selected" : "") + ">" + U().escapeHtml(s.name) + " (" + U().formatMoney(s.price) + ")</option>").join("") +
-          '</select><input class="input p-qty" type="number" min="1" value="' + i.qty + '"><span class="line-total" style="width:80px;text-align:right;font-weight:700">' + U().formatMoney(i.price * i.qty) + '</span>' +
+          '</select><input class="input p-qty" type="number" min="1" value="' + i.qty + '"><span class="line-total">' + U().formatMoney(i.price * i.qty) + '</span>' +
           '<button class="icon-btn" data-del-item>' + I.trash + "</button></div>";
       }
-      return '<div class="prop-item-row"><input class="input p-name" placeholder="Service or deliverable" value="' + U().escapeHtml(i.name || "") + '" style="flex:1;min-width:160px">' +
-        '<input class="input p-price" type="number" min="0" placeholder="Price (GH₵)" value="' + (i.price || "") + '" style="width:110px">' +
-        '<input class="input p-qty" type="number" min="1" value="' + i.qty + '"><span class="line-total" style="width:80px;text-align:right;font-weight:700">' + U().formatMoney(i.price * i.qty) + '</span>' +
+      return '<div class="prop-item-row"><input class="input p-name grow" placeholder="Service or deliverable" value="' + U().escapeHtml(i.name || "") + '">' +
+        '<input class="input p-price" type="number" min="0" placeholder="Price (GH₵)" value="' + (i.price || "") + '">' +
+        '<input class="input p-qty" type="number" min="1" value="' + i.qty + '"><span class="line-total">' + U().formatMoney(i.price * i.qty) + '</span>' +
         '<button class="icon-btn" data-del-item>' + I.trash + "</button></div>";
     }
 

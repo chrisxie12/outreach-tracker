@@ -70,7 +70,7 @@
       '<button class="burger" data-burger title="Menu">' + I.menu + "</button>" +
       '<div class="search-trigger" data-palette>' + I.search + "<span>Search...</span><span class='kbd'>Ctrl K</span></div>" +
       '<div class="topbar-actions">' +
-      '<button class="icon-btn" data-palette title="Search (Ctrl K)">' + I.search + "</button>" +
+      '<button class="icon-btn mob-hide" data-palette title="Search (Ctrl K)">' + I.search + "</button>" +
       '<button class="icon-btn narrow-hide" data-quick title="Quick add (N)">' + I.plus + "</button>" +
       '<button class="icon-btn" data-theme title="Toggle theme">' + (App.theme === "dark" ? I.moon : I.sun) + "</button>" +
       '<button class="icon-btn" data-notif title="Notifications">' + I.bell + (badgeCount ? '<span class="dot"></span>' : "") + "</button>" +
