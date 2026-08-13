@@ -805,3 +805,24 @@ table.data .biz-cell .b-cat { font-size: 11.5px; color: var(--text-3); }
   60% { transform: translateX(-4px); }
   80% { transform: translateX(3px); }
 }
+
+/* ═══ Lead Discovery results ═══ */
+.disc-result {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 13px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--surface-2);
+  margin-bottom: 8px; flex-wrap: wrap;
+}
+.disc-result:last-child { margin-bottom: 0; }
+.disc-main { display: flex; align-items: center; gap: 11px; flex: 1; min-width: 0; }
+.disc-name { font-weight: 700; font-size: 13.5px; }
+.disc-sub { font-size: 12px; color: var(--text-3); }
+.disc-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; margin-top: 3px; flex-wrap: wrap; }
+.disc-meta .open { color: var(--ok); font-weight: 600; }
+.disc-meta .closed { color: var(--text-3); }
+.disc-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+@media (max-width: 560px) {
+  .disc-result { flex-direction: column; align-items: flex-start; }
+  .disc-actions { width: 100%; }
+  .disc-actions .btn { flex: 1; justify-content: center; }
+}

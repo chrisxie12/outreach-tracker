@@ -87,7 +87,10 @@ V61.Pages = V61.Pages || {};
       '<div class="audit-break" id="audit-break">' + breakdownHtml() + "</div></div>" +
       '<div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap">' +
       '<div><div style="font-weight:700;font-size:14px">Tap each item that is true for this business.</div>' +
-      '<div style="font-size:12.5px;color:var(--text-3)">The Digital Presence Score updates as you go.</div></div></div>' +
+      '<div style="font-size:12.5px;color:var(--text-3)">The Digital Presence Score updates as you go.</div></div>' +
+      (biz && biz.googlePlaceId && discoveryKey() ?
+        '<button class="btn" id="audit-autofill" style="margin-left:auto">' + I.scan + " Auto-fill from Google</button>" : "") +
+      "</div>" +
       sectionHtml("website") + sectionHtml("google") + sectionHtml("social") + sectionHtml("branding") + sectionHtml("conversion") + sectionHtml("seo")
     );
     m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-save>' + (existing ? "Save Audit" : "Save Audit") + "</button>");
@@ -127,6 +130,42 @@ V61.Pages = V61.Pages || {};
       S().addActivity(lead.id, "note", "Digital audit " + (existing ? "updated" : "completed") + " — score " + S().digitalScore(audit) + "/100.");
       S().save(); m.close(); V61.Toast.success("Audit saved — Digital Score " + S().digitalScore(audit) + "/100");
       V61.App.renderRoute();
+    });
+    const autofill = m.body.querySelector("#audit-autofill");
+    if (autofill) autofill.addEventListener("click", () => {
+      autofill.disabled = true; autofill.textContent = "Fetching…";
+      placeDetails(biz.googlePlaceId).then((d) => {
+        /* Only facts Google genuinely provides are auto-checked; everything else stays manual. */
+        audit.website = audit.website || {};
+        audit.website.exists = !!d.website;
+        audit.website.contact = !!d.phone;
+        audit.google = audit.google || {};
+        audit.google.exists = true;
+        audit.google.photos = d.photos > 0;
+        audit.google.reviews = d.reviews > 0;
+        audit.google.rating = (d.rating || 0) >= 4;
+        audit.google.hours = !!d.hours;
+        audit.google.phone = !!d.phone;
+        audit.google.website_linked = !!d.website;
+        audit.seo = audit.seo || {};
+        audit.seo.maps = true;
+        audit.seo.reviews = (d.reviews || 0) >= 15;
+        audit.updatedAt = U().now();
+        recalc();
+        m.body.querySelectorAll(".check-item").forEach((it) => {
+          const [cat, key] = it.dataset.check.split(":");
+          const target = cat === "social" ? audit.social[key.split(":")[0]] : audit[cat];
+          const k = cat === "social" ? key.split(":")[1] : key;
+          it.classList.toggle("on", !!target[k]);
+          const chip = m.body.querySelector('[data-scorechip="' + cat + '"]');
+          if (chip) chip.textContent = m.body.querySelectorAll('[data-check^="' + cat + '"].on').length + "/" + m.body.querySelectorAll('[data-check^="' + cat + '"]').length;
+        });
+        autofill.disabled = false; autofill.textContent = "Auto-fill from Google";
+        V61.Toast.success("Filled from real Google data — review the rest manually");
+      }).catch((e) => {
+        autofill.disabled = false; autofill.textContent = "Auto-fill from Google";
+        V61.Toast.error(e.message || "Could not fetch Google data");
+      });
     });
   }
 
@@ -181,11 +220,101 @@ V61.Pages = V61.Pages || {};
   }
 
   /* ── Lead Discovery ── */
+  function discoveryKey() { return (S().db.settings.googleMapsApiKey || "").trim(); }
+
+  /* Load Google Places API once. Resolves immediately if already present (allows stubbing). */
+  function placesReady() {
+    return new Promise((resolve, reject) => {
+      if (window.google && window.google.maps && window.google.maps.places && window.google.maps.places.PlacesService) return resolve(window.google.maps.places);
+      if (window.__v61PlacesPromise) return window.__v61PlacesPromise;
+      window.__v61PlacesPromise = new Promise((res, rej) => {
+        const cb = "__v61PlacesReady";
+        window[cb] = () => res(window.google.maps.places);
+        const s = document.createElement("script");
+        s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(discoveryKey()) + "&libraries=places&callback=" + cb;
+        s.async = true; s.onerror = () => { window.__v61PlacesPromise = null; rej(new Error("Failed to load Google Places API")); };
+        document.head.appendChild(s);
+      });
+      window.__v61PlacesPromise.then(resolve, reject);
+    });
+  }
+
+  function placesService() {
+    let host = document.getElementById("places-host");
+    if (!host) { host = document.createElement("div"); host.id = "places-host"; host.style.display = "none"; document.body.appendChild(host); }
+    return new window.google.maps.places.PlacesService(host);
+  }
+
+  function normalizeType(types) {
+    const map = {
+      restaurant: "Restaurant", cafe: "Cafe", bakery: "Bakery", bar: "Bar",
+      gym: "Gym", beauty_salon: "Beauty salon", hair_care: "Hair salon", spa: "Spa",
+      clinic: "Clinic", dentist: "Dentist", pharmacy: "Pharmacy", hospital: "Hospital",
+      store: "Store", shopping_mall: "Shopping mall", supermarket: "Supermarket", department_store: "Store",
+      hotel: "Hotel", lodging: "Lodging", travel_agency: "Travel agency",
+      car_dealer: "Car dealer", car_repair: "Auto repair", car_wash: "Car wash", electrician: "Electrician", plumber: "Plumber",
+      real_estate_agency: "Real estate", lawyer: "Law firm", accountant: "Accountant", bank: "Bank",
+      school: "School", university: "University", gym: "Gym",
+      florist: "Florist", clothing_store: "Clothing store", electronics_store: "Electronics store", furniture_store: "Furniture store",
+      home_goods_store: "Home goods", shoe_store: "Shoe store", jewelry_store: "Jewellery", book_store: "Book store",
+      pet_store: "Pet store", veterinary_care: "Veterinary", church: "Church", mosque: "Mosque",
+      local_government_office: "Office", insurance_agency: "Insurance", movie_theater: "Cinema", park: "Park", art_gallery: "Art gallery",
+    };
+    for (const t of (types || [])) { if (map[t]) return map[t]; }
+    return (types && types[0]) ? types[0].replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "";
+  }
+
+  /* textSearch: real Google Places results (name, address, rating, reviews, open status). */
+  function discoverySearch(query, location) {
+    return placesReady().then(() => new Promise((resolve, reject) => {
+      const svc = placesService();
+      svc.textSearch({ query: (query + " in " + location).trim(), language: "en" }, (results, status) => {
+        if (status === "OK" || status === "ZERO_RESULTS") {
+          resolve((results || []).map((p) => ({
+            placeId: p.place_id, name: p.name || "", address: p.formatted_address || p.vicinity || "",
+            city: extractCity(p), category: normalizeType(p.types),
+            rating: p.rating || null, reviews: p.user_ratings_total || 0,
+            openNow: p.opening_hours ? p.opening_hours.open_now : null,
+            lat: p.geometry && p.geometry.location ? p.geometry.location.lat() : null,
+            lng: p.geometry && p.geometry.location ? p.geometry.location.lng() : null,
+          })));
+        } else reject(new Error("Places API error: " + status));
+      });
+    }));
+  }
+
+  function extractCity(p) {
+    const comps = (p.address_components || []).map((c) => c.types[0] === "locality" || c.types[0] === "administrative_area_level_1" ? c.long_name : null).filter(Boolean);
+    return comps[0] || "";
+  }
+
+  /* getDetails: real place details (phone, website, hours, photos) used when adding or auto-filling an audit. */
+  function placeDetails(placeId) {
+    return placesReady().then(() => new Promise((resolve, reject) => {
+      const svc = placesService();
+      svc.getDetails({ placeId, fields: ["name", "formatted_address", "formatted_phone_number", "international_phone_number", "website", "rating", "user_ratings_total", "opening_hours", "url", "types", "photos", "address_components", "geometry"] }, (p, status) => {
+        if (status === "OK" && p) resolve({
+          name: p.name || "", address: p.formatted_address || "",
+          phone: p.formatted_phone_number || p.international_phone_number || "",
+          website: p.website || "",
+          rating: p.rating || null, reviews: p.user_ratings_total || 0,
+          hours: !!(p.opening_hours && p.opening_hours.periods && p.opening_hours.periods.length),
+          photos: (p.photos && p.photos.length) || 0,
+          url: p.url || "", types: p.types || [], category: normalizeType(p.types),
+          lat: p.geometry && p.geometry.location ? p.geometry.location.lat() : null,
+          lng: p.geometry && p.geometry.location ? p.geometry.location.lng() : null,
+        });
+        else reject(new Error("Place details error: " + status));
+      });
+    }));
+  }
+
   function renderDiscovery() {
     const el = document.getElementById("content");
+    const hasKey = !!discoveryKey();
     el.innerHTML =
       '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">Prospecting</div>' +
-      '<h1 class="page-title">Lead Discovery</h1><p class="page-sub">Find and import businesses to prospect.</p></div></div>' +
+      '<h1 class="page-title">Lead Discovery</h1><p class="page-sub">Find real businesses by location and category, review them, then add the ones you want to prospect.</p></div></div>' +
       '<div class="grid-2"><div class="panel"><div class="panel-head"><div class="panel-title">' + I.upload + " Import leads from CSV" + "</div></div>" +
       '<div class="panel-body">' +
       '<div style="border:1.5px dashed var(--border-2);border-radius:12px;padding:28px 18px;text-align:center" id="drop-zone">' +
@@ -196,15 +325,21 @@ V61.Pages = V61.Pages || {};
       '<button class="btn btn-primary" data-open-file>' + I.upload + " Choose file</button></div>" +
       '<div style="margin-top:14px;font-size:12px;color:var(--text-3);line-height:1.7"><b style="color:var(--text-2)">Recognised headers:</b> Business name, Category, Location, Address, Phone, WhatsApp, Email, Website, Google profile, Instagram, Facebook, Digital score, Lead score, Stage, Deal value, Notes.</div>' +
       "</div></div>" +
-      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.scan + " Search the web" + '<span class="sub">Coming soon</span></div></div>' +
-      '<div class="panel-body"><div style="display:flex;gap:9px;margin-bottom:14px">' +
-      '<input class="input" id="discovery-q" placeholder="e.g. restaurants in Osu, Accra">' +
-      '<select class="select" style="width:150px"><option>Google Maps</option><option disabled>Facebook</option><option disabled>Instagram</option></select>' +
-      '<button class="btn" disabled>' + I.search + " Search</button></div>" +
-      '<div class="empty" style="padding:24px"><div style="font-size:13px;color:var(--text-3);margin-bottom:8px">External discovery APIs are planned here.</div>' +
-      '<div style="font-size:12px;color:var(--text-2)">The data model already supports importing from any source via CSV. A live search connector can be added later without changing your data.</div></div></div></div>' +
-      '</div>';
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.search + " Search real businesses" + (hasKey ? '<span class="sub">Google Places</span>' : '<span class="sub">Needs API key</span>') + "</div></div>" +
+      '<div class="panel-body">' +
+      (hasKey ?
+        '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px">' +
+        '<input class="input" id="discovery-cat" style="flex:1;min-width:150px" placeholder="Category — e.g. restaurants, salons, clinics" list="disc-cat-list">' +
+        '<datalist id="disc-cat-list">' + catMetaOptions() + "</datalist>" +
+        '<input class="input" id="discovery-loc" style="width:190px" placeholder="Location — e.g. Osu, Accra">' +
+        '<button class="btn btn-primary" id="discovery-go">' + I.search + " Search</button></div>" +
+        '<div id="discovery-results"></div>' :
+        '<div class="empty" style="padding:22px"><div style="font-size:13px;color:var(--text-3);margin-bottom:10px">Discovery uses the Google Places API to find real businesses. No API key is configured yet — so no results are shown and nothing is fabricated.</div>' +
+        '<a class="btn btn-primary" href="#/settings">' + I.settings + " Configure data source</a></div>") +
+      "</div></div>" +
+      "</div>";
     UI.bind(el);
+
     const btn = el.querySelector("[data-open-file]");
     const input = el.querySelector("#csv-file");
     if (btn) btn.addEventListener("click", () => input && input.click());
@@ -227,6 +362,66 @@ V61.Pages = V61.Pages || {};
         if (n) V61.App.nav("#/leads");
       });
     }
+
+    const go = el.querySelector("#discovery-go");
+    if (go) go.addEventListener("click", () => runDiscoverySearch(el));
+  }
+
+function catMetaOptions() {
+    const cats = ["Restaurant", "Cafe", "Bakery", "Bar", "Salon", "Barber", "Clinic", "Dentist", "Pharmacy", "Gym", "Fashion store", "Electronics store", "Hotel", "Real estate", "Auto repair", "Car wash", "Electrician", "Plumber", "Cleaning service", "Photographer", "School", "Accountant", "Law firm", "Travel agency", "Web design", "Marketing agency"];
+    return cats.map((c) => "<option value='" + c + "'>").join("");
+  }
+
+  function runDiscoverySearch(el) {
+    const cat = (el.querySelector("#discovery-cat").value || "").trim();
+    const loc = (el.querySelector("#discovery-loc").value || "").trim();
+    const out = el.querySelector("#discovery-results");
+    if (!cat && !loc) { V61.Toast.warn("Enter a category or location to search"); return; }
+    out.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3)">Searching Google Places…</div>';
+    discoverySearch(cat, loc).then((results) => {
+      if (!results.length) { out.innerHTML = '<div class="empty" style="padding:24px">' + I.search + '<h3>No businesses found</h3><p>Try a different category or location.</p></div>'; return; }
+      out.innerHTML = results.map((r, i) => resultCard(r, i)).join("");
+      bindResultActions(out, results);
+    }).catch((e) => {
+      out.innerHTML = '<div class="empty" style="padding:24px">' + I.alert + '<h3>Search failed</h3><p>' + U().escapeHtml(e.message || "Check your API key") + "</p></div>";
+    });
+  }
+
+  function resultCard(r, i) {
+    const existing = r.placeId ? S().businessByGooglePlace(r.placeId) : S().businessByName(r.name);
+    const lead = existing ? S().leadOf(existing.id) : null;
+    const stars = r.rating != null ? '<span style="color:#e0a53e;display:inline-flex;align-items:center;gap:2px;font-weight:700">' + I.star + " " + r.rating + "</span><span style='color:var(--text-3);font-size:12px'> (" + r.reviews + ")</span>" : "";
+    return '<div class="disc-result" data-result="' + i + '">' +
+      '<div class="disc-main"><div style="width:38px;height:38px;border-radius:10px;background:' + UI.hexA(U().avatarColor(r.name), .15) + ';color:' + U().avatarColor(r.name) + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0">' + U().initials(r.name) + "</div>" +
+      '<div style="flex:1;min-width:0"><div class="disc-name">' + U().escapeHtml(r.name) + "</div>" +
+      '<div class="disc-sub">' + (r.category ? U().escapeHtml(r.category) + " · " : "") + U().escapeHtml(r.address) + "</div>" +
+      '<div class="disc-meta">' + stars + (r.openNow != null ? '<span class="' + (r.openNow ? "open" : "closed") + '">' + (r.openNow ? "Open now" : "Closed now") + "</span>" : "") + "</div></div></div>" +
+      '<div class="disc-actions">' +
+      (existing ?
+        '<button class="btn btn-sm" data-audit="' + (lead ? lead.id : "") + '">' + I.scan + " Audit</button>" +
+        '<a class="btn btn-sm btn-ghost" href="#/leads/' + (lead ? lead.id : "") + '">' + I.eye + " Open</a>" :
+        '<button class="btn btn-sm btn-primary" data-add="' + i + '">' + I.plus + " Add to CRM</button>") +
+      "</div></div>";
+  }
+
+  function bindResultActions(out, results) {
+    out.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
+      const r = results[Number(b.dataset.add)];
+      b.disabled = true; b.textContent = "Adding…";
+      (r.placeId ? placeDetails(r.placeId).catch(() => ({})) : Promise.resolve({})).then((d) => {
+        const place = Object.assign({}, r, d, { source: "google-discovery", query: (document.getElementById("discovery-cat") ? document.getElementById("discovery-cat").value : "") + " in " + (document.getElementById("discovery-loc") ? document.getElementById("discovery-loc").value : "") });
+        const res = S().addDiscoveredBusiness(place);
+        S().save();
+        if (res.created) { S().addActivity(res.lead.id, "note", "Business discovered via Google Places."); }
+        V61.Toast.success(res.created ? "Added " + place.name + " to your CRM" : place.name + " was already in your CRM");
+        out.innerHTML = out.innerHTML.replace(b.outerHTML, '<a class="btn btn-sm btn-ghost" href="#/leads/' + res.lead.id + '">' + I.eye + " Open</a>");
+        const res2 = S().byId("businesses", res.lead.businessId);
+        const refreshed = results.map((x, i) => resultCard(x, i));
+        out.innerHTML = refreshed.join("");
+        bindResultActions(out, results);
+      }).catch((e) => { b.disabled = false; b.textContent = "Add to CRM"; V61.Toast.error(e.message || "Could not add business"); });
+    }));
+    out.querySelectorAll("[data-audit]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.audit) V61.Pages.audit.openAudit(b.dataset.audit); }));
   }
 
   V61.Pages.audit = { render, openAudit, renderOpportunities, renderDiscovery };

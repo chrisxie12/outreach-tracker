@@ -178,7 +178,7 @@
     schema: 1,
     businesses: [], contacts: [], audits: [], leads: [], outreach: [], followups: [],
     tasks: [], notes: [], activity: [], services: [], proposals: [], clients: [], payments: [],
-    settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS" },
+    settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "" },
   });
 
   let db = null;
@@ -227,6 +227,8 @@
   function on(fn) { listeners.change.push(fn); }
 
   function byId(col, id) { return db[col].find((x) => x.id === id) || null; }
+  function businessByGooglePlace(placeId) { return db.businesses.find((b) => b.googlePlaceId === placeId) || null; }
+  function businessByName(name) { return db.businesses.find((b) => b.name.toLowerCase() === String(name || "").toLowerCase()) || null; }
   function businessOf(lead) { return byId("businesses", lead.businessId); }
   function auditOf(businessId) { return db.audits.find((a) => a.businessId === businessId) || null; }
   function leadOf(businessId) { return db.leads.find((l) => l.businessId === businessId) || null; }
@@ -267,6 +269,41 @@
     db.leads.push(lead);
     addActivity(lead.id, "lead", "Lead added from " + (lead.source || "manual") + ".");
     return lead;
+  }
+
+  /* Add a business discovered from an external source (e.g. Google Places).
+     Returns { business, lead } reusing an existing record when already in the CRM. */
+  function addDiscoveredBusiness(place) {
+    const p = place || {};
+    const gid = p.googlePlaceId || p.placeId || "";
+    const existing = gid ? businessByGooglePlace(gid) : businessByName(p.name);
+    if (existing) {
+      const lead = leadOf(existing.id) || addLead(existing.id, { source: p.source || "discovery" });
+      return { business: existing, lead, created: false };
+    }
+    const biz = addBusiness({
+      name: p.name || "Untitled business",
+      category: p.category || "",
+      categoryKey: p.categoryKey || "",
+      address: p.address || "",
+      city: p.city || "",
+      phone: p.phone || "",
+      whatsapp: p.whatsapp || "",
+      email: p.email || "",
+      website: p.website || "",
+      googleProfileUrl: p.googleProfileUrl || (gid ? "https://www.google.com/maps/place/?q=place_id:" + gid : ""),
+      instagramUrl: p.instagramUrl || "",
+      facebookUrl: p.facebookUrl || "",
+      googlePlaceId: gid,
+      placeRating: p.rating || null,
+      placeReviews: p.reviews || null,
+      placeLat: p.lat || null,
+      placeLng: p.lng || null,
+      discoveryQuery: p.query || "",
+      notes: p.notes || "",
+    });
+    const lead = addLead(biz.id, { source: p.source || "discovery" });
+    return { business: biz, lead, created: true };
   }
   function addContact(businessId, data) {
     const c = Object.assign({ id: U().uid("c"), businessId, createdAt: U().now() }, data);
@@ -422,6 +459,7 @@
     byId, businessOf, auditOf, leadOf, contactsFor, clientOf, ensureClient, paymentsFor, proposalsFor,
     outreachFor, followupsFor, tasksFor, notesFor, activityFor,
     addActivity, addBusiness, addLead, addContact, upsertAudit,
+    addDiscoveredBusiness, businessByGooglePlace, businessByName,
     nextFollowup, nextTask,
     pipelineValue, wonRevenue, outstandingPayments, mrr,
     leadRows, clientRows,

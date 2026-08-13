@@ -198,6 +198,15 @@ V61.Pages = V61.Pages || {};
       '<div style="font-weight:700;margin-bottom:6px">Clear all data</div>' +
       '<p style="font-size:12.5px;color:var(--text-3);margin-bottom:12px">Remove all ' + leadCount + ' leads, clients, proposals and activity, and start with a clean database.</p>' +
       '<div style="display:flex;gap:8px"><button class="btn btn-danger" id="clear-data">' + I.trash + " Clear all data</button></div></div></div></div>" +
+
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.search + ' Data sources</div></div><div class="panel-body">' +
+      '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:12px">Lead Discovery uses the <b style="color:var(--text)">Google Places API</b> to find real businesses by location and category. Add your own API key below — the CRM never invents businesses or reviews; it only shows what the API returns.</div>' +
+      '<div class="field"><label>Google Maps / Places API key</label>' +
+      '<input class="input" id="set-gkey" type="password" value="' + U().escapeHtml(s.googleMapsApiKey || "") + '" placeholder="AIza..." autocomplete="off">' +
+      '<div class="hint">Get one free at console.cloud.google.com → enable <b>Places API</b> → create an API key and restrict it to your site&#39;s referrer.</div></div>' +
+      '<button class="btn btn-primary" id="save-gkey">' + I.check + " Save data source</button>" +
+      '<div style="font-size:12px;color:var(--text-3);margin-top:10px">Status: ' + (s.googleMapsApiKey ? '<b style="color:var(--ok)">Configured — discovery search enabled</b>' : '<b style="color:var(--warn)">Not configured — discovery shows setup help</b>') + "</div>" +
+      "</div></div>" +
       "</div>" +
 
       '<div style="display:flex;flex-direction:column;gap:18px">' +
@@ -213,6 +222,13 @@ V61.Pages = V61.Pages || {};
       s.profileName = el.querySelector("#set-name").value.trim() || "Christian";
       s.company = el.querySelector("#set-company").value.trim() || "Vision 61 Studios";
       S().save(); V61.Toast.success("Profile saved"); V61.App.renderShell();
+    });
+    const gkeyBtn = el.querySelector("#save-gkey");
+    if (gkeyBtn) gkeyBtn.addEventListener("click", () => {
+      const v = (el.querySelector("#set-gkey").value || "").trim();
+      s.googleMapsApiKey = v;
+      if (v) s.discoveryProvider = "google";
+      S().save(); V61.Toast.success(v ? "Data source saved — discovery search is now active" : "Data source removed");
     });
     el.querySelectorAll("[data-theme-btn]").forEach((b) => b.addEventListener("click", () => { V61.App.setTheme(b.dataset.themeBtn); renderSettings(); }));
     const clear = el.querySelector("#clear-data");
