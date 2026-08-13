@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Outreach Tracker</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Outreach" />
+<meta name="theme-color" content="#202b45" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23202b45'/%3E%3Ctext x='50' y='64' font-size='48' text-anchor='middle' fill='%23f6f1e5' font-family='Georgia,serif'%3EO%3C/text%3E%3C/svg%3E" />
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: #f6f1e5; font-family: Georgia, 'Times New Roman', serif; color: #202b45; }
+  .sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 28px 18px calc(80px + env(safe-area-inset-bottom)); padding-top: calc(28px + env(safe-area-inset-top)); }
+  .eyebrow { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #a97f2c; font-weight: 700; margin-bottom: 6px; }
+  h1 { font-size: 30px; margin: 0; font-weight: 400; line-height: 1.15; }
+  .sub { font-size: 13.5px; color: #776f61; margin-top: 6px; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 18px; -ms-overflow-style: none; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex-shrink: 0; padding: 6px 13px; border-radius: 20px; font-size: 12.5px; font-weight: 600; border: 1.5px solid #dcd2bb; background: #fffdf7; color: #6f6759; cursor: pointer; }
+  .chip.active { border-color: #202b45; background: #202b45; color: #f6f1e5; }
+  .search-wrap { position: relative; margin-bottom: 16px; }
+  .search-wrap input { width: 100%; padding: 10px 12px 10px 36px; border-radius: 10px; border: 1px solid #dcd2bb; background: #fffdf7; font-size: 14px; color: #202b45; outline: none; }
+  .search-icon { position: absolute; left: 13px; top: 12px; color: #9a927f; font-size: 14px; }
+  .add-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 12px; border-radius: 10px; background: #fffdf7; border: 1.5px dashed #c9a04f; color: #a97f2c; font-size: 14px; font-weight: 600; margin-bottom: 18px; cursor: pointer; }
+  .form-card { background: #fffdf7; border-radius: 12px; padding: 16px; margin-bottom: 18px; border: 1px solid #e3d9c2; display: grid; gap: 9px; }
+  .form-card input, .form-card textarea { padding: 10px 12px; border-radius: 8px; border: 1px solid #dcd2bb; font-size: 13.5px; color: #202b45; outline: none; background: #fcf8ee; font-family: inherit; width: 100%; }
+  .form-actions { display: flex; gap: 8px; margin-top: 2px; }
+  .btn-primary { flex: 1; padding: 10px; border-radius: 8px; background: #202b45; color: #f6f1e5; font-size: 13.5px; font-weight: 600; border: none; cursor: pointer; }
+  .btn-secondary { padding: 10px 16px; border-radius: 8px; background: #efe6d3; color: #6f6759; font-size: 13.5px; font-weight: 600; border: none; cursor: pointer; }
+  .list { display: grid; gap: 10px; }
+  .empty { text-align: center; padding: 40px 0; color: #9a927f; font-size: 13.5px; }
+  .card { background: #fffdf7; border-radius: 12px; padding: 15px; border: 1px solid #e3d9c2; border-left: 4px solid #7c7668; }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .card-name { font-size: 16.5px; font-weight: 600; line-height: 1.3; }
+  .card-type { font-size: 11.5px; color: #a97f2c; font-weight: 600; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .del-btn { background: none; border: none; padding: 4px; color: #c2b9a2; cursor: pointer; flex-shrink: 0; font-size: 15px; }
+  .meta-line { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; color: #6f6759; margin-top: 8px; }
+  .notes { font-size: 12.5px; color: #867e6f; margin-top: 8px; font-style: italic; line-height: 1.4; }
+  .status-select { width: 100%; padding: 8px 30px 8px 11px; border-radius: 8px; border: 1.5px solid #7c7668; background: #7c76681a; color: #7c7668; font-size: 13px; font-weight: 700; outline: none; margin-top: 11px; appearance: none; -webkit-appearance: none; font-family: inherit; }
+  .select-wrap { position: relative; }
+  .select-arrow { position: absolute; right: 10px; top: 21px; pointer-events: none; font-size: 11px; }
+  .install-hint { background: #fbf3e3; border: 1px solid #e3d9c2; border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: #6f6759; margin-bottom: 18px; line-height: 1.5; }
+  .install-hint b { color: #a97f2c; }
+
+  /* ── New: toolbar row ── */
+  .toolbar { display: flex; gap: 8px; margin-bottom: 14px; }
+  .toolbar-btn { display: inline-flex; align-items: center; gap: 5px; padding: 8px 14px; border-radius: 8px; background: #fffdf7; border: 1.5px solid #dcd2bb; color: #6f6759; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .toolbar-btn:active { background: #efe6d3; }
+
+  /* ── New: WhatsApp & copy action row ── */
+  .card-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .wa-btn, .copy-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    text-decoration: none; border: none; cursor: pointer;
+  }
+  .wa-btn { background: #25d366; color: #fff; }
+  .wa-btn:active { background: #1da851; }
+  .copy-btn { background: #efe6d3; color: #6f6759; border: 1px solid #dcd2bb; }
+  .copy-btn:active { background: #e3d9c2; }
+
+  /* ── New: contacted timestamp ── */
+  .contacted-stamp { font-size: 11px; color: #9a927f; margin-top: 6px; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: #202b45; color: #f6f1e5; padding: 10px 20px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; opacity: 0; transition: all 0.3s ease;
+    pointer-events: none; z-index: 999;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  svg { vertical-align: -2px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <div class="eyebrow">No-website leads</div>
+    <h1>Outreach Tracker</h1>
+    <div class="sub sans" id="subCount">0 businesses found on Maps</div>
+  </div>
+
+  <div class="install-hint sans" id="installHint">
+    📱 <b>Tip:</b> tap your browser's share/menu button and choose "Add to Home Screen" to use this like an app.
+  </div>
+
+  <div class="chips sans" id="chips"></div>
+
+  <div class="search-wrap">
+    <span class="search-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg></span>
+    <input id="searchInput" class="sans" placeholder="Search by name or area..." />
+  </div>
+
+  <!-- ── Toolbar: Export + Sort ── -->
+  <div class="toolbar sans">
+    <button class="toolbar-btn" id="exportBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12m0 0l-4-4m4 4l4-4"/><path d="M4 20h16"/></svg> Export CSV</button>
+    <button class="toolbar-btn" id="sortBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 20V4m0 0L4 8m4-4l4 4"/><path d="M16 4v16m0 0l-4-4m4 4l4-4"/></svg> <span id="sortLabel">Newest first</span></button>
+  </div>
+
+  <button class="add-btn sans" id="showFormBtn"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add a business</button>
+
+  <div class="form-card" id="formCard" style="display:none;">
+    <input id="fName" placeholder="Business name" />
+    <input id="fPhone" placeholder="Phone / WhatsApp number" />
+    <input id="fAddress" placeholder="Address / area" />
+    <input id="fType" placeholder="Business type (e.g. restaurant, salon)" />
+    <textarea id="fNotes" placeholder="Notes (optional)" rows="2"></textarea>
+    <div class="form-actions">
+      <button class="btn-primary" id="saveLeadBtn">Add lead</button>
+      <button class="btn-secondary" id="cancelLeadBtn">Cancel</button>
+    </div>
+  </div>
+
+  <div class="list" id="list"></div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast sans" id="toast"></div>
+
+<script>
+const STATUSES = [
+  { key: "new", label: "Found", color: "#7c7668" },
+  { key: "contacted", label: "Contacted", color: "#b67c2c" },
+  { key: "replied", label: "Replied", color: "#335fa8" },
+  { key: "meeting", label: "Meeting set", color: "#6b51b5" },
+  { key: "won", label: "Won", color: "#3f8f55" },
+  { key: "declined", label: "Declined", color: "#a63d37" },
+];
+
+const SEED = [{
+  id: "seed-1",
+  name: "Immeri Ghana Limited",
+  phone: "+233 24 361 0079",
+  address: "Nairobi Street, East Legon Residential Area (Opp. MJ Grand Hotel), Accra",
+  type: "Consultant",
+  notes: "Related listing: ADWELLE (IMMERI GHANA LIMITED), 15 Abotsi St — ask if same business.",
+  status: "new",
+}];
+
+const YOUR_NAME = "Christian Twum Gyan";
+
+// ── Inline SVG icons (no external dependencies) ──
+function svgIcon(inner, size = 14) {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+}
+const ICONS = {
+  pin: svgIcon('<path d="M12 21s-7-5.3-7-11a7 7 0 0 1 14 0c0 5.7-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>'),
+  phone: svgIcon('<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>'),
+  trash: svgIcon('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/>'),
+  copy: svgIcon('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+  clock: svgIcon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>'),
+  whatsapp: `<svg viewBox="0 0 448 512" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/></svg>`,
+};
+
+let leads = JSON.parse(localStorage.getItem("leads") || "null") || SEED;
+let filter = "all";
+let query = "";
+let sortNewest = true; // true = newest first (default)
+
+function save() {
+  localStorage.setItem("leads", JSON.stringify(leads));
+}
+
+function statusOf(key) {
+  return STATUSES.find(s => s.key === key) || STATUSES[0];
+}
+
+// ── Outreach message builder ──
+function buildMessage(businessName) {
+  return `Hi! I'm ${YOUR_NAME}, a computer science student at GCTU. I came across ${businessName} on Google Maps and noticed there's no website listed yet. I'm currently building my portfolio by creating websites for real businesses, so I'm offering my services at student-friendly rates right now. A website would help people find ${businessName} more easily, see what you offer, your location and contact info, and build trust before they even reach out or visit. Would you be open to a quick chat about what you'd need? Happy to share a couple of examples of my work too. No pressure either way — just thought it was worth reaching out! Thanks, ${YOUR_NAME}`;
+}
+
+// ── Phone digits only ──
+function phoneDigits(phone) {
+  return (phone || "").replace(/\D/g, "");
+}
+
+// ── Relative time ──
+function relativeTime(ts) {
+  if (!ts) return "";
+  const diff = Date.now() - ts;
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "1 day ago";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days / 30);
+  if (months === 1) return "1 month ago";
+  return `${months} months ago`;
+}
+
+// ── Toast ──
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+// ── CSV Export ──
+function exportCSV() {
+  const header = ["Name","Phone","Address","Type","Status","Last Contacted","Notes"];
+  const rows = leads.map(l => {
+    const s = statusOf(l.status);
+    const lc = l.lastContacted ? new Date(l.lastContacted).toISOString() : "";
+    return [l.name, l.phone||"", l.address||"", l.type||"", s.label, lc, l.notes||""];
+  });
+  const csvContent = [header, ...rows]
+    .map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `outreach-leads-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast("CSV exported ✓");
+}
+
+function renderChips() {
+  const el = document.getElementById("chips");
+  const all = `<button class="chip ${filter==='all'?'active':''}" data-key="all">All (${leads.length})</button>`;
+  const rest = STATUSES.map(s => {
+    const count = leads.filter(l => l.status === s.key).length;
+    const active = filter === s.key;
+    return `<button class="chip" data-key="${s.key}" style="${active ? `border-color:${s.color};background:${s.color};color:#fff;` : ''}">${s.label} (${count})</button>`;
+  }).join("");
+  el.innerHTML = all + rest;
+  el.querySelectorAll(".chip").forEach(btn => {
+    btn.addEventListener("click", () => { filter = btn.dataset.key; renderAll(); });
+  });
+}
+
+function renderList() {
+  const list = document.getElementById("list");
+  let filtered = leads.filter(l => {
+    const matchesFilter = filter === "all" || l.status === filter;
+    const q = query.toLowerCase();
+    const matchesQuery = !q || l.name.toLowerCase().includes(q) || (l.address||"").toLowerCase().includes(q);
+    return matchesFilter && matchesQuery;
+  });
+
+  // Sort: by id timestamp (leads are unshifted so newest is first by default)
+  // We sort by the numeric part of the id for consistency
+  if (!sortNewest) {
+    filtered = filtered.slice().reverse();
+  }
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty sans">No leads match here yet.</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(lead => {
+    const s = statusOf(lead.status);
+    const optionsHtml = STATUSES.map(st => `<option value="${st.key}" ${st.key===lead.status?'selected':''}>${st.label}</option>`).join("");
+    const digits = phoneDigits(lead.phone);
+    const msg = buildMessage(lead.name);
+    const waUrl = digits ? `https://wa.me/${digits}?text=${encodeURIComponent(msg)}` : "";
+    const contactedStamp = lead.lastContacted ? `<div class="contacted-stamp sans">${ICONS.clock} Contacted ${relativeTime(lead.lastContacted)}</div>` : "";
+
+    return `
+    <div class="card" style="border-left-color:${s.color}" data-id="${lead.id}">
+      <div class="card-top">
+        <div>
+          <div class="card-name">${escapeHtml(lead.name)}</div>
+          ${lead.type ? `<div class="card-type">${escapeHtml(lead.type)}</div>` : ''}
+        </div>
+        <button class="del-btn" data-del="${lead.id}">${ICONS.trash}</button>
+      </div>
+      ${lead.address ? `<div class="meta-line sans">${ICONS.pin} <span>${escapeHtml(lead.address)}</span></div>` : ''}
+      ${lead.phone ? `<div class="meta-line sans">${ICONS.phone} <span>${escapeHtml(lead.phone)}</span></div>` : ''}
+      ${lead.notes ? `<div class="notes sans">${escapeHtml(lead.notes)}</div>` : ''}
+      ${contactedStamp}
+      <div class="card-actions sans">
+        ${waUrl ? `<a class="wa-btn" href="${waUrl}" target="_blank" rel="noopener">${ICONS.whatsapp} WhatsApp</a>` : ''}
+        <button class="copy-btn" data-copy="${lead.id}">${ICONS.copy} Copy message</button>
+      </div>
+      <div class="select-wrap">
+        <select class="status-select sans" data-status="${lead.id}" style="border-color:${s.color};background:${s.color}1a;color:${s.color}">
+          ${optionsHtml}
+        </select>
+        <span class="select-arrow" style="color:${s.color}">▾</span>
+      </div>
+    </div>`;
+  }).join("");
+
+  list.querySelectorAll("[data-del]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      leads = leads.filter(l => l.id !== btn.dataset.del);
+      save(); renderAll();
+    });
+  });
+  list.querySelectorAll("[data-status]").forEach(sel => {
+    sel.addEventListener("change", () => {
+      const lead = leads.find(l => l.id === sel.dataset.status);
+      if (sel.value === "contacted" && lead.status !== "contacted") {
+        lead.lastContacted = Date.now();
+      }
+      lead.status = sel.value;
+      save(); renderAll();
+    });
+  });
+  // Copy-message buttons
+  list.querySelectorAll("[data-copy]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const lead = leads.find(l => l.id === btn.dataset.copy);
+      if (!lead) return;
+      const msg = buildMessage(lead.name);
+      navigator.clipboard.writeText(msg).then(() => {
+        showToast("Message copied ✓");
+      }).catch(() => {
+        // Fallback for older browsers
+        const ta = document.createElement("textarea");
+        ta.value = msg;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast("Message copied ✓");
+      });
+      // Auto-advance from "new" → "contacted"
+      if (lead.status === "new") {
+        lead.status = "contacted";
+        lead.lastContacted = Date.now();
+        save(); renderAll();
+      }
+    });
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderAll() {
+  document.getElementById("subCount").textContent =
+    `${leads.length} ${leads.length === 1 ? 'business' : 'businesses'} found on Maps · track who you've messaged`;
+  renderChips();
+  renderList();
+}
+
+document.getElementById("searchInput").addEventListener("input", (e) => {
+  query = e.target.value;
+  renderList();
+});
+
+document.getElementById("showFormBtn").addEventListener("click", () => {
+  document.getElementById("formCard").style.display = "grid";
+  document.getElementById("showFormBtn").style.display = "none";
+});
+document.getElementById("cancelLeadBtn").addEventListener("click", () => {
+  document.getElementById("formCard").style.display = "none";
+  document.getElementById("showFormBtn").style.display = "flex";
+});
+document.getElementById("saveLeadBtn").addEventListener("click", () => {
+  const name = document.getElementById("fName").value.trim();
+  if (!name) return;
+  const lead = {
+    id: "l-" + Date.now(),
+    name,
+    phone: document.getElementById("fPhone").value.trim(),
+    address: document.getElementById("fAddress").value.trim(),
+    type: document.getElementById("fType").value.trim(),
+    notes: document.getElementById("fNotes").value.trim(),
+    status: "new",
+  };
+  leads.unshift(lead);
+  save();
+  ["fName","fPhone","fAddress","fType","fNotes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("formCard").style.display = "none";
+  document.getElementById("showFormBtn").style.display = "flex";
+  renderAll();
+});
+
+// ── Export CSV ──
+document.getElementById("exportBtn").addEventListener("click", exportCSV);
+
+// ── Sort toggle ──
+document.getElementById("sortBtn").addEventListener("click", () => {
+  sortNewest = !sortNewest;
+  document.getElementById("sortLabel").textContent = sortNewest ? "Newest first" : "Oldest first";
+  renderAll();
+});
+
+// Hide install hint if already running as installed PWA
+if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+  document.getElementById("installHint").style.display = "none";
+}
+
+renderAll();
+</script>
+</body>
+</html>
