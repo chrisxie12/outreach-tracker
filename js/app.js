@@ -35,6 +35,8 @@
 
   const App = { theme: "dark", collapsed: false, current: "" };
 
+  const APP_VER = "1.1";
+
   function logoImg() {
     return '<img class="logo" src="images/Vision 61 Logo.jpeg" alt="Vision 61 Studios logo">';
   }
@@ -60,7 +62,8 @@
         }).join("")
       ).join("") + "</nav>" +
       '<div class="side-foot"><div class="side-user"><div class="avatar">' + U().initials(s.profileName || "C") + "</div>" +
-      '<div><div class="u-name">' + U().escapeHtml(s.profileName || "Christian") + '</div><div class="u-role">' + U().escapeHtml(s.company || "Vision 61 Studios") + "</div></div></div></div>";
+      '<div><div class="u-name">' + U().escapeHtml(s.profileName || "Christian") + '</div><div class="u-role">' + U().escapeHtml(s.company || "Vision 61 Studios") + "</div></div></div>" +
+      '<div class="side-ver">v' + APP_VER + " · local-first CRM</div></div>";
 
     const topbar = document.getElementById("topbar");
     topbar.innerHTML =
@@ -87,10 +90,17 @@
     }));
     document.getElementById("sidebarBackdrop").addEventListener("click", closeDrawer);
     document.querySelectorAll("[data-palette]").forEach((b) => b.addEventListener("click", openPalette));
-    document.querySelector("[data-theme]").addEventListener("click", () => setTheme(App.theme === "dark" ? "light" : "dark"));
+    const themeBtn = document.querySelector(".topbar [data-theme]");
+    if (themeBtn) themeBtn.addEventListener("click", () => setTheme(App.theme === "dark" ? "light" : "dark"));
     document.querySelector("[data-notif]").addEventListener("click", (e) => { e.stopPropagation(); toggleNotifications(e.currentTarget); });
     document.querySelector("[data-quick]").addEventListener("click", (e) => openQuickAdd(e.currentTarget));
     document.querySelector("[data-user]").addEventListener("click", (e) => openUserMenu(e.currentTarget));
+
+    const fab = document.getElementById("fab");
+    if (fab) {
+      fab.innerHTML = '<button class="fab" title="Quick add (N)">' + I.plus + "</button>";
+      fab.querySelector(".fab").addEventListener("click", (e) => openQuickAdd(e.currentTarget));
+    }
   }
 
   function closeDrawer() {

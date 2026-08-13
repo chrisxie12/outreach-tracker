@@ -26,7 +26,8 @@ V61.Pages = V61.Pages || {};
   function kpi(label, value, delta, deltaDir, sub, icon, accent) {
     const dArrow = deltaDir === "up" ? I.trending : deltaDir === "down" ? I.arrowDown : "";
     return '<div class="kpi' + (accent ? " accent" : "") + '">' +
-      '<div class="k-label">' + (I[icon] || I.plus) + U().escapeHtml(label) + "</div>" +
+      '<div class="k-label">' + U().escapeHtml(label) + "</div>" +
+      '<div class="k-ic">' + (I[icon] || I.plus) + "</div>" +
       '<div class="k-value">' + value + "</div>" +
       (delta != null
         ? '<span class="k-delta ' + deltaDir + '">' + dArrow + (delta >= 0 ? "+" : "") + delta + '%<span class="k-comp">' + U().escapeHtml(sub || "vs last month") + "</span></span>"
@@ -129,22 +130,68 @@ V61.Pages = V61.Pages || {};
       "</div>";
   }
 
-  function actionsHtml() {
-    return '<div class="page-actions">' +
-      '<button class="btn" data-cmd="go:#/discovery">' + I.scan + " Find Businesses</button>" +
-      '<button class="btn btn-primary" data-cmd="addLead">' + I.plus + " Add Lead</button>" +
-      "</div>";
-  }
-
   function welcome() {
     const name = (S().db.settings.profileName || "there").split(" ")[0];
     const rows = S().leadRows();
     const dueToday = S().db.followups.filter((f) => f.status === "pending" && U().dayStart(f.dueDate) === U().todayStart()).length;
+    const dueOverdue = S().db.followups.filter((f) => f.status === "pending" && (f.dueDate || 0) < U().todayStart()).length;
     const hot = rows.filter((r) => r.leadScore >= 80 && !["won", "lost"].includes(r.lead.stage)).length;
-    const subtitle = dueToday ? "You have " + dueToday + " follow-up" + (dueToday > 1 ? "s" : "") + " due today." + (hot ? " And " + hot + " hot lead" + (hot > 1 ? "s" : "") + " ready for outreach." : "") : "Here's what's happening with your outreach today.";
-    return '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">Vision 61 Studios</div>' +
-      '<h1 class="page-title">' + U().greeting() + ", " + U().escapeHtml(name) + ".</h1>" +
-      '<p class="page-sub">' + U().escapeHtml(subtitle) + "</p></div>" + actionsHtml() + "</div>";
+    const won = rows.filter((r) => r.lead.stage === "won").length;
+    const pipelineVal = S().pipelineValue();
+    const subtitle = dueToday || dueOverdue
+      ? "You have " + (dueToday + dueOverdue) + " follow-up" + (dueToday + dueOverdue > 1 ? "s" : "") + " due now" + (hot ? " and " + hot + " hot lead" + (hot > 1 ? "s" : "") + " ready for outreach." : ".")
+      : "Here's what's happening with your outreach today.";
+    return '<div class="hero">' +
+      '<div style="position:relative;z-index:1;flex:1;min-width:260px">' +
+      '<div class="h-eyebrow">Vision 61 Studios</div>' +
+      '<h1>' + U().greeting() + ", " + U().escapeHtml(name) + ".</h1>" +
+      '<p>' + U().escapeHtml(subtitle) + "</p>" +
+      '<div class="h-stat"><span>' + I.trophy + " <b>" + won + "</b> won</span><span style='width:1px;height:16px;background:var(--border-2)'></span>" +
+      '<span>' + I.zap + " <b>" + hot + "</b> hot</span><span style='width:1px;height:16px;background:var(--border-2)'></span>" +
+      '<span>' + I.dollar + " <b>" + U().formatMoney(pipelineVal) + "</b> pipeline</span></div></div>" +
+      '<div class="h-actions">' +
+      '<button class="btn" data-cmd="go:#/discovery">' + I.scan + " Find Businesses</button>" +
+      '<button class="btn btn-primary" data-cmd="addLead">' + I.plus + " Add Lead</button>" +
+      "</div></div>";
+  }
+
+  function hotLeadsPanel() {
+    const rows = S().leadRows().filter((r) => r.leadScore >= 70 && !["won", "lost"].includes(r.lead.stage)).sort((a, b) => b.leadScore - a.leadScore).slice(0, 5);
+    return '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.zap + " Hot leads to contact" + '<span class="sub">' + rows.length + "</span></div></div>" +
+      '<div class="panel-body"><div class="stack">' + (rows.length ? rows.map((r) => {
+        const b = r.business || {};
+        const wa = b.whatsapp || b.phone;
+        return '<div class="row-card" style="padding:11px 13px"><div class="rc-main"><div class="rc-title" style="font-size:13px"><a href="#/leads/' + r.lead.id + '" style="color:inherit">' + U().escapeHtml(b.name) + "</a></div>" +
+          '<div class="rc-sub">' + U().escapeHtml([b.category, b.city].filter(Boolean).join(" • ")) + ' · <b style="color:var(--accent)">' + U().formatMoney(r.lead.estimatedValue) + "</b></div></div>" +
+          '<div class="rc-actions">' + UI.miniScore(r.leadScore) +
+          (wa ? '<a class="btn btn-sm" target="_blank" rel="noopener" href="' + U().waLink(wa, S().buildMessage(b.name, b.category)) + '">' + I.whatsapp + "</a>" : "") + "</div></div>";
+      }).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No hot leads right now.</div>') + "</div></div></div>";
+  }
+
+  function duePanel() {
+    const pending = S().db.followups.filter((f) => f.status === "pending").sort((a, b) => (a.dueDate || 0) - (b.dueDate || 0)).slice(0, 5);
+    return '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.calendar + " Follow-ups due" + '<span class="sub">' + pending.length + "</span></div>" +
+      '<a class="btn btn-sm btn-ghost" href="#/followups">' + I.eye + " All</a></div>" +
+      '<div class="panel-body"><div class="stack">' + (pending.length ? pending.map((f) => {
+        const lead = S().byId("leads", f.leadId);
+        const biz = lead ? S().businessOf(lead) : null;
+        const over = (f.dueDate || 0) < U().todayStart();
+        return '<div class="assoc-row"><div style="flex-shrink:0;width:30px;height:30px;border-radius:8px;background:' + (over ? "var(--danger)" : "var(--accent-soft)") + ';color:' + (over ? "#fff" : "var(--accent)") + ';display:flex;align-items:center;justify-content:center">' + I.calendar + '</div>' +
+          '<div class="a-main"><div class="a-title">' + U().escapeHtml(f.title) + '</div><div class="a-sub">' + (biz ? U().escapeHtml(biz.name) + " · " : "") + U().relativeDue(f.dueDate) + "</div></div>" +
+          '<a class="btn btn-sm btn-ghost" href="#/leads/' + f.leadId + '">' + I.chevronR + "</a></div>";
+      }).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No follow-ups due.</div>') + "</div></div></div>";
+  }
+
+  function activityPanel() {
+    const act = S().db.activity.slice(0, 6);
+    const icons = { lead: I.plus, note: I.pencil, stage: I.filter, outreach: I.send, followup: I.calendar, task: I.checkSquare, contact: I.users, proposal: I.fileText, system: I.bell };
+    return '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.clock + " Recent activity" + "</div></div>" +
+      '<div class="panel-body"><div class="timeline">' + (act.length ? act.map((a) => {
+        const lead = a.leadId ? S().byId("leads", a.leadId) : null;
+        const biz = lead ? S().businessOf(lead) : null;
+        return '<div class="tl-item' + (a.type === "note" ? " muted" : "") + '"><div class="tl-time">' + (icons[a.type] || I.clock) + U().relativeTime(a.createdAt) + "</div>" +
+          '<div class="tl-text">' + U().escapeHtml(a.text) + (biz ? ' <a href="#/leads/' + lead.id + '" class="tl-strong">' + U().escapeHtml(biz.name) + "</a>" : "") + "</div></div>";
+      }).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No activity yet.</div>') + "</div></div></div>";
   }
 
   function render() {
@@ -152,9 +199,12 @@ V61.Pages = V61.Pages || {};
     el.innerHTML =
       welcome() +
       buildKpis() +
-      '<div class="chart-grid">' +
+      '<div class="dash-grid">' +
+      '<div style="display:flex;flex-direction:column;gap:18px">' +
       '<div class="panel chart-wrap"><div class="panel-head"><div class="panel-title">' + I.pie + "Outreach Performance" + '<span class="sub">Last 6 months</span></div></div><div class="panel-body">' + monthlyBars() + "</div></div>" +
       '<div class="panel chart-wrap"><div class="panel-head"><div class="panel-title">' + I.trending + "Sales Funnel" + '<span class="sub">All time</span></div></div><div class="panel-body">' + funnel() + "</div></div>" +
+      "</div>" +
+      '<div style="display:flex;flex-direction:column;gap:18px">' + hotLeadsPanel() + duePanel() + activityPanel() + "</div>" +
       "</div>" +
       '<div style="margin-top:18px">' + metrics() + "</div>";
     UI.bind(el);

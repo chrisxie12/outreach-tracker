@@ -22,20 +22,31 @@ V61.Pages = V61.Pages || {};
     const rows = S().leadRows();
     const total = rows.length;
     const won = rows.filter((r) => r.lead.stage === "won").length;
+    const lost = rows.filter((r) => r.lead.stage === "lost").length;
     const active = rows.filter((r) => !["won", "lost"].includes(r.lead.stage)).length;
+    const activeVal = pipelineValue();
+    const wonVal = S().wonRevenue();
     el.innerHTML =
       '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">Sales</div>' +
-      '<h1 class="page-title">Pipeline</h1><p class="page-sub">' + active + " active deals · " + won + " won · " + U().formatMoney(pipelineValue()) + " in play</p></div>" +
+      '<h1 class="page-title">Pipeline</h1><p class="page-sub">' + active + " active deals · " + won + " won · " + lost + " lost</p></div>" +
       '<div class="page-actions"><button class="btn" data-cmd="addLead">' + I.plus + " Add Lead</button></div></div>" +
+      '<div class="stat-strip">' +
+      '<div class="ss"><span class="ss-label">Active deals</span><span class="ss-value">' + active + "</span></div>" +
+      '<div class="ss acc"><span class="ss-label">Pipeline value</span><span class="ss-value">' + U().formatCompact(activeVal) + "</span></div>" +
+      '<div class="ss ok"><span class="ss-label">Won</span><span class="ss-value">' + won + "</span></div>" +
+      '<div class="ss"><span class="ss-label">Won value</span><span class="ss-value">' + U().formatCompact(wonVal) + "</span></div>" +
+      '<div class="ss bad"><span class="ss-label">Lost</span><span class="ss-value">' + lost + "</span></div>" +
+      '<div class="ss"><span class="ss-label">Avg deal</span><span class="ss-value">' + U().formatCompact(Math.round(activeVal / Math.max(1, active))) + "</span></div>" +
+      "</div>" +
       '<div class="kanban" id="pipeline-kanban">' + S().STAGES.map((s) => {
         const col = rows.filter((r) => r.lead.stage === s.key);
-        const w = s.key === "won" || s.key === "lost" ? "50%" : "10%";
         const sum = stageValue(s.key);
-        return '<div class="kb-col" data-stage="' + s.key + '"><div class="kb-col-head">' +
+        return '<div class="kb-col' + (s.key === "won" ? " win-col" : s.key === "lost" ? " lose-col" : "") + '" data-stage="' + s.key + '"><div class="kb-col-head">' +
           '<span class="kb-col-title"><span class="badge-dot" style="background:' + s.color + '"></span>' + s.label + "</span>" +
-          '<span class="kb-count">' + col.length + "</span></div>" +
+          '<span class="kb-count">' + col.length + "</span>" +
+          (sum ? '<span class="kb-col-value">' + U().formatCompact(sum) + "</span>" : "") + "</div>" +
           '<div class="progress" style="margin:0 13px 4px"><i style="width:' + Math.round((col.length / Math.max(1, total)) * 100) + '%;background:' + s.color + '"></i></div>' +
-          '<div class="kb-col-body">' + col.map((r) => {
+          '<div class="kb-col-body">' + (col.length ? col.map((r) => {
             const b = r.business || {};
             const fu = S().nextFollowup(r.lead.id);
             const wa = b.whatsapp || b.phone;
@@ -45,9 +56,10 @@ V61.Pages = V61.Pages || {};
               '<span style="display:flex;gap:4px;align-items:center">' + UI.miniScore(r.leadScore) + "</span></div>" +
               '<div class="kb-meta"><span class="kb-value">' + U().formatMoney(r.lead.estimatedValue) + "</span>" +
               (fu ? '<span class="kb-due ' + (fu.dueDate < U().todayStart() ? "overdue" : "") + '">' + I.clock + U().relativeDue(fu.dueDate) + "</span>" : "") +
-              (wa ? '<a class="mini-btn" style="padding:1px 7px" target="_blank" rel="noopener" href="' + U().waLink(wa) + '">' + I.whatsapp + "</a>" : "") +
+              (wa ? '<a class="mini-btn" style="padding:1px 7px;margin-left:auto" target="_blank" rel="noopener" href="' + U().waLink(wa) + '">' + I.whatsapp + "</a>" : "") +
               "</div></div>";
-          }).join("") + '</div><div style="padding:9px 13px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-3);font-weight:600">' + U().formatMoney(sum) + "</div></div>";
+          }).join("") : '<div class="kb-empty">Drop leads here</div>') + "</div>" +
+          '<div class="kb-col-foot"><span>Total</span><b>' + U().formatMoney(sum) + "</b></div></div>";
       }).join("") + "</div>";
     UI.bind(el);
     bindDrag();

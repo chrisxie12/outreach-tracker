@@ -83,16 +83,27 @@ V61.Pages = V61.Pages || {};
     }
 
     m.setBody(
-      '<div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap"><div id="audit-ring">' + UI.scoreRing(S().digitalScore(audit), "Digital") + "</div>" +
+      '<div class="audit-live"><div id="audit-ring">' + UI.scoreRing(S().digitalScore(audit), "Digital") + "</div>" +
+      '<div class="audit-break" id="audit-break">' + breakdownHtml() + "</div></div>" +
+      '<div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap">' +
       '<div><div style="font-weight:700;font-size:14px">Tap each item that is true for this business.</div>' +
       '<div style="font-size:12.5px;color:var(--text-3)">The Digital Presence Score updates as you go.</div></div></div>' +
       sectionHtml("website") + sectionHtml("google") + sectionHtml("social") + sectionHtml("branding") + sectionHtml("conversion") + sectionHtml("seo")
     );
     m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-save>' + (existing ? "Save Audit" : "Save Audit") + "</button>");
 
+    function breakdownHtml() {
+      return S().auditBreakdown(audit).map((b) =>
+        '<div class="ab-row"><span class="ab-label">' + b.label + "</span><span class='ab-bar'>" + UI.scoreBar(b.score) + "</span><span class='ab-val'>" + b.score + "</span></div>"
+      ).join("") +
+      '<div class="audit-band">' + UI.badge(S().scoreBand(S().digitalScore(audit)).label, S().scoreBand(S().digitalScore(audit)).color, true) + "</div>";
+    }
+
     function recalc() {
       const ring = m.body.querySelector("#audit-ring");
       if (ring) ring.innerHTML = UI.scoreRing(S().digitalScore(audit), "Digital");
+      const br = m.body.querySelector("#audit-break");
+      if (br) br.innerHTML = breakdownHtml();
     }
     m.body.querySelectorAll(".check-item").forEach((it) => {
       it.addEventListener("click", () => {

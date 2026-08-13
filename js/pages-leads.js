@@ -8,7 +8,7 @@ V61.Pages = V61.Pages || {};
   const I = V61.Icons;
   const UI = V61.UI;
 
-  const state = { view: "table", query: "", cat: "all", loc: "all", stage: "all", contact: "all", sort: "newest", selected: new Set(), tempDrop: null };
+  const state = { view: "table", query: "", cat: "all", loc: "all", stage: "all", contact: "all", temp: "all", sort: "newest", selected: new Set(), tempDrop: null };
 
   function catList() { return [...new Set(S().db.businesses.map((b) => b.category).filter(Boolean))].sort(); }
   function locList() { return [...new Set(S().db.businesses.map((b) => b.city).filter(Boolean))].sort(); }
@@ -23,6 +23,7 @@ V61.Pages = V61.Pages || {};
     if (state.cat !== "all") rows = rows.filter((r) => (r.business && r.business.category) === state.cat);
     if (state.loc !== "all") rows = rows.filter((r) => (r.business && r.business.city) === state.loc);
     if (state.stage !== "all") rows = rows.filter((r) => r.lead.stage === state.stage);
+    if (state.temp !== "all") rows = rows.filter((r) => (r.temperature || S().temperatureFor(r.leadScore)) === state.temp);
     if (state.contact !== "all") rows = rows.filter((r) => {
       const c = r.lead.stage;
       if (state.contact === "contacted") return !["new", "researching", "lost"].includes(c);
@@ -31,6 +32,10 @@ V61.Pages = V61.Pages || {};
     });
     const key = { newest: (r) => -r.lead.createdAt, name: (r) => (r.business && r.business.name || "").toLowerCase(), score: (r) => -r.leadScore, value: (r) => -(r.lead.estimatedValue || 0) }[state.sort];
     return rows.slice().sort((a, b) => (key(a) < key(b) ? -1 : 1));
+  }
+
+  function filtersActive() {
+    return state.query || state.cat !== "all" || state.loc !== "all" || state.stage !== "all" || state.temp !== "all" || state.contact !== "all";
   }
 
   /* ── Lead form modal ── */
@@ -87,6 +92,17 @@ V61.Pages = V61.Pages || {};
   }
 
   /* ── List header + filters ── */
+  function stageStrip() {
+    const rows = S().leadRows();
+    const chips = S().STAGES.map((s) => {
+      const n = rows.filter((r) => r.lead.stage === s.key).length;
+      return '<button class="chip' + (state.stage === s.key ? " active" : "") + '" data-stagechip="' + s.key + '"><span class="c-dot" style="background:' + s.color + '"></span>' + s.label + ' <span class="c-n">' + n + "</span></button>";
+    }).join("");
+    return '<div class="panel" style="margin-bottom:16px"><div class="chip-strip">' +
+      '<button class="chip' + (state.stage === "all" ? " active" : "") + '" data-stagechip="all"><span class="c-n">All</span></button>' + chips +
+      "</div></div>";
+  }
+
   function filterBar() {
     const total = S().db.leads.length;
     const sel = state.selected.size;
@@ -103,8 +119,10 @@ V61.Pages = V61.Pages || {};
       '<select class="select" id="flt-cat"><option value="all">All categories</option>' + catList().map((c) => '<option' + (state.cat === c ? " selected" : "") + ">" + U().escapeHtml(c) + "</option>").join("") + "</select>" +
       '<select class="select" id="flt-loc"><option value="all">All locations</option>' + locList().map((c) => '<option' + (state.loc === c ? " selected" : "") + ">" + U().escapeHtml(c) + "</option>").join("") + "</select>" +
       '<select class="select" id="flt-stage"><option value="all">All stages</option>' + S().STAGES.map((s) => '<option value="' + s.key + '"' + (state.stage === s.key ? " selected" : "") + ">" + s.label + "</option>").join("") + "</select>" +
+      '<select class="select" id="flt-temp"><option value="all">Any temperature</option>' + S().TEMPERATURES.map((t) => '<option value="' + t.key + '"' + (state.temp === t.key ? " selected" : "") + ">" + t.label + "</option>").join("") + "</select>" +
       '<select class="select" id="flt-contact"><option value="all">Any contact</option><option value="contacted" ' + (state.contact === "contacted" ? "selected" : "") + '>Contacted</option><option value="not_contacted" ' + (state.contact === "not_contacted" ? "selected" : "") + '>Not contacted</option></select>' +
       '<select class="select" id="flt-sort"><option value="newest" ' + (state.sort === "newest" ? "selected" : "") + '>Newest first</option><option value="name" ' + (state.sort === "name" ? "selected" : "") + '>Name</option><option value="score" ' + (state.sort === "score" ? "selected" : "") + '>Lead score</option><option value="value" ' + (state.sort === "value" ? "selected" : "") + '>Deal value</option></select>' +
+      (filtersActive() ? '<button class="btn btn-ghost btn-sm" id="clear-filters" title="Clear filters">' + I.x + " Clear</button>" : "") +
       '<div class="seg"><button data-v="table" class="' + (state.view === "table" ? "active" : "") + '">' + I.table + "</button><button data-v='grid' class='" + (state.view === "grid" ? "active" : "") + "'>" + I.grid + '</button><button data-v="kanban" class="' + (state.view === "kanban" ? "active" : "") + '">' + I.columns + "</button></div>" +
       "</div></div>";
   }
@@ -117,31 +135,34 @@ V61.Pages = V61.Pages || {};
       '<div style="width:32px;height:32px;border-radius:9px;background:' + UI.hexA(U().avatarColor(b.name || "?"), .15) + ';color:' + U().avatarColor(b.name) + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0">' + U().initials(b.name) + "</div>" +
       '<div><div class="b-name"><a href="#/leads/' + r.lead.id + '" data-nav-link>' + U().escapeHtml(b.name || "Untitled") + '</a></div><div class="b-cat">' + U().escapeHtml(b.category || "") + "</div></div></div></td>";
   }
-  function yesNo(url, icon) {
-    return url ? '<span style="color:var(--ok)">' + (I[icon] || I.check) + "</span>" : '<span style="color:var(--text-3);opacity:.5">—</span>';
+  function assetsHtml(b) {
+    const wa = b.whatsapp || b.phone;
+    const items = [
+      [b.website, I.globe, "Website"], [b.googleProfileUrl, I.mapPin, "Google profile"], [b.instagramUrl, I.instagram, "Instagram"], [wa, I.whatsapp, "WhatsApp"], [b.facebookUrl, I.facebook, "Facebook"],
+    ];
+    return '<span class="asset-icons" style="display:inline-flex;gap:5px">' + items.map(([v, ic, t]) =>
+      v ? '<span title="' + t + '" style="color:var(--ok);display:inline-flex">' + ic + "</span>" : '<span title="No ' + t + '" style="color:var(--text-3);opacity:.28;display:inline-flex">' + ic + "</span>"
+    ).join("") + "</span>";
   }
   function tableHtml(rows) {
     if (!rows.length) return UI.emptyState("users", "Your pipeline is empty.", "Start by adding your first business prospect.", '<button class="btn btn-primary" data-cmd="addLead">' + I.plus + " Add Lead</button>");
     const b = (r) => r.business || {};
     return '<div class="table-wrap"><table class="data"><thead><tr>' +
-      "<th></th><th>Business</th><th>Category</th><th>Location</th><th>Digital</th><th>Lead</th><th>Web</th><th>Google</th><th>IG</th><th>WhatsApp</th><th>Stage</th><th>Last contact</th><th>Next follow-up</th><th>Deal value</th>" +
+      "<th></th><th>Business</th><th>Category</th><th>Location</th><th>Digital</th><th>Lead</th><th>Assets</th><th>Stage</th><th>Last contact</th><th>Next follow-up</th><th>Deal value</th><th></th>" +
       "</tr></thead><tbody>" + rows.map((r) => {
         const fu = S().nextFollowup(r.lead.id);
         const bz = b(r);
-        const wa = bz.whatsapp || bz.phone;
         return "<tr data-row='" + r.lead.id + "'>" + bizCell(r) +
           "<td><span class='cell-sub'>" + U().escapeHtml(bz.category || "—") + "</span></td>" +
           "<td><span class='cell-sub'>" + U().escapeHtml(bz.city || "—") + "</span></td>" +
           '<td><span class="mini-score cold" style="font-size:11px">' + r.digitalScore + "</span></td>" +
           '<td>' + UI.miniScore(r.leadScore) + " " + UI.tempBadge(r.temperature || S().temperatureFor(r.leadScore)) + "</td>" +
-          "<td>" + yesNo(bz.website, "globe") + "</td>" +
-          "<td>" + yesNo(bz.googleProfileUrl, "mapPin") + "</td>" +
-          "<td>" + yesNo(bz.instagramUrl, "instagram") + "</td>" +
-          "<td>" + yesNo(wa, "whatsapp") + "</td>" +
+          "<td>" + assetsHtml(bz) + "</td>" +
           '<td>' + UI.stageBadge(r.lead.stage) + "</td>" +
           '<td><span class="cell-sub">' + (r.lead.lastContacted ? U().relativeTime(r.lead.lastContacted) : "—") + "</span></td>" +
           '<td>' + (fu ? '<span class="kb-due ' + (fu.dueDate < U().todayStart() ? "overdue" : "") + '">' + I.clock + U().relativeDue(fu.dueDate) + "</span>" : '<span class="cell-sub">—</span>') + "</td>" +
           '<td><span style="font-weight:700;font-variant-numeric:tabular-nums">' + U().formatMoney(r.lead.estimatedValue) + "</span></td>" +
+          '<td><button class="icon-btn" data-rowmenu="' + r.lead.id + '" title="Actions">' + I.moreH + "</button></td>" +
           "</tr>";
       }).join("") + "</tbody></table></div>";
   }
@@ -170,19 +191,25 @@ V61.Pages = V61.Pages || {};
   /* ── Kanban view (compact) ── */
   function kanbanHtml(rows) {
     if (!rows.length) return UI.emptyState("users", "No leads match these filters.", "Adjust your search or filters to see more prospects.");
+    const total = rows.length;
     return '<div class="kanban">' + S().STAGES.map((s) => {
       const col = rows.filter((r) => r.lead.stage === s.key);
-      return '<div class="kb-col" data-stage="' + s.key + '"><div class="kb-col-head"><span class="kb-col-title"><span class="badge-dot" style="background:' + s.color + '"></span>' + s.label + "</span><span class='kb-count'>" + col.length + "</span></div>" +
-        '<div class="kb-col-body">' + col.map((r) => {
+      const sum = col.reduce((t, r) => t + (r.lead.estimatedValue || 0), 0);
+      return '<div class="kb-col' + (s.key === "won" ? " win-col" : s.key === "lost" ? " lose-col" : "") + '" data-stage="' + s.key + '"><div class="kb-col-head"><span class="kb-col-title"><span class="badge-dot" style="background:' + s.color + '"></span>' + s.label + "</span><span class='kb-count'>" + col.length + "</span>" +
+        (sum ? '<span class="kb-col-value">' + U().formatCompact(sum) + "</span>" : "") + "</div>" +
+        '<div class="kb-col-body">' + (col.length ? col.map((r) => {
           const b = r.business || {};
           const fu = S().nextFollowup(r.lead.id);
+          const wa = b.whatsapp || b.phone;
           return '<div class="kb-card" draggable="true" data-drag="' + r.lead.id + '" data-open="' + r.lead.id + '">' +
             '<div class="kb-top"><div><div class="kb-name">' + U().escapeHtml(b.name) + '</div><div class="kb-cat">' + U().escapeHtml([b.category, b.city].filter(Boolean).join(" • ")) + "</div></div>" +
             '<span style="display:flex;gap:4px;align-items:center">' + UI.miniScore(r.leadScore) + "</span></div>" +
             '<div class="kb-meta"><span class="kb-value">' + U().formatMoney(r.lead.estimatedValue) + "</span>" +
             (fu ? '<span class="kb-due ' + (fu.dueDate < U().todayStart() ? "overdue" : "") + '">' + I.clock + U().relativeDue(fu.dueDate) + "</span>" : "") +
-            '<span class="tag">D' + r.digitalScore + "</span></div></div>";
-        }).join("") + "</div></div>";
+            (wa ? '<a class="mini-btn" style="padding:1px 7px;margin-left:auto" target="_blank" rel="noopener" href="' + U().waLink(wa) + '">' + I.whatsapp + "</a>" : "") +
+            "</div></div>";
+        }).join("") : '<div class="kb-empty">Drop leads here</div>') + "</div>" +
+        '<div class="kb-col-foot"><span>Total</span><b>' + U().formatMoney(sum) + "</b></div></div>";
     }).join("") + "</div>";
   }
 
@@ -190,12 +217,20 @@ V61.Pages = V61.Pages || {};
     const el = document.getElementById("content");
     const q = el.querySelector("#lead-search");
     if (q) q.addEventListener("input", U().debounce((e) => { state.query = e.target.value; render(); }, 180));
-    ["flt-cat", "flt-loc", "flt-stage", "flt-contact", "flt-sort"].forEach((id) => {
+    ["flt-cat", "flt-loc", "flt-stage", "flt-contact", "flt-sort", "flt-temp"].forEach((id) => {
       const s = el.querySelector("#" + id);
       if (s) s.addEventListener("change", (e) => {
         const k = id.replace("flt-", "");
         state[k] = e.target.value; render();
       });
+    });
+    el.querySelectorAll("[data-stagechip]").forEach((c) => c.addEventListener("click", () => {
+      state.stage = c.dataset.stagechip; render();
+    }));
+    const clear = el.querySelector("#clear-filters");
+    if (clear) clear.addEventListener("click", () => {
+      state.query = ""; state.cat = "all"; state.loc = "all"; state.stage = "all"; state.temp = "all"; state.contact = "all";
+      render();
     });
     el.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => { state.view = b.dataset.v; render(); }));
     el.querySelectorAll("[data-sel]").forEach((cb) => cb.addEventListener("change", (e) => {
@@ -211,8 +246,24 @@ V61.Pages = V61.Pages || {};
       V61.App.nav("#/leads/" + c.dataset.open);
     }));
     el.querySelectorAll("[data-row]").forEach((tr) => tr.addEventListener("click", (e) => {
-      if (e.target.closest("a") || e.target.closest("input") || e.target.closest("select")) return;
+      if (e.target.closest("a") || e.target.closest("input") || e.target.closest("select") || e.target.closest("button")) return;
       V61.App.nav("#/leads/" + tr.dataset.row);
+    }));
+    el.querySelectorAll("[data-rowmenu]").forEach((btn) => btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const lead = S().byId("leads", btn.dataset.rowmenu);
+      const biz = lead ? S().businessOf(lead) : null;
+      const wa = biz ? (biz.whatsapp || biz.phone) : "";
+      V61.UI.menuPop(btn, [
+        { text: "Open lead", icon: I.eye, action: () => V61.App.nav("#/leads/" + btn.dataset.rowmenu) },
+        (wa ? { text: "WhatsApp", icon: I.whatsapp, action: () => window.open(U().waLink(wa, S().buildMessage(biz.name, biz.category))) } : null),
+        (biz && biz.phone ? { text: "Call", icon: I.phone, action: () => window.location.href = "tel:" + U().phoneDigits(biz.phone) } : null),
+        { text: "Digital audit", icon: I.scan, action: () => V61.Cmd.openAudit(btn.dataset.rowmenu) },
+        { text: "Create proposal", icon: I.fileText, action: () => V61.Cmd.createProposal(btn.dataset.rowmenu) },
+        { sep: true },
+        { text: "Edit lead", icon: I.pencil, action: () => openLeadForm(lead) },
+        { text: "Delete", icon: I.trash, danger: true, action: () => deleteLead(btn.dataset.rowmenu) },
+      ].filter(Boolean));
     }));
     // kanban drag-drop
     el.querySelectorAll(".kb-card[draggable]").forEach((card) => {
@@ -239,7 +290,7 @@ V61.Pages = V61.Pages || {};
   function render() {
     const el = document.getElementById("content");
     const rows = filteredRows();
-    el.innerHTML = filterBar() + (state.view === "table" ? tableHtml(rows) : state.view === "grid" ? gridHtml(rows) : kanbanHtml(rows));
+    el.innerHTML = filterBar() + stageStrip() + (state.view === "table" ? tableHtml(rows) : state.view === "grid" ? gridHtml(rows) : kanbanHtml(rows));
     UI.bind(el);
     bindList();
   }
@@ -372,6 +423,8 @@ V61.Pages = V61.Pages || {};
       /* right column */
       '<div class="sticky-col" style="display:flex;flex-direction:column;gap:18px">' +
 
+      nextStepCallout(lead, followups, tasks, wa, biz) +
+
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.lightbulb + " Opportunities" + '<span class="sub">' + opps.length + "</span></div></div>" +
       '<div class="panel-body"><div class="stack">' + (opps.length ? opps.map((o) =>
         '<div class="opp-item"><div class="o-icon">' + (I[o.icon] || I.zap) + '</div><div><h5>' + U().escapeHtml(o.title) + '</h5><p>' + U().escapeHtml(o.desc) + "</p></div></div>"
@@ -412,6 +465,34 @@ V61.Pages = V61.Pages || {};
 
   function infoItem(label, valueHtml) {
     return '<div class="info-item"><div class="i-label">' + U().escapeHtml(label) + '</div><div class="i-value">' + (valueHtml || '<span style="color:var(--text-3)">—</span>') + "</div></div>";
+  }
+
+  function nextStepCallout(lead, followups, tasks, wa, biz) {
+    const next = followups.filter((f) => f.status === "pending").sort((a, b) => (a.dueDate || 0) - (b.dueDate || 0))[0] || null;
+    const nextT = tasks.filter((t) => t.status !== "done").sort((a, b) => (a.dueDate || 0) - (b.dueDate || 0))[0] || null;
+    let title = "", sub = "", actions = "";
+    if (next) {
+      title = next.title;
+      sub = (next.dueDate ? U().relativeDue(next.dueDate) + " — " : "") + (next.notes || (next.priority ? "Priority: " + next.priority : ""));
+      actions = '<button class="btn btn-sm btn-primary" data-cmd="completeFollowup:' + next.id + '">' + I.check + " Complete</button>";
+      if (wa) actions += '<a class="btn btn-sm" target="_blank" rel="noopener" href="' + U().waLink(wa, S().buildMessage(biz.name, biz.category)) + '">' + I.whatsapp + " Message</a>";
+    } else if (nextT) {
+      title = nextT.title;
+      sub = nextT.dueDate ? U().relativeDue(nextT.dueDate) + " — task due" : "Open task";
+      actions = '<button class="btn btn-sm btn-primary" data-cmd="completeTask:' + nextT.id + '">' + I.check + " Complete</button>";
+    } else if (wa) {
+      title = "No next step scheduled";
+      sub = "Start outreach — a warm message is the fastest way to move this lead forward.";
+      actions = '<a class="btn btn-sm btn-primary" target="_blank" rel="noopener" href="' + U().waLink(wa, S().buildMessage(biz.name, biz.category)) + '">' + I.whatsapp + " WhatsApp</a>" +
+        '<button class="btn btn-sm" data-cmd="addFollowup:' + lead.id + '">' + I.calendar + " Schedule follow-up</button>";
+    } else {
+      title = "No next step scheduled";
+      sub = "Schedule a follow-up or log outreach to keep this lead moving.";
+      actions = '<button class="btn btn-sm btn-primary" data-cmd="addFollowup:' + lead.id + '">' + I.calendar + " Schedule follow-up</button>";
+    }
+    return '<div class="callout"><div class="c-ic">' + I.rocket + '</div><div class="c-main"><div class="c-label">Next step</div>' +
+      '<div class="c-title">' + U().escapeHtml(title) + '</div><div class="c-sub">' + U().escapeHtml(sub) + "</div>" +
+      '<div class="c-actions">' + actions + "</div></div></div>";
   }
 
   /* ── Sub-actions (task/note/followup/outreach/contact modals) ── */
