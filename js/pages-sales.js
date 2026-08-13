@@ -84,12 +84,16 @@ V61.Pages = V61.Pages || {};
     UI.bind(el);
   }
 
-  function createProposal(leadId) {
+  function createProposal(leadId, prefillName, manualItem) {
     const lead = S().byId("leads", leadId);
     if (!lead) { V61.Toast.error("Lead not found"); return; }
     const biz = S().businessOf(lead);
     const svcs = S().db.services.filter((s) => s.active);
-    const items = svcs.length ? svcs.slice(0, 3).map((s) => ({ serviceId: s.id, name: s.name, qty: 1, price: s.price })) : [{ serviceId: null, name: "", qty: 1, price: 0 }];
+    const pre = prefillName ? svcs.find((s) => s.name.toLowerCase() === String(prefillName).toLowerCase()) : null;
+    let items;
+    if (pre) items = [{ serviceId: pre.id, name: pre.name, qty: 1, price: pre.price }];
+    else if (manualItem && manualItem.name) items = [{ serviceId: null, name: manualItem.name, qty: 1, price: Number(manualItem.price) || 0 }];
+    else items = svcs.length ? svcs.slice(0, 3).map((s) => ({ serviceId: s.id, name: s.name, qty: 1, price: s.price })) : [{ serviceId: null, name: "", qty: 1, price: 0 }];
     let subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     let discount = 0;
 
@@ -132,7 +136,7 @@ V61.Pages = V61.Pages || {};
     }
 
     m.setBody(
-      '<div class="field"><label>Proposal title</label><input class="input" id="p-title" value="' + U().escapeHtml(biz.name + " — Website & Digital Growth") + '"></div>' +
+      '<div class="field"><label>Proposal title</label><input class="input" id="p-title" value="' + U().escapeHtml(biz.name + " — " + (prefillName || "Website & Digital Growth")) + '"></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px"><b style="font-size:13px">' + (svcs.length ? "Services" : "Line items") + '</b><button class="btn btn-sm" data-add-item>' + I.plus + " Add " + (svcs.length ? "service" : "item") + "</button></div>" +
       (!svcs.length ? '<p style="font-size:12px;color:var(--text-3);margin-bottom:8px">No services in your catalog yet — add line items manually, or add services from the Services page first.</p>' : "") +
       '<div class="stack" id="prop-items">' + items.map(itemHtml).join("") + "</div>" +

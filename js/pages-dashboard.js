@@ -168,6 +168,43 @@ V61.Pages = V61.Pages || {};
       }).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No hot leads right now.</div>') + "</div></div></div>";
   }
 
+  /* ── Phase 2 intelligence KPIs ── */
+  function intelKpis() {
+    const rows = S().leadRows();
+    const audited = S().db.audits.length;
+    const discovered = S().db.businesses.filter((b) => b.googlePlaceId || b.discoveryQuery || (b.source === "google-discovery")).length;
+    const high = rows.filter((r) => S().isHighOpportunity(r)).length;
+    const avg = (arr) => { const a = arr.filter((x) => x != null); return a.length ? Math.round(a.reduce((s, x) => s + x, 0) / a.length) : 0; };
+    const avgD = avg(rows.map((r) => r.digitalScore));
+    const avgL = avg(rows.map((r) => r.leadScore));
+    let web = 0, google = 0, conv = 0;
+    rows.forEach((r) => { (V61.OpportunityEngine ? V61.OpportunityEngine.forRow(r) : []).forEach((o) => { if (/website/i.test(o.service)) web++; if (o.category === "Google") google++; if (o.category === "Conversion") conv++; }); });
+    const card = (label, value, sub, icon, accent) => '<div class="kpi' + (accent ? " accent" : "") + '"><div class="k-label">' + U().escapeHtml(label) + '</div><div class="k-ic">' + (I[icon] || I.plus) + '</div><div class="k-value">' + value + '</div><div style="font-size:12px;color:var(--text-3);margin-top:5px">' + U().escapeHtml(sub || "") + "</div></div>";
+    return '<div class="kpi-grid" style="margin-top:18px">' +
+      card("Businesses Discovered", U().formatCompact(discovered), "from Google Places", "scan") +
+      card("Audited", audited, "of " + rows.length + " leads", "clipboard") +
+      card("High Opportunities", '<span style="color:var(--accent)">' + U().formatCompact(high) + "</span>", high ? "ready to prospect" : "none right now", "zap", true) +
+      card("Avg Digital Score", avgD + "", "across audited leads", "pie") +
+      card("Avg Lead Score", avgL + "", "across all leads", "trending") +
+      card("Website Opps", web, "need a site or improvement", "globe") +
+      card("Google Opps", google, "profile gaps", "mapPin") +
+      card("Conversion Opps", conv, "WhatsApp / booking / forms", "whatsapp") +
+      "</div>";
+  }
+
+  function highOppPanel() {
+    const rows = S().leadRows().filter((r) => S().isHighOpportunity(r)).sort((a, b) => b.leadScore - a.leadScore).slice(0, 5);
+    return '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.zap + " High opportunities" + '<span class="sub">' + rows.length + "</span></div>" +
+      '<a class="btn btn-sm btn-ghost" href="#/audits">' + I.eye + " All</a></div>" +
+      '<div class="panel-body"><div class="stack">' + (rows.length ? rows.map((r) => {
+        const b = r.business || {};
+        const opps = (V61.OpportunityEngine ? V61.OpportunityEngine.forRow(r) : []);
+        return '<div class="row-card" style="padding:11px 13px"><div class="rc-main"><div class="rc-title" style="font-size:13px"><a href="#/audits/' + r.lead.id + '" style="color:inherit">' + U().escapeHtml(b.name) + "</a></div>" +
+          '<div class="rc-sub">' + U().escapeHtml([b.category, b.city].filter(Boolean).join(" • ")) + " · " + opps.length + " opportunity" + (opps.length === 1 ? "" : "s") + "</div></div>" +
+          '<div class="rc-actions">' + UI.miniScore(r.leadScore) + (opps.length ? '<span style="color:var(--accent);font-size:12px;font-weight:700">' + opps[0].service + "</span>" : "") + "</div></div>";
+      }).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No high-opportunity prospects right now. Discover or add businesses to find them.</div>') + "</div></div></div>";
+  }
+
   function duePanel() {
     const pending = S().db.followups.filter((f) => f.status === "pending").sort((a, b) => (a.dueDate || 0) - (b.dueDate || 0)).slice(0, 5);
     return '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.calendar + " Follow-ups due" + '<span class="sub">' + pending.length + "</span></div>" +
@@ -199,12 +236,13 @@ V61.Pages = V61.Pages || {};
     el.innerHTML =
       welcome() +
       buildKpis() +
+      intelKpis() +
       '<div class="dash-grid">' +
       '<div style="display:flex;flex-direction:column;gap:18px">' +
       '<div class="panel chart-wrap"><div class="panel-head"><div class="panel-title">' + I.pie + "Outreach Performance" + '<span class="sub">Last 6 months</span></div></div><div class="panel-body">' + monthlyBars() + "</div></div>" +
       '<div class="panel chart-wrap"><div class="panel-head"><div class="panel-title">' + I.trending + "Sales Funnel" + '<span class="sub">All time</span></div></div><div class="panel-body">' + funnel() + "</div></div>" +
       "</div>" +
-      '<div style="display:flex;flex-direction:column;gap:18px">' + hotLeadsPanel() + duePanel() + activityPanel() + "</div>" +
+      '<div style="display:flex;flex-direction:column;gap:18px">' + hotLeadsPanel() + highOppPanel() + duePanel() + activityPanel() + "</div>" +
       "</div>" +
       '<div style="margin-top:18px">' + metrics() + "</div>";
     UI.bind(el);

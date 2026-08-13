@@ -147,6 +147,7 @@
     };
     if (route === "leads" && id) { P.leads.openLead(id); return; }
     if (route === "lead" && id) { P.leads.openLead(id); return; }
+    if (route === "audits" && id) { P.auditDetail(id); return; }
     if (route === "proposals" && id) { P.sales.proposalDetail(id); return; }
     if (route === "proposal" && id) { P.sales.proposalDetail(id); return; }
     if (route === "clients" && id) { P.sales.clientDetail(id); return; }

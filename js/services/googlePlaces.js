@@ -1,0 +1,102 @@
+/* VISION 61 CRM — service: Google Places (loader, textSearch, placeDetails) */
+window.V61 = window.V61 || {};
+
+(function () {
+  const S = () => V61.Store;
+
+  function discoveryKey() { return (S().db.settings.googleMapsApiKey || "").trim(); }
+
+  /* Load Google Places API once. Resolves immediately if already present (allows stubbing). */
+  function placesReady() {
+    return new Promise((resolve, reject) => {
+      if (window.google && window.google.maps && window.google.maps.places && window.google.maps.places.PlacesService) return resolve(window.google.maps.places);
+      if (window.__v61PlacesPromise) return window.__v61PlacesPromise;
+      window.__v61PlacesPromise = new Promise((res, rej) => {
+        const cb = "__v61PlacesReady";
+        window[cb] = () => res(window.google.maps.places);
+        const s = document.createElement("script");
+        s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(discoveryKey()) + "&libraries=places&callback=" + cb;
+        s.async = true; s.onerror = () => { window.__v61PlacesPromise = null; rej(new Error("Failed to load Google Places API")); };
+        document.head.appendChild(s);
+      });
+      window.__v61PlacesPromise.then(resolve, reject);
+    });
+  }
+
+  function placesService() {
+    let host = document.getElementById("places-host");
+    if (!host) { host = document.createElement("div"); host.id = "places-host"; host.style.display = "none"; document.body.appendChild(host); }
+    return new window.google.maps.places.PlacesService(host);
+  }
+
+  function normalizeType(types) {
+    const map = {
+      restaurant: "Restaurant", cafe: "Cafe", bakery: "Bakery", bar: "Bar",
+      gym: "Gym", beauty_salon: "Beauty salon", hair_care: "Hair salon", spa: "Spa",
+      clinic: "Clinic", dentist: "Dentist", pharmacy: "Pharmacy", hospital: "Hospital",
+      store: "Store", shopping_mall: "Shopping mall", supermarket: "Supermarket", department_store: "Store",
+      hotel: "Hotel", lodging: "Lodging", travel_agency: "Travel agency",
+      car_dealer: "Car dealer", car_repair: "Auto repair", car_wash: "Car wash", electrician: "Electrician", plumber: "Plumber",
+      real_estate_agency: "Real estate", lawyer: "Law firm", accountant: "Accountant", bank: "Bank",
+      school: "School", university: "University",
+      florist: "Florist", clothing_store: "Clothing store", electronics_store: "Electronics store", furniture_store: "Furniture store",
+      home_goods_store: "Home goods", shoe_store: "Shoe store", jewelry_store: "Jewellery", book_store: "Book store",
+      pet_store: "Pet store", veterinary_care: "Veterinary", church: "Church", mosque: "Mosque",
+      local_government_office: "Office", insurance_agency: "Insurance", movie_theater: "Cinema", park: "Park", art_gallery: "Art gallery",
+    };
+    for (const t of (types || [])) { if (map[t]) return map[t]; }
+    return (types && types[0]) ? types[0].replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "";
+  }
+
+  function extractCity(p) {
+    const comps = (p.address_components || []).map((c) => c.types[0] === "locality" || c.types[0] === "administrative_area_level_1" ? c.long_name : null).filter(Boolean);
+    return comps[0] || "";
+  }
+
+  /* textSearch: real Google Places results (name, address, rating, reviews, open status). */
+  function discoverySearch(query, location) {
+    return placesReady().then(() => new Promise((resolve, reject) => {
+      const svc = placesService();
+      svc.textSearch({ query: (query + " in " + location).trim(), language: "en" }, (results, status) => {
+        if (status === "OK" || status === "ZERO_RESULTS") {
+          resolve((results || []).map((p) => ({
+            placeId: p.place_id, name: p.name || "", address: p.formatted_address || p.vicinity || "",
+            city: extractCity(p), category: normalizeType(p.types),
+            rating: p.rating || null, reviews: p.user_ratings_total || 0,
+            openNow: p.opening_hours ? p.opening_hours.open_now : null,
+            lat: p.geometry && p.geometry.location ? p.geometry.location.lat() : null,
+            lng: p.geometry && p.geometry.location ? p.geometry.location.lng() : null,
+          })));
+        } else reject(new Error("Places API error: " + status));
+      });
+    }));
+  }
+
+  /* getDetails: real place details (phone, website, hours, photos) used when adding or auto-filling an audit. */
+  function placeDetails(placeId) {
+    return placesReady().then(() => new Promise((resolve, reject) => {
+      const svc = placesService();
+      svc.getDetails({ placeId, fields: ["name", "formatted_address", "formatted_phone_number", "international_phone_number", "website", "rating", "user_ratings_total", "opening_hours", "url", "types", "photos", "address_components", "geometry"] }, (p, status) => {
+        if (status === "OK" && p) resolve({
+          name: p.name || "", address: p.formatted_address || "",
+          phone: p.formatted_phone_number || p.international_phone_number || "",
+          website: p.website || "",
+          rating: p.rating || null, reviews: p.user_ratings_total || 0,
+          hours: !!(p.opening_hours && p.opening_hours.periods && p.opening_hours.periods.length),
+          photos: (p.photos && p.photos.length) || 0,
+          url: p.url || "", types: p.types || [], category: normalizeType(p.types),
+          lat: p.geometry && p.geometry.location ? p.geometry.location.lat() : null,
+          lng: p.geometry && p.geometry.location ? p.geometry.location.lng() : null,
+        });
+        else reject(new Error("Place details error: " + status));
+      });
+    }));
+  }
+
+  function catMetaOptions() {
+    const cats = ["Restaurant", "Cafe", "Bakery", "Bar", "Salon", "Barber", "Clinic", "Dentist", "Pharmacy", "Gym", "Fashion store", "Electronics store", "Hotel", "Real estate", "Auto repair", "Car wash", "Electrician", "Plumber", "Cleaning service", "Photographer", "School", "Accountant", "Law firm", "Travel agency", "Web design", "Marketing agency"];
+    return cats.map((c) => "<option value='" + c + "'>").join("");
+  }
+
+  V61.GooglePlaces = { discoveryKey, placesReady, placesService, normalizeType, extractCity, discoverySearch, placeDetails, catMetaOptions };
+})();

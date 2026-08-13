@@ -8,7 +8,8 @@ V61.Pages = V61.Pages || {};
   const I = V61.Icons;
   const UI = V61.UI;
 
-  const state = { view: "table", query: "", cat: "all", loc: "all", stage: "all", contact: "all", temp: "all", sort: "newest", selected: new Set(), tempDrop: null };
+  const state = { view: "table", query: "", cat: "all", loc: "all", stage: "all", contact: "all", temp: "all", sort: "newest", selected: new Set(), tempDrop: null,
+    dmin: 0, lmin: 0, omin: 0, prior: "all", website: "all", google: "all", audited: "all", high: false };
 
   function catList() { return [...new Set(S().db.businesses.map((b) => b.category).filter(Boolean))].sort(); }
   function locList() { return [...new Set(S().db.businesses.map((b) => b.city).filter(Boolean))].sort(); }
@@ -24,18 +25,32 @@ V61.Pages = V61.Pages || {};
     if (state.loc !== "all") rows = rows.filter((r) => (r.business && r.business.city) === state.loc);
     if (state.stage !== "all") rows = rows.filter((r) => r.lead.stage === state.stage);
     if (state.temp !== "all") rows = rows.filter((r) => (r.temperature || S().temperatureFor(r.leadScore)) === state.temp);
+    if (state.dmin) rows = rows.filter((r) => r.digitalScore >= state.dmin);
+    if (state.lmin) rows = rows.filter((r) => r.leadScore >= state.lmin);
+    if (state.omin) rows = rows.filter((r) => oppsFor(r).length >= state.omin);
+    if (state.prior !== "all") rows = rows.filter((r) => (V61.Score && V61.Score.priorityFor(r.leadScore, oppsFor(r).length).key) === state.prior);
+    if (state.website === "yes") rows = rows.filter((r) => !!(r.business && r.business.website));
+    if (state.website === "no") rows = rows.filter((r) => !(r.business && r.business.website));
+    if (state.google === "yes") rows = rows.filter((r) => !!(r.business && (r.business.googlePlaceId || (r.audit && r.audit.google && r.audit.google.exists))));
+    if (state.google === "no") rows = rows.filter((r) => !(r.business && (r.business.googlePlaceId || (r.audit && r.audit.google && r.audit.google.exists))));
+    if (state.audited === "yes") rows = rows.filter((r) => !!r.audit);
+    if (state.audited === "no") rows = rows.filter((r) => !r.audit);
+    if (state.high) rows = rows.filter((r) => S().isHighOpportunity(r));
     if (state.contact !== "all") rows = rows.filter((r) => {
       const c = r.lead.stage;
       if (state.contact === "contacted") return !["new", "researching", "lost"].includes(c);
       if (state.contact === "not_contacted") return ["new", "researching"].includes(c);
       return true;
     });
-    const key = { newest: (r) => -r.lead.createdAt, name: (r) => (r.business && r.business.name || "").toLowerCase(), score: (r) => -r.leadScore, value: (r) => -(r.lead.estimatedValue || 0) }[state.sort];
+    const key = { newest: (r) => -r.lead.createdAt, name: (r) => (r.business && r.business.name || "").toLowerCase(), score: (r) => -r.leadScore, digital: (r) => -r.digitalScore, opps: (r) => -oppsFor(r).length, value: (r) => -(r.lead.estimatedValue || 0), contact: (r) => -(r.lead.lastContacted || 0), followup: (r) => (nextDue(r.lead.id) || Number.MAX_SAFE_INTEGER) }[state.sort];
     return rows.slice().sort((a, b) => (key(a) < key(b) ? -1 : 1));
   }
 
+  function oppsFor(r) { return (V61.OpportunityEngine ? V61.OpportunityEngine.forRow(r) : (r.audit ? S().opportunities(r.audit, r.business) : [])); }
+  function nextDue(leadId) { const f = S().nextFollowup(leadId); return f ? f.dueDate || 0 : 0; }
+
   function filtersActive() {
-    return state.query || state.cat !== "all" || state.loc !== "all" || state.stage !== "all" || state.temp !== "all" || state.contact !== "all";
+    return state.query || state.cat !== "all" || state.loc !== "all" || state.stage !== "all" || state.temp !== "all" || state.contact !== "all" || state.dmin || state.lmin || state.omin || state.prior !== "all" || state.website !== "all" || state.google !== "all" || state.audited !== "all" || state.high;
   }
 
   /* ── Lead form modal ── */
@@ -121,7 +136,14 @@ V61.Pages = V61.Pages || {};
       '<select class="select" id="flt-stage"><option value="all">All stages</option>' + S().STAGES.map((s) => '<option value="' + s.key + '"' + (state.stage === s.key ? " selected" : "") + ">" + s.label + "</option>").join("") + "</select>" +
       '<select class="select" id="flt-temp"><option value="all">Any temperature</option>' + S().TEMPERATURES.map((t) => '<option value="' + t.key + '"' + (state.temp === t.key ? " selected" : "") + ">" + t.label + "</option>").join("") + "</select>" +
       '<select class="select" id="flt-contact"><option value="all">Any contact</option><option value="contacted" ' + (state.contact === "contacted" ? "selected" : "") + '>Contacted</option><option value="not_contacted" ' + (state.contact === "not_contacted" ? "selected" : "") + '>Not contacted</option></select>' +
-      '<select class="select" id="flt-sort"><option value="newest" ' + (state.sort === "newest" ? "selected" : "") + '>Newest first</option><option value="name" ' + (state.sort === "name" ? "selected" : "") + '>Name</option><option value="score" ' + (state.sort === "score" ? "selected" : "") + '>Lead score</option><option value="value" ' + (state.sort === "value" ? "selected" : "") + '>Deal value</option></select>' +
+      '<select class="select" id="flt-prior"><option value="all"' + (state.prior === "all" ? " selected" : "") + '>Any priority</option><option value="high"' + (state.prior === "high" ? " selected" : "") + '>HIGH</option><option value="medium"' + (state.prior === "medium" ? " selected" : "") + '>MEDIUM</option><option value="low"' + (state.prior === "low" ? " selected" : "") + '>LOW</option></select>' +
+      '<select class="select" id="flt-website"><option value="all"' + (state.website === "all" ? " selected" : "") + '>Any website</option><option value="yes"' + (state.website === "yes" ? " selected" : "") + '>Has website</option><option value="no"' + (state.website === "no" ? " selected" : "") + '>No website</option></select>' +
+      '<select class="select" id="flt-audited"><option value="all"' + (state.audited === "all" ? " selected" : "") + '>Audit: any</option><option value="yes"' + (state.audited === "yes" ? " selected" : "") + '>Audited</option><option value="no"' + (state.audited === "no" ? " selected" : "") + '>Not audited</option></select>' +
+      '<select class="select" id="flt-dmin"><option value="0"' + (state.dmin === 0 ? " selected" : "") + '>Any digital</option>' + [30, 50, 70].map((v) => '<option value="' + v + '"' + (state.dmin === v ? " selected" : "") + '>Digital ≥ ' + v + "</option>").join("") + "</select>" +
+      '<select class="select" id="flt-lmin"><option value="0"' + (state.lmin === 0 ? " selected" : "") + '>Any lead</option>' + [50, 60, 70, 80].map((v) => '<option value="' + v + '"' + (state.lmin === v ? " selected" : "") + '>Lead ≥ ' + v + "</option>").join("") + "</select>" +
+      '<select class="select" id="flt-omin"><option value="0"' + (state.omin === 0 ? " selected" : "") + '>Any opps</option>' + [1, 2, 3, 4, 5].map((v) => '<option value="' + v + '"' + (state.omin === v ? " selected" : "") + '>≥ ' + v + ' opps</option>').join("") + "</select>" +
+      '<button class="btn' + (state.high ? " btn-primary" : "") + '" id="flt-high" title="Businesses with high lead score, multiple opportunities and contact info">' + I.zap + (state.high ? " High opportunities ON" : " High opportunities") + "</button>" +
+      '<select class="select" id="flt-sort"><option value="newest" ' + (state.sort === "newest" ? "selected" : "") + '>Newest first</option><option value="name" ' + (state.sort === "name" ? "selected" : "") + '>Name</option><option value="score" ' + (state.sort === "score" ? "selected" : "") + '>Lead score</option><option value="digital" ' + (state.sort === "digital" ? "selected" : "") + '>Digital score</option><option value="opps" ' + (state.sort === "opps" ? "selected" : "") + '>Opportunity count</option><option value="value" ' + (state.sort === "value" ? "selected" : "") + '>Deal value</option><option value="contact" ' + (state.sort === "contact" ? "selected" : "") + '>Last contact</option><option value="followup" ' + (state.sort === "followup" ? "selected" : "") + '>Follow-up date</option></select>' +
       (filtersActive() ? '<button class="btn btn-ghost btn-sm" id="clear-filters" title="Clear filters">' + I.x + " Clear</button>" : "") +
       '<div class="seg"><button data-v="table" class="' + (state.view === "table" ? "active" : "") + '">' + I.table + "</button><button data-v='grid' class='" + (state.view === "grid" ? "active" : "") + "'>" + I.grid + '</button><button data-v="kanban" class="' + (state.view === "kanban" ? "active" : "") + '">' + I.columns + "</button></div>" +
       "</div></div>";
@@ -148,15 +170,19 @@ V61.Pages = V61.Pages || {};
     if (!rows.length) return UI.emptyState("users", "Your pipeline is empty.", "Start by adding your first business prospect.", '<button class="btn btn-primary" data-cmd="addLead">' + I.plus + " Add Lead</button>");
     const b = (r) => r.business || {};
     return '<div class="table-wrap"><table class="data"><thead><tr>' +
-      "<th></th><th>Business</th><th>Category</th><th>Location</th><th>Digital</th><th>Lead</th><th>Assets</th><th>Stage</th><th>Last contact</th><th>Next follow-up</th><th>Deal value</th><th></th>" +
+      "<th></th><th>Business</th><th>Category</th><th>Location</th><th>Digital</th><th>Lead</th><th>Priority</th><th>Opps</th><th>Assets</th><th>Stage</th><th>Last contact</th><th>Next follow-up</th><th>Deal value</th><th></th>" +
       "</tr></thead><tbody>" + rows.map((r) => {
         const fu = S().nextFollowup(r.lead.id);
         const bz = b(r);
+        const oppsN = oppsFor(r).length;
+        const pri = V61.Score ? V61.Score.priorityFor(r.leadScore, oppsN) : { label: "—", color: "#8a8a90" };
         return "<tr data-row='" + r.lead.id + "'>" + bizCell(r) +
           "<td><span class='cell-sub'>" + U().escapeHtml(bz.category || "—") + "</span></td>" +
           "<td><span class='cell-sub'>" + U().escapeHtml(bz.city || "—") + "</span></td>" +
           '<td><span class="mini-score cold" style="font-size:11px">' + r.digitalScore + "</span></td>" +
           '<td>' + UI.miniScore(r.leadScore) + " " + UI.tempBadge(r.temperature || S().temperatureFor(r.leadScore)) + "</td>" +
+          '<td>' + UI.badge(pri.label, pri.color, false) + "</td>" +
+          '<td><span class="cell-sub">' + oppsN + "</span></td>" +
           "<td>" + assetsHtml(bz) + "</td>" +
           '<td>' + UI.stageBadge(r.lead.stage) + "</td>" +
           '<td><span class="cell-sub">' + (r.lead.lastContacted ? U().relativeTime(r.lead.lastContacted) : "—") + "</span></td>" +
@@ -218,19 +244,22 @@ V61.Pages = V61.Pages || {};
     const el = document.getElementById("content");
     const q = el.querySelector("#lead-search");
     if (q) q.addEventListener("input", U().debounce((e) => { state.query = e.target.value; render(); }, 180));
-    ["flt-cat", "flt-loc", "flt-stage", "flt-contact", "flt-sort", "flt-temp"].forEach((id) => {
+    ["flt-cat", "flt-loc", "flt-stage", "flt-contact", "flt-sort", "flt-temp", "flt-prior", "flt-website", "flt-audited", "flt-dmin", "flt-lmin", "flt-omin"].forEach((id) => {
       const s = el.querySelector("#" + id);
       if (s) s.addEventListener("change", (e) => {
         const k = id.replace("flt-", "");
-        state[k] = e.target.value; render();
+        state[k] = ["dmin", "lmin", "omin"].includes(k) ? Number(e.target.value) || 0 : e.target.value; render();
       });
     });
+    const high = el.querySelector("#flt-high");
+    if (high) high.addEventListener("click", () => { state.high = !state.high; render(); });
     el.querySelectorAll("[data-stagechip]").forEach((c) => c.addEventListener("click", () => {
       state.stage = c.dataset.stagechip; render();
     }));
     const clear = el.querySelector("#clear-filters");
     if (clear) clear.addEventListener("click", () => {
       state.query = ""; state.cat = "all"; state.loc = "all"; state.stage = "all"; state.temp = "all"; state.contact = "all";
+      state.dmin = 0; state.lmin = 0; state.omin = 0; state.prior = "all"; state.website = "all"; state.google = "all"; state.audited = "all"; state.high = false;
       render();
     });
     el.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => { state.view = b.dataset.v; render(); }));

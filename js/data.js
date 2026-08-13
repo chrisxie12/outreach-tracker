@@ -110,7 +110,17 @@
   }
   function digitalScore(audit) {
     if (!audit) return 0;
-    return auditCategoryScore(audit, "website") + auditCategoryScore(audit, "google") +
+    /* Website sub-score comes from the live Website Score (analyzer Detected facts + Manual checks)
+       when a website analysis record exists; otherwise it falls back to the manual checklist. */
+    let websitePts = auditCategoryScore(audit, "website");
+    try {
+      if (V61.Score) {
+        const biz = byId("businesses", audit.businessId);
+        const wa = latestWebsiteAudit(audit.businessId);
+        websitePts = Math.round(V61.Score.websiteScoreFor(biz, audit, wa) * (AUDIT_WEIGHTS.website / 100));
+      }
+    } catch (e) {}
+    return websitePts + auditCategoryScore(audit, "google") +
       auditSocialScore(audit) + auditCategoryScore(audit, "branding") +
       auditCategoryScore(audit, "conversion") + auditCategoryScore(audit, "seo");
   }
@@ -169,17 +179,41 @@
     s += U().clamp(outreach.length * 2, 0, 6);
     if (outreach.some((o) => ["replied", "interested", "meeting_booked", "proposal_requested"].includes(o.status))) s += 7;
     if (outreach.some((o) => ["meeting_booked", "proposal_requested"].includes(o.status))) s += 5;
+    /* Phase 2 factors — all derived from real data. */
+    const opps = opportunities(audit, business);
+    s += U().clamp(opps.length * 2, 0, 10);
+    const wa = latestWebsiteAudit(business && business.id);
+    if (wa && wa.score != null) s += wa.score >= 70 ? 2 : wa.score >= 50 ? 3 : 5;
+    if (biz.placeRating != null) s += biz.placeRating >= 4.5 ? 4 : biz.placeRating >= 4 ? 2 : 0;
+    if (biz.placeReviews != null) s += biz.placeReviews >= 50 ? 4 : biz.placeReviews >= 15 ? 2 : 0;
     return U().clamp(Math.round(s), 1, 100);
   }
-  const temperatureFor = (score) => (score >= 80 ? "hot" : score >= 60 ? "warm" : "cold");
+  const temperatureFor = (score) => {
+    const t = db.settings.leadTemp || { hot: 80, warm: 60 };
+    return score >= t.hot ? "hot" : score >= t.warm ? "warm" : "cold";
+  };
+
+  /* Phase 2: is this row a HIGH-opportunity prospect? (Part 24) */
+  function isHighOpportunity(r) {
+    if (!r || !r.lead) return false;
+    if (["won", "lost"].includes(r.lead.stage)) return false;
+    const b = r.business || {};
+    if (!(b.phone || b.whatsapp || b.email)) return false;
+    const opps = (V61.OpportunityEngine ? V61.OpportunityEngine.forRow(r) : opportunities(r.audit, b));
+    const pri = (V61.Score ? V61.Score.priorityFor(r.leadScore, opps.length) : { key: "low" });
+    return pri.key === "high";
+  }
 
   /* ── Store ── */
   const emptyDb = () => ({
     schema: 1,
     businesses: [], contacts: [], audits: [], leads: [], outreach: [], followups: [],
     tasks: [], notes: [], activity: [], services: [], proposals: [], clients: [], payments: [],
-    settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "" },
+    websiteAudits: [], auditSnapshots: [],
+    settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10 },
   });
+
+  const SETTINGS_DEFAULTS = { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10 };
 
   let db = null;
   const listeners = { change: [] };
@@ -191,7 +225,7 @@
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { const d = JSON.parse(raw); if (d && d.schema === 1) { db = d; return; } }
+      if (raw) { const d = JSON.parse(raw); if (d && d.schema === 1) { d.settings = Object.assign({}, SETTINGS_DEFAULTS, d.settings || {}); d.websiteAudits = d.websiteAudits || []; d.auditSnapshots = d.auditSnapshots || []; db = d; return; } }
     } catch (e) {}
     const migrated = migrateLegacy();
     db = migrated || emptyDb();
@@ -231,6 +265,27 @@
   function businessByName(name) { return db.businesses.find((b) => b.name.toLowerCase() === String(name || "").toLowerCase()) || null; }
   function businessOf(lead) { return byId("businesses", lead.businessId); }
   function auditOf(businessId) { return db.audits.find((a) => a.businessId === businessId) || null; }
+  /* ── Phase 2: website audit records + audit snapshots (history) ── */
+  function saveWebsiteAudit(businessId, data) {
+    const d = data || {};
+    const rec = { id: U().uid("wa"), businessId, createdAt: U().now(), status: d.status || "error", score: d.score != null ? d.score : null, url: d.url || null, signals: d.signals || null, summary: d.summary || "", message: d.message || "", httpStatus: d.httpStatus || null };
+    db.websiteAudits.push(rec);
+    return rec;
+  }
+  function latestWebsiteAudit(businessId) {
+    return db.websiteAudits.filter((w) => w.businessId === businessId).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0] || null;
+  }
+  function websiteAuditsFor(businessId) {
+    return db.websiteAudits.filter((w) => w.businessId === businessId).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }
+  function saveAuditSnapshot(businessId, data) {
+    const rec = { id: U().uid("snap"), businessId, createdAt: U().now(), data: data || {} };
+    db.auditSnapshots.push(rec);
+    return rec;
+  }
+  function auditSnapshotsFor(businessId) {
+    return db.auditSnapshots.filter((x) => x.businessId === businessId).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }
   function leadOf(businessId) { return db.leads.find((l) => l.businessId === businessId) || null; }
   function contactsFor(businessId) { return db.contacts.filter((c) => c.businessId === businessId); }
   function clientOf(businessId) { return db.clients.find((c) => c.businessId === businessId) || null; }
@@ -456,6 +511,7 @@
     AUDIT_WEIGHTS, AUDIT_CHECKS, SOCIAL_PLATFORMS,
     auditCategoryScore, auditSocialScore, digitalScore, auditBreakdown,
     opportunities, opportunitySummary, leadScore, temperatureFor, emptyAudit,
+    isHighOpportunity, saveWebsiteAudit, latestWebsiteAudit, websiteAuditsFor, saveAuditSnapshot, auditSnapshotsFor,
     byId, businessOf, auditOf, leadOf, contactsFor, clientOf, ensureClient, paymentsFor, proposalsFor,
     outreachFor, followupsFor, tasksFor, notesFor, activityFor,
     addActivity, addBusiness, addLead, addContact, upsertAudit,

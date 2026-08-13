@@ -206,6 +206,22 @@ V61.Pages = V61.Pages || {};
       '<div class="hint">Get one free at console.cloud.google.com → enable <b>Places API</b> → create an API key and restrict it to your site&#39;s referrer.</div></div>' +
       '<button class="btn btn-primary" id="save-gkey">' + I.check + " Save data source</button>" +
       '<div style="font-size:12px;color:var(--text-3);margin-top:10px">Status: ' + (s.googleMapsApiKey ? '<b style="color:var(--ok)">Configured — discovery search enabled</b>' : '<b style="color:var(--warn)">Not configured — discovery shows setup help</b>') + "</div>" +
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.pie + ' Lead scoring & opportunities</div></div><div class="panel-body">' +
+      '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:12px">These thresholds control lead priority, temperature, the opportunity engine and batch auditing. Lower review threshold = more businesses flagged for review growth; lower priority scores = more leads marked HIGH.</div>' +
+      '<div class="field-row">' +
+      '<div class="field"><label>Review growth threshold (reviews)</label><input class="input" id="set-rev" type="number" min="0" value="' + (s.reviewThreshold != null ? s.reviewThreshold : 15) + '"></div>' +
+      '<div class="field"><label>Batch audit limit (max 10)</label><input class="input" id="set-batch" type="number" min="1" max="10" value="' + (s.batchLimit || 10) + '"></div></div>' +
+      '<div class="field-row">' +
+      '<div class="field"><label>Hot temp ≥ score</label><input class="input" id="set-hot" type="number" min="0" max="100" value="' + (s.leadTemp && s.leadTemp.hot != null ? s.leadTemp.hot : 80) + '"></div>' +
+      '<div class="field"><label>Warm temp ≥ score</label><input class="input" id="set-warm" type="number" min="0" max="100" value="' + (s.leadTemp && s.leadTemp.warm != null ? s.leadTemp.warm : 60) + '"></div></div>' +
+      '<div class="field-row">' +
+      '<div class="field"><label>HIGH priority ≥ lead score</label><input class="input" id="set-hi" type="number" min="0" max="100" value="' + (s.priority && s.priority.highScore != null ? s.priority.highScore : 75) + '"></div>' +
+      '<div class="field"><label>MEDIUM priority ≥ lead score</label><input class="input" id="set-med" type="number" min="0" max="100" value="' + (s.priority && s.priority.mediumScore != null ? s.priority.mediumScore : 55) + '"></div>' +
+      '<div class="field"><label>HIGH when opps ≥</label><input class="input" id="set-hopps" type="number" min="0" value="' + (s.priority && s.priority.highOpps != null ? s.priority.highOpps : 3) + '"></div></div>' +
+      '<div class="field"><label>Target areas (comma separated)</label>' +
+      '<input class="input" id="set-areas" value="' + U().escapeHtml((s.targetAreas || []).join(", ")) + '" placeholder="Accra, East Legon, Kumasi">' +
+      '<div class="hint">Used as location hints in Lead Discovery.</div></div>' +
+      '<button class="btn btn-primary" id="save-scoring">' + I.check + " Save scoring settings</button>" +
       "</div></div>" +
       "</div>" +
 
@@ -229,6 +245,16 @@ V61.Pages = V61.Pages || {};
       s.googleMapsApiKey = v;
       if (v) s.discoveryProvider = "google";
       S().save(); V61.Toast.success(v ? "Data source saved — discovery search is now active" : "Data source removed");
+    });
+    const scoreBtn = el.querySelector("#save-scoring");
+    if (scoreBtn) scoreBtn.addEventListener("click", () => {
+      const num = (sel) => Math.max(0, Number(el.querySelector(sel).value) || 0);
+      s.reviewThreshold = num("#set-rev");
+      s.batchLimit = Math.min(10, Math.max(1, num("#set-batch")));
+      s.leadTemp = s.leadTemp || {}; s.leadTemp.hot = num("#set-hot"); s.leadTemp.warm = num("#set-warm");
+      s.priority = s.priority || {}; s.priority.highScore = num("#set-hi"); s.priority.mediumScore = num("#set-med"); s.priority.highOpps = num("#set-hopps");
+      s.targetAreas = (el.querySelector("#set-areas").value || "").split(",").map((x) => x.trim()).filter(Boolean);
+      S().save(); V61.Toast.success("Scoring settings saved"); renderSettings();
     });
     el.querySelectorAll("[data-theme-btn]").forEach((b) => b.addEventListener("click", () => { V61.App.setTheme(b.dataset.themeBtn); renderSettings(); }));
     const clear = el.querySelector("#clear-data");
