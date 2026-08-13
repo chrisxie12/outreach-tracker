@@ -24,6 +24,18 @@
 <link rel="stylesheet" href="styles/app.css" />
 </head>
 <body>
+<div id="lock" class="lock-screen hidden">
+  <div class="lock-card">
+    <img class="logo" src="images/Vision 61 Logo.jpeg" alt="Vision 61 Studios logo">
+    <div class="lock-title">VISION <b>61</b></div>
+    <div class="lock-sub">STUDIOS CRM</div>
+    <div class="lock-field">
+      <input id="lock-pass" type="password" placeholder="Enter password" autocomplete="off" spellcheck="false">
+      <button id="lock-btn" class="btn btn-primary">Unlock</button>
+    </div>
+    <div id="lock-err" class="lock-err"></div>
+  </div>
+</div>
 <div id="app">
   <aside id="sidebar" class="sidebar"></aside>
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -40,6 +52,7 @@
 <script src="js/utils.js"></script>
 <script src="js/data.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/lock.js"></script>
 <script src="js/pages-dashboard.js"></script>
 <script src="js/pages-leads.js"></script>
 <script src="js/pages-pipeline.js"></script>
