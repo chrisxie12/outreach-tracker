@@ -151,8 +151,9 @@
     const root = document.getElementById("menuRoot");
     const el = document.createElement("div");
     el.className = "menu-pop";
+    let actionIdx = -1;
     el.innerHTML = items.map((it) => it.sep ? '<div class="menu-divider"></div>' : (it.label ? '<div class="menu-label">' + U().escapeHtml(it.label) + "</div>" :
-      '<button class="menu-item' + (it.danger ? " danger" : "") + '" data-i="' + (it.index != null ? it.index : "") + '">' + (it.icon || "") + U().escapeHtml(it.text) + "</button>")).join("");
+      ('<button class="menu-item' + (it.danger ? " danger" : "") + '" data-i="' + (++actionIdx) + '">' + (it.icon || "") + U().escapeHtml(it.text) + "</button>"))).join("");
     root.appendChild(el);
     const rect = anchor.getBoundingClientRect();
     const w = el.offsetWidth, h = el.offsetHeight;
@@ -161,13 +162,15 @@
     if (y + h > window.innerHeight - 8) y = Math.max(8, rect.top - h - 6);
     el.style.left = x + "px"; el.style.top = y + "px";
 
+    const clickable = items.filter((it) => !it.sep && !it.label);
     function close(e) { if (e && el.contains(e.target)) return; el.remove(); document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); }
     function esc(e) { if (e.key === "Escape") close(); }
     setTimeout(() => { document.addEventListener("mousedown", close); document.addEventListener("keydown", esc); }, 0);
     el.querySelectorAll(".menu-item").forEach((b) => b.addEventListener("click", () => {
-      const idx = b.dataset.i;
+      const idx = Number(b.dataset.i);
       el.remove(); document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc);
-      if (idx !== "") items[+idx].action && items[+idx].action();
+      const it = clickable[idx];
+      if (it && it.action) it.action();
     }));
   }
 

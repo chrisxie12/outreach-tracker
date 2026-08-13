@@ -50,10 +50,11 @@ V61.Pages = V61.Pages || {};
             const b = r.business || {};
             const fu = S().nextFollowup(r.lead.id);
             const wa = b.whatsapp || b.phone;
-            return '<div class="kb-card" draggable="true" data-drag="' + r.lead.id + '" data-open="' + r.lead.id + '">' +
+            return '<div class="kb-card" data-drag="' + r.lead.id + '" data-drag-stage="' + r.lead.stage + '" data-open="' + r.lead.id + '">' +
               '<div class="kb-top"><div><div class="kb-name"><a href="#/leads/' + r.lead.id + '" style="color:inherit">' + U().escapeHtml(b.name) + "</a></div>" +
               '<div class="kb-cat">' + U().escapeHtml([b.category, b.city].filter(Boolean).join(" • ")) + "</div></div>" +
-              '<span style="display:flex;gap:4px;align-items:center">' + UI.miniScore(r.leadScore) + "</span></div>" +
+              '<span style="display:flex;gap:4px;align-items:center">' + UI.miniScore(r.leadScore) +
+              '<button class="icon-btn kb-move" data-move="' + r.lead.id + '" title="Move to stage">' + I.moreH + "</button></span></div>" +
               '<div class="kb-meta"><span class="kb-value">' + U().formatMoney(r.lead.estimatedValue) + "</span>" +
               (fu ? '<span class="kb-due ' + (fu.dueDate < U().todayStart() ? "overdue" : "") + '">' + I.clock + U().relativeDue(fu.dueDate) + "</span>" : "") +
               (wa ? '<a class="mini-btn" style="padding:1px 7px;margin-left:auto" target="_blank" rel="noopener" href="' + U().waLink(wa) + '">' + I.whatsapp + "</a>" : "") +
@@ -69,30 +70,88 @@ V61.Pages = V61.Pages || {};
     }));
   }
 
+  function moveLead(id, toStage) {
+    const lead = S().byId("leads", id);
+    if (!lead || lead.stage === toStage) return;
+    const from = lead.stage;
+    lead.stage = toStage; lead.updatedAt = U().now();
+    if (toStage === "won") { lead.wonAt = U().now(); if (!S().clientOf(lead.businessId)) convertToClient(lead); }
+    if (toStage === "lost" && lead.wonAt) delete lead.wonAt;
+    S().addActivity(lead.id, "stage", "Lead moved from " + S().stageOf(from).label + " to " + S().stageOf(toStage).label + ".");
+    S().save(); V61.Toast.success("Lead moved to " + S().stageOf(toStage).label);
+    V61.App.renderRoute();
+  }
+
   function bindDrag() {
     const kanban = document.getElementById("pipeline-kanban");
     if (!kanban) return;
-    kanban.querySelectorAll(".kb-card[draggable]").forEach((card) => {
-      card.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", card.dataset.drag); card.classList.add("dragging"); });
-      card.addEventListener("dragend", () => card.classList.remove("dragging"));
-    });
-    kanban.querySelectorAll(".kb-col").forEach((col) => {
-      col.addEventListener("dragover", (e) => { e.preventDefault(); col.classList.add("drag-over"); });
-      col.addEventListener("dragleave", () => col.classList.remove("drag-over"));
-      col.addEventListener("drop", (e) => {
-        e.preventDefault(); col.classList.remove("drag-over");
-        const id = e.dataTransfer.getData("text/plain");
-        const lead = S().byId("leads", id);
-        if (!lead || lead.stage === col.dataset.stage) return;
-        const from = lead.stage;
-        lead.stage = col.dataset.stage; lead.updatedAt = U().now();
-        if (col.dataset.stage === "won") { lead.wonAt = U().now(); if (!S().clientOf(lead.businessId)) convertToClient(lead); }
-        if (col.dataset.stage === "lost" && lead.wonAt) delete lead.wonAt;
-        S().addActivity(lead.id, "stage", "Lead moved from " + S().stageOf(from).label + " to " + S().stageOf(col.dataset.stage).label + ".");
-        S().save(); V61.Toast.success("Lead moved to " + S().stageOf(col.dataset.stage).label);
-        V61.App.renderRoute();
+    kanban.querySelectorAll(".kb-card").forEach((card) => {
+      card.addEventListener("pointerdown", (e) => {
+        if (e.target.closest("a") || e.target.closest("button")) return;
+        startDrag(card, e);
       });
     });
+    kanban.querySelectorAll("[data-move]").forEach((b) => b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      V61.UI.menuPop(b, S().STAGES.filter((s) => s.key !== b.closest(".kb-col").dataset.stage).map((s) => ({
+        text: "Move to " + s.label, icon: I.chevronR, action: () => moveLead(b.dataset.move, s.key),
+      })));
+    }));
+  }
+
+  function startDrag(card, e) {
+    const kanban = document.getElementById("pipeline-kanban");
+    if (!kanban) return;
+    const wasTouch = e.pointerType === "touch";
+    const startX = e.clientX, startY = e.clientY;
+    let started = false, moved = 0;
+
+    function onMove(ev) {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      moved = Math.max(moved, Math.abs(dx), Math.abs(dy));
+      if (!started && moved > 6) { started = true; begin(); }
+      if (started) {
+        ev.preventDefault();
+        ghost.style.left = ev.clientX + "px";
+        ghost.style.top = ev.clientY + "px";
+        const col = columnAt(ev.clientX, ev.clientY);
+        kanban.querySelectorAll(".kb-col").forEach((c) => c.classList.toggle("drag-over", c === col));
+      }
+    }
+    function onUp(ev) {
+      if (!started) { cleanup(); return; }
+      const col = columnAt(ev.clientX, ev.clientY);
+      if (col && col.dataset.stage !== card.dataset.dragStage) moveLead(card.dataset.drag, col.dataset.stage);
+      cleanup();
+    }
+    function columnAt(x, y) {
+      const els = kanban.querySelectorAll(".kb-col");
+      for (const c of els) { const r = c.getBoundingClientRect(); if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return c; }
+      return null;
+    }
+    function begin() {
+      card.classList.add("dragging");
+      ghost = document.createElement("div");
+      ghost.className = "kb-ghost";
+      ghost.textContent = card.querySelector(".kb-name") ? card.querySelector(".kb-name").textContent.trim() : "Lead";
+      ghost.style.left = startX + "px";
+      ghost.style.top = startY + "px";
+      document.body.appendChild(ghost);
+      card.setPointerCapture && card.setPointerCapture(e.pointerId);
+    }
+    function cleanup() {
+      card.classList.remove("dragging");
+      if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+      kanban.querySelectorAll(".kb-col").forEach((c) => c.classList.remove("drag-over"));
+      card.removeEventListener("pointermove", onMove);
+      card.removeEventListener("pointerup", onUp);
+      card.removeEventListener("pointercancel", onUp);
+    }
+    let ghost = null;
+    card.addEventListener("pointermove", onMove);
+    card.addEventListener("pointerup", onUp);
+    card.addEventListener("pointercancel", onUp);
+    if (wasTouch) { card.style.touchAction = "none"; }
   }
 
   function convertToClient(lead) {

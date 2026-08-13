@@ -480,6 +480,14 @@ table.data .biz-cell .b-cat { font-size: 11.5px; color: var(--text-3); }
 .kb-card:hover { box-shadow: var(--shadow-sm); border-color: var(--border-2); }
 .kb-card:active { cursor: grabbing; }
 .kb-card.dragging { opacity: .45; }
+.kb-card .kb-move { width: 26px; height: 26px; border-radius: 6px; }
+.kb-ghost {
+  position: fixed; z-index: 500; pointer-events: none;
+  background: var(--surface); border: 1px solid var(--accent-border);
+  border-radius: 9px; padding: 10px 12px; font-size: 13px; font-weight: 650;
+  box-shadow: var(--shadow); transform: translate(-50%, -60%); max-width: 220px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .kb-card .kb-top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
 .kb-card .kb-name { font-weight: 650; font-size: 13px; line-height: 1.3; }
 .kb-card .kb-cat { font-size: 11px; color: var(--text-3); margin-top: 2px; }
