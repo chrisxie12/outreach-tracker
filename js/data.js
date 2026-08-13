@@ -224,11 +224,91 @@
   /* ── Store ── */
   const emptyDb = () => ({
     schema: 1,
-    businesses: [], contacts: [], audits: [], leads: [], outreach: [], followups: [],
-    tasks: [], notes: [], activity: [], services: [], proposals: [], clients: [], payments: [],
+    businesses: [], contacts: [], audits: [], leads: [], outreach: [], followups: [], tasks: [], notes: [],
+    activity: [], services: [], proposals: [], clients: [], payments: [],
     websiteAudits: [], auditSnapshots: [], meetings: [], outreachDrafts: [], outreachTemplates: [], tags: [],
+    projects: [], projectTasks: [], milestones: [], invoices: [], invoiceItems: [], approvals: [], revisions: [],
     settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "", enabled: false } },
   });
+
+  const PROJECT_STATUS = [
+    { key: "not_started", label: "Not Started", color: "#8a8a90" },
+    { key: "onboarding", label: "Onboarding", color: "#6f8db5" },
+    { key: "in_progress", label: "In Progress", color: "#335fa8" },
+    { key: "waiting_on_client", label: "Waiting on Client", color: "#e0a53e" },
+    { key: "in_review", label: "In Review", color: "#6b51b5" },
+    { key: "revision", label: "Revision", color: "#c084fc" },
+    { key: "completed", label: "Completed", color: "#3f9d5f" },
+    { key: "cancelled", label: "Cancelled", color: "#e5484d" },
+  ];
+  const projectStatusOf = (key) => PROJECT_STATUS.find((s) => s.key === key) || PROJECT_STATUS[0];
+
+  const TASK_STATUS = [
+    { key: "todo", label: "Todo", color: "#8a8a90" },
+    { key: "in_progress", label: "In Progress", color: "#335fa8" },
+    { key: "blocked", label: "Blocked", color: "#e5484d" },
+    { key: "waiting_on_client", label: "Waiting on Client", color: "#e0a53e" },
+    { key: "in_review", label: "In Review", color: "#6b51b5" },
+    { key: "done", label: "Done", color: "#3f9d5f" },
+    { key: "cancelled", label: "Cancelled", color: "#8a8a90" },
+  ];
+  const taskStatusOf = (key) => TASK_STATUS.find((s) => s.key === key) || TASK_STATUS[0];
+
+  const TASK_PRIORITY = [
+    { key: "low", label: "Low", color: "#8a8a90" },
+    { key: "medium", label: "Medium", color: "#e0a53e" },
+    { key: "high", label: "High", color: "#ed4217" },
+    { key: "urgent", label: "Urgent", color: "#e5484d" },
+  ];
+
+  const INVOICE_STATUS = [
+    { key: "draft", label: "Draft", color: "#8a8a90" },
+    { key: "sent", label: "Sent", color: "#335fa8" },
+    { key: "partially_paid", label: "Partially Paid", color: "#e0a53e" },
+    { key: "paid", label: "Paid", color: "#3f9d5f" },
+    { key: "overdue", label: "Overdue", color: "#e5484d" },
+    { key: "cancelled", label: "Cancelled", color: "#8a8a90" },
+  ];
+  const invoiceStatusOf = (key) => INVOICE_STATUS.find((s) => s.key === key) || INVOICE_STATUS[0];
+
+  const DEFAULT_PROJECT_TEMPLATES = [
+    {
+      id: "tpl-proj-web",
+      name: "Website Development",
+      tasks: [
+        { title: "Discovery call", priority: "medium" },
+        { title: "Content collection", priority: "medium" },
+        { title: "Sitemap", priority: "medium" },
+        { title: "Wireframe", priority: "medium" },
+        { title: "Homepage design", priority: "high" },
+        { title: "Inner pages", priority: "medium" },
+        { title: "Responsive development", priority: "high" },
+        { title: "Contact form", priority: "medium" },
+        { title: "WhatsApp integration", priority: "medium" },
+        { title: "SEO basics", priority: "medium" },
+        { title: "Testing", priority: "medium" },
+        { title: "Client review", priority: "high" },
+        { title: "Revisions", priority: "medium" },
+        { title: "Deployment", priority: "high" },
+        { title: "Handover", priority: "medium" }
+      ]
+    },
+    {
+      id: "tpl-proj-gbo",
+      name: "Google Business Optimization",
+      tasks: [
+        { title: "Business information review", priority: "medium" },
+        { title: "Category review", priority: "medium" },
+        { title: "Description", priority: "medium" },
+        { title: "Services", priority: "medium" },
+        { title: "Photos", priority: "medium" },
+        { title: "Contact information", priority: "medium" },
+        { title: "Review strategy", priority: "medium" },
+        { title: "Local SEO checks", priority: "medium" },
+        { title: "Final verification", priority: "high" }
+      ]
+    }
+  ];
 
   const SETTINGS_DEFAULTS = { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "", enabled: false } };
 
@@ -321,14 +401,40 @@
   function leadOf(businessId) { return db.leads.find((l) => l.businessId === businessId) || null; }
   function contactsFor(businessId) { return db.contacts.filter((c) => c.businessId === businessId); }
   function clientOf(businessId) { return db.clients.find((c) => c.businessId === businessId) || null; }
+  function clientById(clientId) { return db.clients.find((c) => c.id === clientId) || null; }
   function ensureClient(lead) {
     if (!lead || !lead.businessId) return null;
     const existing = clientOf(lead.businessId);
     if (existing) return existing;
     const biz = businessOf(lead);
     if (!biz) return null;
-    const c = { id: U().uid("cl"), businessId: biz.id, leadId: lead.id, status: "active", createdAt: U().now(), services: [] };
+    const c = {
+      id: U().uid("cl"),
+      businessId: biz.id,
+      leadId: lead.id,
+      status: "active",
+      createdAt: U().now(),
+      services: [],
+      contacts: [],
+      notes: []
+    };
     db.clients.push(c);
+
+    // Also copy contacts from business to client contacts if any
+    const bizContacts = contactsFor(biz.id);
+    bizContacts.forEach(bc => {
+      db.clientContacts.push({
+        id: U().uid("cc"),
+        clientId: c.id,
+        name: bc.name,
+        role: bc.role,
+        phone: bc.phone,
+        email: bc.email,
+        preferredChannel: bc.whatsapp ? "WhatsApp" : (bc.email ? "Email" : "Phone"),
+        createdAt: U().now()
+      });
+    });
+
     addActivity(lead.id, "proposal", "Lead converted to client.");
     return c;
   }
@@ -586,10 +692,152 @@
   function clientRows() {
     return db.clients.map((c) => {
       const biz = businessOf({ businessId: c.businessId });
-      const paid = db.payments.filter((p) => p.clientId === c.id && p.status === "paid").reduce((s, p) => s + (p.amount || 0), 0);
-      const outstanding = db.payments.filter((p) => p.clientId === c.id && p.status === "pending").reduce((s, p) => s + (p.amount || 0), 0);
-      return { client: c, business: biz, paid, outstanding };
+      const projects = projectsFor(c.id);
+      const activeProjects = projects.filter(p => !["completed", "cancelled"].includes(p.status)).length;
+
+      const financials = clientFinancialSummary(c.id);
+
+      return {
+        client: c,
+        business: biz,
+        paid: financials.totalPaid,
+        outstanding: financials.outstanding,
+        activeProjects,
+        totalProjectValue: financials.totalProjectValue
+      };
     });
+  }
+
+  /* ── Phase 4: Projects ── */
+  function projectOf(projectId) { return db.projects.find((p) => p.id === projectId) || null; }
+  function projectsFor(clientId) { return db.projects.filter((p) => p.clientId === clientId); }
+  function projectTasksFor(projectId) { return db.projectTasks.filter((t) => t.projectId === projectId); }
+  function milestonesFor(projectId) { return db.milestones.filter((m) => m.projectId === projectId); }
+  function invoicesFor(clientId) { return db.invoices.filter((i) => i.clientId === clientId); }
+  function invoiceItemsFor(invoiceId) { return db.invoiceItems.filter((item) => item.invoiceId === invoiceId); }
+  function approvalsFor(projectId) { return db.approvals.filter((a) => a.projectId === projectId); }
+  function revisionsFor(projectId) { return db.revisions.filter((r) => r.projectId === projectId); }
+
+  /* ── Project ── */
+  function addProject(clientId, data) {
+    const now = U().now();
+    const project = Object.assign({ id: U().uid("proj"), clientId, status: "not_started", progress: 0, priority: "medium", createdAt: now, updatedAt: now }, data);
+    db.projects.push(project);
+    save();
+    return project;
+  }
+
+  /* ── Project Task ── */
+  function projectTaskOf(taskId) { return db.projectTasks.find((t) => t.id === taskId) || null; }
+  function addProjectTask(projectId, data) {
+    const now = U().now();
+    const task = Object.assign({ id: U().uid("ptask"), projectId, status: "todo", priority: "medium", createdAt: now, updatedAt: now }, data);
+    db.projectTasks.push(task);
+    save();
+    return task;
+  }
+
+  /* ── Milestone ── */
+  function milestoneOf(milestoneId) { return db.milestones.find((m) => m.id === milestoneId) || null; }
+  function addMilestone(projectId, data) {
+    const now = U().now();
+    const m = Object.assign({ id: U().uid("mil"), projectId, name: data.name, description: data.description || "", status: "pending", dueDate: data.dueDate || null, completionDate: null, tasks: [] }, data);
+    db.milestones.push(m);
+    save();
+    return m;
+  }
+
+  /* ── Invoice ── */
+  function invoiceOf(invoiceId) { return db.invoices.find((i) => i.id === invoiceId) || null; }
+  function addInvoice(clientId, data) {
+    const now = U().now();
+    const inv = Object.assign({ id: U().uid("inv"), clientId, invoiceNumber: U().uid("inv-num"), issueDate: now, dueDate: data.dueDate || now, items: [], subtotal: 0, discount: 0, tax: 0, total: 0, amountPaid: 0, balance: 0, status: "draft", notes: "" }, data);
+    db.invoices.push(inv);
+    save();
+    return inv;
+  }
+
+  /* ── Invoice Item ── */
+  function invoiceItemOf(itemId) { return db.invoiceItems.find((item) => item.id === itemId) || null; }
+  function addInvoiceItem(invoiceId, data) {
+    const now = U().now();
+    const item = Object.assign({ id: U().uid("inv-it"), invoiceId, service: data.service || "", description: data.description || "", quantity: data.quantity !== undefined ? data.quantity : 1, unitPrice: data.unitPrice || 0, total: (data.quantity || 1) * (data.unitPrice || 0) }, data);
+    db.invoiceItems.push(item);
+    // Recalculate invoice totals
+    const inv = invoiceOf(invoiceId);
+    if (inv) {
+      const items = invoiceItemsFor(invoiceId);
+      inv.subtotal = items.reduce((s, it) => s + it.total, 0);
+      inv.discount = 0; // discounts handled at invoice level
+      inv.tax = 0; // tax optional/configurable
+      inv.total = Math.max(0, inv.subtotal - inv.discount + inv.tax);
+      inv.balance = Math.max(0, inv.total - inv.amountPaid);
+      inv.status = inv.balance <= 0 ? "paid" : inv.balance > 0 && inv.amountPaid > 0 ? "partially_paid" : inv.balance > 0 ? "sent" : "draft";
+      inv.updatedAt = U().now();
+      save();
+    }
+    return item;
+  }
+
+  /* ── Approval ── */
+  function approvalOf(appId) { return db.approvals.find((a) => a.id === appId) || null; }
+  function addApproval(projectId, data) {
+    const now = U().now();
+    const a = Object.assign({ id: U().uid("app"), projectId, item: data.item || "", status: "pending", date: null, performedBy: "", notes: "" }, data);
+    db.approvals.push(a);
+    save();
+    return a;
+  }
+
+  /* ── Revision ── */
+  function revisionOf(revId) { return db.revisions.find((r) => r.id === revId) || null; }
+  function addRevision(projectId, data) {
+    const now = U().now();
+    const r = Object.assign({ id: U().uid("rev"), projectId, revisionNumber: data.revisionNumber || 1, requestedDate: data.requestedDate || now, completedDate: null, notes: "" }, data);
+    db.revisions.push(r);
+    save();
+    return r;
+  }
+
+  /* ── Audit Snapshots (digital growth) ── */
+  function addAuditSnapshot(businessId, data) {
+    const rec = { id: U().uid("snap"), businessId, createdAt: U().now(), data: data || {} };
+    db.auditSnapshots.push(rec);
+    save();
+    return rec;
+  }
+  function auditSnapshotsFor(businessId) {
+    return db.auditSnapshots.filter((x) => x.businessId === businessId).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  }
+
+  /* ── Project progress calculation ── */
+  function projectProgress(projectId) {
+    const tasks = projectTasksFor(projectId);
+    if (!tasks.length) return 0;
+    const completed = tasks.filter((t) => t.status === "done").length;
+    return Math.round((completed / tasks.length) * 100);
+  }
+
+  /* ── Client financial summary ── */
+  function clientFinancialSummary(clientId) {
+    const invoices = invoicesFor(clientId);
+    let totalInvoiced = 0, totalPaid = 0;
+    invoices.forEach((inv) => {
+      if (inv.status !== "cancelled") {
+        totalInvoiced += inv.total;
+        totalPaid += inv.amountPaid;
+      }
+    });
+
+    // Also include direct payments if any not linked to invoices (future proofing)
+    const directPayments = db.payments.filter(p => p.clientId === clientId && !p.invoiceId && p.status === "paid")
+      .reduce((s, p) => s + (p.amount || 0), 0);
+    totalPaid += directPayments;
+
+    const projects = projectsFor(clientId);
+    const totalProjectValue = projects.reduce((s, p) => s + (p.budget || 0), 0);
+
+    return { totalProjectValue, totalInvoiced, totalPaid, outstanding: Math.max(0, totalInvoiced - totalPaid) };
   }
 
   /* ── CSV export ── */
@@ -687,20 +935,20 @@
     opportunities, opportunitySummary, leadScore, temperatureFor, emptyAudit,
     isHighOpportunity, saveWebsiteAudit, latestWebsiteAudit, websiteAuditsFor, saveAuditSnapshot, auditSnapshotsFor,
     byId, businessOf, auditOf, leadOf, contactsFor, clientOf, ensureClient, paymentsFor, proposalsFor,
-    outreachFor, followupsFor, tasksFor, notesFor, activityFor,
+    outreachFor, followupsFor, tasksFor, notesFor, activityFor, projectOf, projectsFor,
+    projectTasksFor, milestonesFor, invoicesFor, invoiceItemsFor, approvalsFor, revisionsFor,
     addActivity, addBusiness, addLead, addContact, upsertAudit,
     addDiscoveredBusiness, businessByGooglePlace, businessByName,
-    nextFollowup, nextTask,
-    ACTIVITY_TYPES, MEETING_TYPES, DEFAULT_OUTCOMES, DEFAULT_LOST_REASONS, DEFAULT_TEMPLATES,
-    followupState, cancelFollowup,
-    meetingsFor, upcomingMeetings, addMeeting,
-    outreachDraftsFor, saveOutreachDraft, activeTemplates,
-    tagsFor, addTag, removeTag,
-    lifecycleStatus, contactNameFor, recommendedServicesFor, lastInteractionFor,
-    timeToFirstResponse, daysContactToMeeting, daysProposalToWin,
-    markLost, markWon, reactivateLead,
+    nextFollowup, nextTask, addProject, projectTaskOf, addProjectTask,
+    milestoneOf, addMilestone,
+    invoiceOf, addInvoice, invoiceItemOf, addInvoiceItem,
+    approvalOf, addApproval,
+    revisionOf, addRevision,
+    addAuditSnapshot, auditSnapshotsFor,
+    projectProgress, clientFinancialSummary,
     pipelineValue, wonRevenue, outstandingPayments, mrr,
-    leadRows, clientRows,
+    leadRows, clientRows, clientById,
+    PROJECT_STATUS, projectStatusOf, TASK_STATUS, taskStatusOf, TASK_PRIORITY, INVOICE_STATUS, invoiceStatusOf, DEFAULT_PROJECT_TEMPLATES,
     exportLeadsCSV, exportClientsCSV, importCSV,
     load, save, on, persist,
   };

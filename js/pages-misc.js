@@ -36,6 +36,8 @@ V61.Pages = V61.Pages || {};
     const contactedLast = S().db.leads.filter((l) => inRange(l.lastContacted, lastM)).length;
     const wonThis = S().db.clients.filter((cl) => inRange(cl.createdAt, thisM)).length;
     const wonLast = S().db.clients.filter((cl) => inRange(cl.createdAt, lastM)).length;
+    const revThis = S().db.payments.filter((p) => p.status === 'paid' && inRange(p.date, thisM)).reduce((s, p) => s + (p.amount || 0), 0);
+    const revLast = S().db.payments.filter((p) => p.status === 'paid' && inRange(p.date, lastM)).reduce((s, p) => s + (p.amount || 0), 0);
     const delta = (a, b) => { if (!b) return a ? "+100%" : "—"; const v = Math.round(((a - b) / b) * 100); return (v >= 0 ? "+" : "") + v + "%"; };
 
     const months = [], now = new Date();
@@ -51,7 +53,8 @@ V61.Pages = V61.Pages || {};
       '<div class="metric-row" style="margin-bottom:18px">' +
       metric("Leads added", addedThis, delta(addedThis, addedLast) + " vs last month") +
       metric("Leads contacted", contactedThis, delta(contactedThis, contactedLast) + " vs last month") +
-      metric("Deals won", wonThis, delta(wonThis, wonLast) + " vs last month", true) +
+      metric("Deals won", wonThis, delta(wonThis, wonLast) + " vs last month") +
+      metric("Collected", U().formatMoney(revThis), delta(revThis, revLast) + " vs last month", true) +
       metric("Outreach rate", U().pct(c.contacted, c.total) + "%", c.contacted + " of " + c.total) +
       metric("Response rate", U().pct(c.responded, Math.max(1, c.contacted)) + "%", c.responded + " replies") +
       metric("Conversion rate", U().pct(c.won, Math.max(1, c.qualified)) + "%", c.won + " of " + c.qualified) +
@@ -122,7 +125,10 @@ V61.Pages = V61.Pages || {};
         const d = byStage[s.key] || { count: 0, value: 0 };
         return '<div class="stat-block"><span style="display:inline-flex;align-items:center;gap:7px"><span class="badge-dot" style="background:' + s.color + '"></span>' + s.label + '</span><span><span style="font-weight:700">' + d.count + '</span> · ' + U().formatMoney(d.value) + "</span></div>";
       }).join("") +
-      '<div class="stat-block"><b>Pipeline value</b><b style="color:var(--accent)">' + U().formatMoney(pipeline) + "</b></div></div></div>" +
+      '<div class="stat-block"><b>Pipeline value</b><b style="color:var(--accent)">' + U().formatMoney(pipeline) + "</b></div>" +
+      '<div class="stat-block"><b>Total Won</b><b style="color:var(--ok)">' + U().formatMoney(S().wonRevenue()) + "</b></div>" +
+      '<div class="stat-block"><b>Total Collected</b><b style="color:var(--ok)">' + U().formatMoney(S().clientRows().reduce((s, r) => s + r.paid, 0)) + "</b></div>" +
+      '<div class="stat-block"><b>Total Outstanding</b><b style="color:var(--danger)">' + U().formatMoney(S().clientRows().reduce((s, r) => s + r.outstanding, 0)) + "</b></div></div></div>" +
       '<div style="display:flex;flex-direction:column;gap:18px">' +
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.zap + ' Lead quality</div></div><div class="panel-body"><div class="stack">' +
       [["Hot", hot, "#ed4217"], ["Warm", warm, "#e0a53e"], ["Cold", cold, "#8a8a90"]].map(([l, n, col]) => {

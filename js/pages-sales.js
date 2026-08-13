@@ -381,5 +381,159 @@ V61.Pages = V61.Pages || {};
   V61.Pages.services = renderServices;
   V61.Pages.proposals = renderProposals;
   V61.Pages.clients = renderClients;
-  V61.Pages.sales = { renderProposals, createProposal, proposalDetail, renderServices, renderClients, clientDetail };
-})();
+  V61.Pages.projects = renderProjects;
+  V61.Pages.projectDetail = projectDetail;
+  Object.assign(V61.Pages.sales, { renderProposals, createProposal, proposalDetail, renderServices, renderClients, clientDetail, renderProjects, projectDetail });
+  /* ── Phase 4: Invoices ── */
+  function renderInvoices() {
+    const el = document.getElementById("content");
+    const invoices = S().db.invoices;
+    const noInvoices = invoices.length === 0;
+    el.innerHTML =
+      '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">Finance</div>' +
+      '<h1 class="page-title">Invoices</h1><p class="page-sub">' + (noInvoices ? "No invoices yet." : invoices.length + " invoice" + (invoices.length === 1 ? "" : "s")) + "</p></div>" +
+      '<div class="page-actions"><button class="btn btn-primary" data-cmd="createInvoice">' + I.plus + " Create Invoice</button></div></div>" +
+      (noInvoices ? UI.emptyState("bill", "No invoices yet.", "Create an invoice from a client or project.") :
+        '<div class="table-wrap"><table class="data"><thead><tr><th>Invoice</th><th>Client</th><th>Project</th><th>Status</th><th>Total</th><th>Paid</th><th>Balance</th><th>Issued</th><th></th></tr></thead><tbody>' +
+        invoices.map((inv) => {
+          const client = S().byId("clients", inv.clientId);
+          const biz = client ? S().businessOf({ businessId: client.businessId }) : null;
+          const proj = inv.projectId ? S().projectOf(inv.projectId) : null;
+          return "<tr><td>" + U().escapeHtml(inv.invoiceNumber) + "</td>" +
+            "<td>" + (biz ? U().escapeHtml(biz.name) : "—") + "</td>" +
+            "<td>" + (proj ? U().escapeHtml(proj.name) : "—") + "</td>" +
+            "<td>" + UI.badge(inv.status, getInvoiceStatusColor(inv.status), true) + "</td>" +
+            "<td><b>" + U().formatMoney(inv.total) + "</b></td>" +
+            "<td><b style='color:var(--ok)'>" + U().formatMoney(inv.amountPaid) + "</b></td>" +
+            "<td><b style='" + (inv.balance > 0 ? "color:var(--danger)" : "color:var(--ok)") + "'>" + U().formatMoney(inv.balance) + "</b></td>" +
+            "<td><span class='cell-sub'>" + U().formatDate(inv.issueDate) + "</span></td>" +
+            '<td><a class="btn btn-sm btn-ghost" href="#/invoices/' + inv.id + '">' + I.eye + " View</a></td></tr>";
+        }).join("") + "</tbody></table></div>")
+    UI.bind(el);
+  }
+
+  function invoiceDetail(id) {
+    const inv = invoiceOf(id);
+    if (!inv) { V61.App.nav("#/invoices"); return; }
+    const client = S().byId("clients", inv.clientId);
+    const biz = client ? S().businessOf({ businessId: client.businessId }) : null;
+    const proj = inv.projectId ? S().projectOf(inv.projectId) : null;
+    const items = invoiceItemsFor(inv.id);
+    const now = U().now();
+    const todayStart = U().todayStart();
+    const tomorrow = todayStart + 86400e3;
+    const dueTodayItems = items.filter((item) => item.dueDate && U().dayStart(item.dueDate) === todayStart);
+    const overdueItems = items.filter((item) => item.dueDate && item.dueDate < todayStart);
+    const paidItems = items.filter((item) => item.status === "paid");
+    const pendingItems = items.filter((item) => item.status === "pending");
+    const el = document.getElementById("content");
+
+    el.innerHTML =
+      '<a href="#/invoices" class="btn btn-ghost" style="margin-bottom:14px;">' + I.chevronL + " Back to invoices</a>" +
+      '<div class="panel" style="padding:22px">' +
+      '<div class="ld-head">' +
+      '<div class="avatar big" style="background:' + UI.hexA(U().avatarColor(biz.name), .15) + ';color:' + U().avatarColor(biz.name) + '">' + U().initials(biz.name) + "</div>" +
+      '<div style="flex:1"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1 class="ld-title">' + U().escapeHtml(biz.name) + "</h1>" + UI.badge(inv.status, getInvoiceStatusColor(inv.status), true) + "</div>" +
+      '<div class="ld-sub">' + (proj ? U().escapeHtml(proj.name) : "—") + " · " + U().formatDate(inv.issueDate) + "</div>" +
+      "</div></div>" +
+
+      '<div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));margin-top:18px">' +
+      '<div class="kpi accent"><div class="k-label">Invoice #</div><div class="k-value">' + U().escapeHtml(inv.invoiceNumber) + "</div></div>" +
+      '<div class="kpi"><div class="k-label">Total</div><div class="k-value"><b>' + U().formatMoney(inv.total) + "</b></div></div>" +
+      '<div class="kpi"><div class="k-label">Paid</div><div class="k-value"><b>' + U().formatMoney(inv.amountPaid) + "</b></div></div>" +
+      '<div class="kpi"><div class="k-label">Balance</div><div class="k-value"><b style="' + (inv.balance > 0 ? "color:var(--danger)" : "color:var(--ok)") + '">' + U().formatMoney(inv.balance) + "</b></div></div>" +
+      "</div>" +
+
+      '<div style="margin-top:24px">' +
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.bill + " Invoice Items</div>' +
+      '<div class="panel-body">' + (items.length ?
+        '<table class="data" style="min-width:640px"><thead><tr><th>Service/Item</th><th>Description</th><th>Qty</th><th>Unit price</th><th>Total</th><th></th></tr></thead><tbody>' +
+        items.map((it) =>
+          "<tr><td>" + U().escapeHtml(it.service || it.description) + "</td>" +
+            "<td>" + U().escapeHtml(it.description || "") + "</td>" +
+            "<td>" + it.quantity + "</td>" +
+            "<td>" + U().formatMoney(it.unitPrice) + "</td>" +
+            "<td><b>" + U().formatMoney(it.total) + "</b></td>" +
+            (it.notes ? '<td><div style="font-size:11px;color:var(--text-3)">' + U().escapeHtml(it.notes) + "</div></td>" : "") +
+            "</tr>"
+        ).join("") +
+        "</tbody></table>" :
+        UI.emptyState("fileText", "No invoice items.", "Add items to this invoice.")) + "</div>" + "</div>" +
+
+      '<div style="margin-top:24px;display:flex;justify-content:flex-end;gap:12px">' +
+      '<button class="btn" data-cmd="recordPayment:' + inv.id + '">Record Payment</button>' +
+      "</div>" +
+
+      "</div>";
+    UI.bind(el);
+  }
+
+  function recordPayment(invoiceId) {
+    const inv = invoiceOf(invoiceId);
+    if (!inv) return;
+    const client = S().byId("clients", inv.clientId);
+    const m = UI.openModal({ title: "Record Payment — Invoice " + inv.invoiceNumber, icon: I.credit });
+    m.setBody('<div class="field"><label>Amount (GH₵)</label><input class="input" id="pay-amount" type="number" min="0" step="0.01"></div>' +
+      '<div class="field-row"><div class="field"><label>Date</label><input class="input" id="pay-date" type="date" value="' + new Date().toISOString().slice(0, 10) + '"></div>' +
+      '<div class="field"><label>Reference</label><input class="input" id="pay-ref" placeholder="Invoice #..."></div></div>' +
+      '<div class="field"><label>Notes</label><textarea class="textarea" id="pay-notes" rows="2"></textarea></div>');
+    m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-save>Save Payment</button>');
+    m.q("[data-cancel]").addEventListener("click", () => m.close());
+    m.q("[data-save]").addEventListener("click", () => {
+      const amt = Number(m.body.querySelector("#pay-amount").value);
+      if (!amt) { V61.Toast.error("Enter an amount"); return; }
+      if (amt > inv.balance) { V61.Toast.error("Payment cannot exceed outstanding balance"); return; }
+      const dv = m.body.querySelector("#pay-date").value;
+      const newPayment = { id: U().uid("pay"), clientId: inv.clientId, invoiceId: inv.id, amount: amt, status: "paid", kind: "project", date: dv ? new Date(dv + "T12:00:00").getTime() : U().now(), reference: m.body.querySelector("#pay-ref").value.trim(), notes: m.body.querySelector("#pay-notes").value.trim() };
+      S().db.payments.push(newPayment);
+      // Update invoice balance
+      inv.amountPaid += amt;
+      inv.balance = Math.max(0, inv.total - inv.amountPaid);
+      if (inv.balance <= 0) { inv.status = "paid"; }
+      else if (inv.amountPaid > 0) { inv.status = "partially_paid"; }
+      inv.updatedAt = U().now();
+      S().save(); m.close(); V61.Toast.success("Payment recorded"); V61.App.renderRoute();
+    });
+  }
+
+  function getInvoiceStatusColor(status) {
+    const colors = { draft: "#8a8a90", sent: "#335fa8", partially_paid: "#e0a53e", paid: "#3f9d5f", overdue: "#e5484d", cancelled: "#6d6d75" };
+    return colors[status] || "#8a8a90";
+  }
+
+  /* ── Cmd mappings for invoices ── */
+  V61.Cmd = V61.Cmd || {};
+  Object.assign(V61.Cmd, {
+    createInvoice: () => openCreateInvoiceModal(),
+    recordPayment: (id) => recordPayment(id),
+  });
+
+  function openCreateInvoiceModal() {
+    const clients = S().db.clients;
+    if (!clients.length) { V61.Toast.warn("Add a client first"); V61.App.nav("#/clients"); return; }
+    const client = clients[0];
+    const projId = client.projects ? client.projects[0] : null;
+    const m = UI.openModal({ title: "Create Invoice", icon: I.bill });
+    m.setBody('<div class="field"><label>Client</label><select class="select" id="inv-client">' + clients.map((c) => {
+      const biz = S().businessOf({ businessId: c.businessId });
+      return '<option value="' + c.id + '">' + (biz ? U().escapeHtml(biz.name) : "Client") + "</option>";
+    }).join("") + "</select></div>" +
+      '<div class="field"><label>Project</label><select class="select" id="inv-project">' + (projId ? '<option value="' + projId + '" selected>' + (S().byId("projects", projId) ? U().escapeHtml(S().byId("projects", projId).name) : "Project") : "") + '<option value="">(None)</option></select></div>' +
+      '<div class="field-row"><div class="field"><label>Due date</label><input class="input" id="inv-due" type="date" value="' + new Date(Date.now() + 30 * 86400e3).toISOString().slice(0, 10) + '"></div>' +
+      '<div class="field"><label>Status</label><select class="select" id="inv-status"><option value="draft">Draft</option><option value="sent">Sent</option></select></div></div>' +
+      '<div class="field"><label>Notes</label><textarea class="textarea" id="inv-notes" rows="2"></textarea></div>');
+    m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-save>Create Invoice</button>');
+    m.q("[data-cancel]").addEventListener("click", () => m.close());
+    m.q("[data-save]").addEventListener("click", () => {
+      const clientId = m.body.querySelector("#inv-client").value;
+      const projectId = m.body.querySelector("#inv-project").value;
+      const dueDate = m.body.querySelector("#inv-due").value ? new Date(m.body.querySelector("#inv-due").value + "T12:00:00").getTime() : null;
+      const status = m.body.querySelector("#inv-status").value;
+      addInvoice(clientId, { dueDate, status, notes: m.body.querySelector("#inv-notes").value.trim() });
+      // If project specified, link invoice to project (we'd need to augment invoice model)
+      S().save(); m.close(); V61.Toast.success("Invoice created"); V61.App.renderRoute();
+    });
+  }
+
+  V61.Pages.invoices = renderInvoices;
+  V61.Pages.invoiceDetail = invoiceDetail;

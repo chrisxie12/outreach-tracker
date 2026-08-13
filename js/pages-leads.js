@@ -850,8 +850,26 @@ UI.bind(el);
     m.q("[data-save]").addEventListener("click", () => {
       const svcSel = m.body.querySelector("#w-svcs");
       const serviceIds = svcSel ? Array.from(svcSel.selectedOptions).map((o) => o.value) : [];
-      S().markWon(leadId, { dealValue: Number(m.body.querySelector("#w-val").value) || 0, wonDate: m.body.querySelector("#w-date").value, notes: m.body.querySelector("#w-notes").value.trim(), serviceIds });
-      S().save(); m.close(); V61.Toast.success("Deal marked as won"); refreshCurrent();
+      const lead = S().byId("leads", leadId);
+      if (lead) {
+        lead.stage = "won";
+        lead.wonAt = U().now();
+        lead.estimatedValue = Number(m.body.querySelector("#w-val").value) || 0;
+        const client = S().ensureClient(lead);
+        S().save();
+        m.close();
+        V61.Toast.success("Deal marked as won");
+        refreshCurrent();
+
+        // Offer to start project
+        if (client) {
+          setTimeout(() => {
+            UI.confirmDialog("Start a project?", "Would you like to start a project for this new client now?", () => {
+              V61.Cmd.startProject(client.id);
+            }, "Start Project");
+          }, 500);
+        }
+      }
     });
   }
 

@@ -15,17 +15,20 @@
     { group: "Outreach", items: [
       { id: "outreach", label: "Outreach", icon: "send", route: "#/outreach" },
       { id: "followups", label: "Follow-ups", icon: "calendar", route: "#/followups" },
-      { id: "tasks", label: "Tasks", icon: "checkSquare", route: "#/tasks" },
+    ] },
+    { group: "Operations", items: [
+      { id: "tasks", label: "My Tasks", icon: "checkSquare", route: "#/tasks" },
+      { id: "projects", label: "Projects", icon: "briefcase", route: "#/projects" },
     ] },
     { group: "Sales", items: [
       { id: "pipeline", label: "Pipeline", icon: "columns", route: "#/pipeline" },
       { id: "proposals", label: "Proposals", icon: "fileText", route: "#/proposals" },
-      { id: "clients", label: "Clients", icon: "briefcase", route: "#/clients" },
+      { id: "clients", label: "Clients", icon: "users", route: "#/clients" },
     ] },
     { group: "Business", items: [
       { id: "services", label: "Services", icon: "package", route: "#/services" },
-      { id: "analytics", label: "Analytics", icon: "pie", route: "#/analytics" },
-      { id: "reports", label: "Reports", icon: "gavel", route: "#/reports" },
+      { id: "invoices", label: "Invoices", icon: "credit", route: "#/invoices" },
+      { id: "reports", label: "Growth Reports", icon: "gavel", route: "#/reports" },
     ] },
     { group: "System", items: [
       { id: "settings", label: "Settings", icon: "settings", route: "#/settings" },
@@ -44,9 +47,10 @@
   function renderShell() {
     const sidebar = document.getElementById("sidebar");
     const s = S().db.settings;
-    const overdue = S().db.followups.filter((f) => f.status === "pending" && (f.dueDate || 0) < U().todayStart()).length;
-    const dueToday = S().db.followups.filter((f) => f.status === "pending" && U().dayStart(f.dueDate) === U().todayStart()).length;
-    const badgeCount = overdue + dueToday;
+    const overdueFollowups = S().db.followups.filter((f) => f.status === "pending" && (f.dueDate || 0) < U().todayStart()).length;
+    const dueTodayFollowups = S().db.followups.filter((f) => f.status === "pending" && U().dayStart(f.dueDate) === U().todayStart()).length;
+    const overdueTasks = S().db.projectTasks.filter((t) => t.status !== "done" && t.dueDate && t.dueDate < U().todayStart()).length;
+    const badgeCount = overdueFollowups + dueTodayFollowups + overdueTasks;
 
     sidebar.innerHTML =
       '<div class="brand">' + logoImg() +
@@ -56,7 +60,11 @@
         '<div class="nav-group">' + g.group + "</div>" +
         g.items.map((it) => {
           const active = App.current === it.id || (it.id === "leads" && App.current === "lead");
-          const badge = (it.id === "followups" && badgeCount) ? badgeCount : (it.id === "tasks" ? S().db.tasks.filter((t) => t.status !== "done").length : 0);
+          let badge = 0;
+          if (it.id === "followups") badge = overdueFollowups + dueTodayFollowups;
+          if (it.id === "tasks") badge = S().db.projectTasks.filter((t) => t.status !== "done").length;
+          if (it.id === "invoices") badge = S().db.invoices.filter(i => i.status === 'overdue').length;
+
           return '<a class="nav-item' + (active ? " active" : "") + '" href="' + it.route + '" data-nav="' + it.id + '">' + (I[it.icon] || I.plus) +
             "<span>" + it.label + "</span>" + (badge ? '<span class="nav-badge">' + badge + "</span>" : "") + "</a>";
         }).join("")
@@ -143,15 +151,21 @@
       dashboard: P.dashboard, leads: P.leads.render, discovery: P.discovery, audits: P.audits,
       opportunities: P.opportunities, outreach: P.outreach, followups: P.followups, tasks: P.tasks,
       pipeline: P.pipeline, proposals: P.proposals, services: P.services, clients: P.clients,
-      analytics: P.analytics, reports: P.reports, settings: P.settings, importexport: P.importexport,
+      clientDetail: P.clientDetail, projects: P.projects, projectDetail: P.projectDetail,
+      invoices: P.invoices, analytics: P.analytics, reports: P.reports, settings: P.settings, importexport: P.importexport,
     };
     if (route === "leads" && id) { P.leads.openLead(id); return; }
     if (route === "lead" && id) { P.leads.openLead(id); return; }
     if (route === "audits" && id) { P.auditDetail(id); return; }
     if (route === "proposals" && id) { P.sales.proposalDetail(id); return; }
     if (route === "proposal" && id) { P.sales.proposalDetail(id); return; }
-    if (route === "clients" && id) { P.sales.clientDetail(id); return; }
-    if (route === "client" && id) { P.sales.clientDetail(id); return; }
+    if (route === "clients" && id) { P.clientDetail(id); return; }
+    if (route === "client" && id) { P.clientDetail(id); return; }
+    if (route === "projects" && id) { P.projectDetail(id); return; }
+    if (route === "projects") { P.projects(); return; }
+    if (route === "tasks") { P.tasks(); return; }
+    if (route === "invoices") { P.invoices(); return; }
+    if (route === "reports") { P.reports(); return; }
     if (routes[route]) { routes[route](); return; }
     V61.App.nav("#/dashboard");
   }
@@ -284,9 +298,16 @@
       if (f.dueDate < today) list.push({ icon: "calendar", title: "Follow-up overdue: " + f.title, sub: name + " · " + U().relativeDue(f.dueDate), danger: true, action: () => lead && App.nav("#/leads/" + lead.id) });
       else if (U().dayStart(f.dueDate) === today) list.push({ icon: "calendar", title: "Follow-up due today: " + f.title, sub: name, action: () => lead && App.nav("#/leads/" + lead.id) });
     });
-    s.db.tasks.filter((t) => t.status !== "done" && t.dueDate && t.dueDate < today).forEach((t) => {
-      const lead = s.byId("leads", t.leadId);
-      list.push({ icon: "checkSquare", title: "Overdue task: " + t.title, sub: (lead && s.businessOf(lead) ? s.businessOf(lead).name : "No lead"), action: () => lead && App.nav("#/leads/" + lead.id) });
+    s.db.projectTasks.filter((t) => t.status !== "done" && t.dueDate && t.dueDate < today).forEach((t) => {
+      const p = s.projectOf(t.projectId);
+      const cl = p ? s.clientById(p.clientId) : null;
+      const biz = cl ? s.businessOf({ businessId: cl.businessId }) : null;
+      list.push({ icon: "checkSquare", title: "Overdue task: " + t.title, sub: (biz ? biz.name : "No project"), danger: true, action: () => p && App.nav("#/projects/" + p.id) });
+    });
+    s.db.invoices.filter(i => i.status === 'overdue').forEach(i => {
+      const cl = s.clientById(i.clientId);
+      const biz = cl ? s.businessOf({ businessId: cl.businessId }) : null;
+      list.push({ icon: "credit", title: "Overdue invoice: #" + i.invoiceNumber, sub: (biz ? biz.name : ""), danger: true, action: () => App.nav("#/invoices") });
     });
     s.db.proposals.filter((p) => p.status === "accepted" && p.notifiedAccepted !== true).slice(0, 5).forEach((p) => {
       const lead = s.byId("leads", p.leadId); const biz = lead ? s.businessOf(lead) : null;

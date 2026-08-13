@@ -58,16 +58,18 @@ V61.Pages = V61.Pages || {};
     const wonThis = rows.filter((r) => r.lead.stage === "won" && inRange(r.lead.wonAt || r.lead.updatedAt, thisM)).length;
     const wonLast = rows.filter((r) => r.lead.stage === "won" && inRange(r.lead.wonAt || r.lead.updatedAt, lastM)).length;
     const pipelineVal = S().pipelineValue();
+    const collected = S().clientRows().reduce((s, r) => s + r.paid, 0);
+    const outstanding = S().clientRows().reduce((s, r) => s + r.outstanding, 0);
 
     const cards = [
       kpi("Total Leads", U().formatCompact(total), pctDelta(createdThis, createdLast), createdThis >= createdLast ? "up" : "down", "this month", "users"),
-      kpi("New Leads", U().formatCompact(createdThis), pctDelta(createdThis, createdLast), createdThis >= createdLast ? "up" : "down", "vs last month", "zap"),
-      kpi("Contacted", U().formatCompact(contacted), pctDelta(contactedThis, contactedLast), contactedThis >= contactedLast ? "up" : "down", "this month", "send"),
+      kpi("Active Projects", S().db.projects.filter(p => !["completed", "cancelled"].includes(p.status)).length, null, "flat", "in delivery", "briefcase"),
+      kpi("Won Deals", U().formatCompact(won), pctDelta(wonThis, wonLast), wonThis >= wonLast ? "up" : "down", "this month", "trophy"),
+      kpi("Revenue Collected", U().formatMoney(collected), null, "flat", "actual cash", "credit", true),
       kpi("Follow-ups Due", due, null, "flat", overdue ? overdue + " overdue" : "all on time", "calendar", overdue ? true : false),
-      kpi("Qualified", U().formatCompact(qualified), null, "flat", "active deals", "star"),
-      kpi("Proposals Sent", U().formatCompact(proposalsSent), null, "flat", "awaiting decisions", "fileText"),
-      kpi("Won", U().formatCompact(won), pctDelta(wonThis, wonLast), wonThis >= wonLast ? "up" : "down", "this month", "trophy"),
-      kpi("Revenue Pipeline", U().formatMoney(pipelineVal), null, "flat", rows.length + " deals", "dollar", true),
+      kpi("Open Tasks", S().db.projectTasks.filter(t => t.status !== 'done').length, null, "flat", "to complete", "checkSquare"),
+      kpi("Outstanding", U().formatMoney(outstanding), null, "flat", "to collect", "alert", outstanding > 0),
+      kpi("Pipeline Value", U().formatMoney(pipelineVal), null, "flat", rows.length + " prospects", "dollar"),
     ];
     return '<div class="kpi-grid">' + cards.join("") + "</div>";
   }
@@ -269,15 +271,64 @@ V61.Pages = V61.Pages || {};
       }).join("") + "</div>" : "") + "</div></div>";
   }
 
+  /* ── Phase 4 Operations ── */
+  function attentionToday() {
+    const today = U().todayStart();
+    const tasks = S().db.projectTasks.filter(t => t.status !== 'done');
+    const overdue = tasks.filter(t => t.dueDate && t.dueDate < today);
+    const dueToday = tasks.filter(t => t.dueDate && U().dayStart(t.dueDate) === today);
+    const invOverdue = S().db.invoices.filter(i => i.status === 'overdue');
+
+    if (!overdue.length && !dueToday.length && !invOverdue.length) return "";
+
+    return '<div class="panel" style="border-left:4px solid var(--danger)">' +
+      '<div class="panel-head"><div class="panel-title" style="color:var(--danger)">' + I.alert + ' Needs Attention Today</div></div>' +
+      '<div class="panel-body">' +
+        '<div class="stack">' +
+          overdue.map(t => attentionRow(t, "Overdue Task", "var(--danger)")).join("") +
+          dueToday.map(t => attentionRow(t, "Due Today", "var(--warning)")).join("") +
+          invOverdue.map(i => attentionRow({ ...i, title: "Invoice #" + i.invoiceNumber, id: i.id, projectId: i.projectId }, "Overdue Invoice", "var(--danger)", "#/invoices")).join("") +
+        '</div>' +
+      '</div></div>';
+  }
+
+  function attentionRow(item, label, color, customRoute) {
+    const p = item.projectId ? S().projectOf(item.projectId) : null;
+    const cl = p ? S().clientById(p.clientId) : (item.clientId ? S().clientById(item.clientId) : null);
+    const biz = cl ? S().businessOf({ businessId: cl.businessId }) : null;
+    const route = customRoute || (p ? "#/projects/" + p.id : "#/dashboard");
+
+    return '<a href="' + route + '" class="row-card" style="padding:10px;text-decoration:none;color:inherit">' +
+      '<div style="flex:1"><b>' + U().escapeHtml(item.title || "") + '</b>' +
+      '<div class="rc-sub">' + (biz ? U().escapeHtml(biz.name) + " · " : "") + label + '</div></div>' +
+      '<span style="color:' + color + ';font-size:12px;font-weight:700">' + (item.dueDate ? U().relativeDue(item.dueDate) : "OVERDUE") + '</span>' +
+    '</a>';
+  }
+
+  function activeProjectsPanel() {
+    const projs = S().db.projects.filter(p => !["completed", "cancelled"].includes(p.status)).slice(0, 5);
+    return '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.briefcase + " Active projects" + '<span class="sub">' + projs.length + "</span></div>" +
+      '<a class="btn btn-sm btn-ghost" href="#/projects">' + I.eye + " All</a></div>" +
+      '<div class="panel-body"><div class="stack">' + (projs.length ? projs.map((p) => {
+        const cl = S().clientById(p.clientId);
+        const biz = S().businessOf({ businessId: cl.businessId });
+        return '<div class="row-card" style="padding:11px 13px"><div class="rc-main"><div class="rc-title" style="font-size:13px"><a href="#/projects/' + p.id + '" style="color:inherit">' + U().escapeHtml(p.name) + "</a></div>" +
+          '<div class="rc-sub">' + U().escapeHtml(biz.name) + ' · ' + p.progress + "% completed</div></div>" +
+          '<div class="rc-actions"><div class="score-bar" style="width:60px;height:6px"><i style="width:' + p.progress + '%"></i></div></div></div>';
+      }).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No active projects.</div>') + "</div></div></div>";
+  }
+
   function render() {
     const el = document.getElementById("content");
     el.innerHTML =
       welcome() +
+      attentionToday() +
       todayWorkspace() +
       buildKpis() +
       intelKpis() +
       '<div class="dash-grid">' +
       '<div style="display:flex;flex-direction:column;gap:18px">' +
+      activeProjectsPanel() +
       '<div class="panel chart-wrap"><div class="panel-head"><div class="panel-title">' + I.pie + "Outreach Performance" + '<span class="sub">Last 6 months</span></div></div><div class="panel-body">' + monthlyBars() + "</div></div>" +
       '<div class="panel chart-wrap"><div class="panel-head"><div class="panel-title">' + I.trending + "Sales Funnel" + '<span class="sub">All time</span></div></div><div class="panel-body">' + funnel() + "</div></div>" +
       "</div>" +
