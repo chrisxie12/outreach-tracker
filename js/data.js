@@ -34,6 +34,23 @@
 
   const CHANNELS = ["WhatsApp", "Phone", "Email", "Instagram", "Facebook", "LinkedIn", "In person"];
 
+  /* ── Phase 3: outreach activity types, outcomes, lost reasons, meetings ── */
+  const ACTIVITY_TYPES = ["Call", "WhatsApp", "Email", "Instagram", "Facebook", "SMS", "Meeting", "Proposal", "Follow-up", "Note", "Other"];
+  const MEETING_TYPES = ["Phone", "WhatsApp", "Zoom", "Google Meet", "In person", "Other"];
+  const DEFAULT_OUTCOMES = ["No response", "Interested", "Not interested", "Asked for pricing", "Asked for portfolio", "Asked to call later", "Meeting requested", "Wrong contact", "Already has provider", "Other"];
+  const DEFAULT_LOST_REASONS = ["Not interested", "Too expensive", "Already has provider", "No budget", "Bad timing", "Wrong contact", "Could not reach", "Competitor", "Other"];
+
+  const DEFAULT_TEMPLATES = [
+    { id: "tpl-wa", channel: "WhatsApp", name: "WhatsApp — first contact", subject: "", active: true,
+      message: "Hi {{contactName}}! I'm {{senderName}} from Vision 61 Studios. I came across {{businessName}}{{#location}} in {{location}}{{/location}} and noticed there's room to grow its digital presence{{#category}} as a {{category}} business{{/category}}. We help local businesses get found online — websites, Google Business Profile, WhatsApp and social media. Would you be open to a quick chat? I can also share a free digital audit of your current online presence. No pressure at all — thanks!" },
+    { id: "tpl-email", channel: "Email", name: "Email — first contact", subject: "A free digital audit for {{businessName}}", active: true,
+      message: "Hi {{contactName}},\n\nI'm {{senderName}} from Vision 61 Studios. I came across {{businessName}}{{#location}} in {{location}}{{/location}} and our team spotted a few ways it could get more customers online{{#category}} (it's a {{category}} business){{/category}}.\n\nWe help local businesses with websites, Google Business Profile, WhatsApp and social media. I'd love to share a free, no-obligation digital audit of {{businessName}}'s current online presence.\n\nWould you be open to a quick call or WhatsApp chat this week?\n\nThanks,\n{{senderName}}\nVision 61 Studios" },
+    { id: "tpl-ig", channel: "Instagram", name: "Instagram — first contact (DM)", subject: "", active: true,
+      message: "Hi {{contactName}}! Saw {{businessName}} and loved what you're doing. We help local businesses get found online — websites, Google and WhatsApp. Would you be open to a quick chat? No pressure at all." },
+    { id: "tpl-li", channel: "LinkedIn", name: "LinkedIn — first contact", subject: "", active: true,
+      message: "Hi {{contactName}},\n\nI came across {{businessName}} and noticed some great potential to grow its digital presence online. Vision 61 Studios helps local businesses like yours with websites, Google Business Profile and WhatsApp.\n\nWould you be open to a short call to explore how we could help? Happy to share a free digital audit.\n\nBest regards,\n{{senderName}}" },
+  ];
+
   const TEMPERATURES = [
     { key: "hot", label: "Hot", color: "#ed4217" },
     { key: "warm", label: "Warm", color: "#e0a53e" },
@@ -209,11 +226,11 @@
     schema: 1,
     businesses: [], contacts: [], audits: [], leads: [], outreach: [], followups: [],
     tasks: [], notes: [], activity: [], services: [], proposals: [], clients: [], payments: [],
-    websiteAudits: [], auditSnapshots: [],
-    settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10 },
+    websiteAudits: [], auditSnapshots: [], meetings: [], outreachDrafts: [], outreachTemplates: [], tags: [],
+    settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "", enabled: false } },
   });
 
-  const SETTINGS_DEFAULTS = { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10 };
+  const SETTINGS_DEFAULTS = { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "", enabled: false } };
 
   let db = null;
   const listeners = { change: [] };
@@ -222,13 +239,28 @@
     d.activity.unshift({ id: U().uid("act"), leadId, type, text, createdAt: U().now() });
   }
 
+  function migrate(d) {
+    d = d || emptyDb();
+    d.settings = Object.assign({}, SETTINGS_DEFAULTS, d.settings || {});
+    d.websiteAudits = d.websiteAudits || [];
+    d.auditSnapshots = d.auditSnapshots || [];
+    d.meetings = d.meetings || [];
+    d.outreachDrafts = d.outreachDrafts || [];
+    d.outreachTemplates = (d.outreachTemplates && d.outreachTemplates.length) ? d.outreachTemplates : DEFAULT_TEMPLATES.map((t) => Object.assign({}, t));
+    d.tags = d.tags || [];
+    d.settings.responseOutcomes = (d.settings.responseOutcomes && d.settings.responseOutcomes.length) ? d.settings.responseOutcomes : DEFAULT_OUTCOMES.slice();
+    d.settings.lostReasons = (d.settings.lostReasons && d.settings.lostReasons.length) ? d.settings.lostReasons : DEFAULT_LOST_REASONS.slice();
+    d.settings.aiConfig = Object.assign({ provider: "", enabled: false }, d.settings.aiConfig || {});
+    return d;
+  }
+
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { const d = JSON.parse(raw); if (d && d.schema === 1) { d.settings = Object.assign({}, SETTINGS_DEFAULTS, d.settings || {}); d.websiteAudits = d.websiteAudits || []; d.auditSnapshots = d.auditSnapshots || []; db = d; return; } }
+      if (raw) { const d = JSON.parse(raw); if (d && d.schema === 1) { db = migrate(d); return; } }
     } catch (e) {}
     const migrated = migrateLegacy();
-    db = migrated || emptyDb();
+    db = migrate(migrated);
     persist();
   }
 
@@ -389,6 +421,148 @@
       .sort((a, b) => (a.dueDate || 0) - (b.dueDate || 0))[0] || null;
   }
 
+  /* ── Phase 3: follow-up states, meetings, drafts, templates, tags ── */
+  function followupState(f, nowTs) {
+    const now = nowTs || U().now();
+    if (!f) return null;
+    if (f.status === "done") return { key: "completed", label: "Completed", color: "#3f9d5f" };
+    if (f.status === "cancelled") return { key: "cancelled", label: "Cancelled", color: "#8a8a90" };
+    const due = f.dueDate || 0;
+    if (due && due < U().dayStart(now)) return { key: "overdue", label: "Overdue", color: "#e5484d" };
+    if (due && U().dayStart(due) === U().dayStart(now)) return { key: "today", label: "Due today", color: "#e0a53e" };
+    return { key: "upcoming", label: "Upcoming", color: "#335fa8" };
+  }
+  function cancelFollowup(fid) { const f = byId("followups", fid); if (f) { f.status = "cancelled"; f.completedAt = U().now(); } }
+
+  function meetingsFor(leadId) { return db.meetings.filter((m) => m.leadId === leadId).sort((a, b) => (a.date || 0) - (b.date || 0)); }
+  function upcomingMeetings() {
+    const now = U().now();
+    return db.meetings.filter((m) => (m.date || 0) >= U().dayStart(now) && m.status !== "done").sort((a, b) => (a.date || 0) - (b.date || 0));
+  }
+  function addMeeting(leadId, data) {
+    const m = Object.assign({ id: U().uid("m"), leadId, status: "scheduled", createdAt: U().now() }, data);
+    db.meetings.push(m);
+    return m;
+  }
+
+  function outreachDraftsFor(leadId) { return db.outreachDrafts.filter((d) => d.leadId === leadId).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); }
+  function saveOutreachDraft(leadId, data) {
+    const rec = Object.assign({ id: U().uid("draft"), leadId, createdAt: U().now() }, data);
+    db.outreachDrafts.unshift(rec);
+    return rec;
+  }
+  function activeTemplates() { return db.outreachTemplates.filter((t) => t.active !== false); }
+
+  function tagsFor(businessId) {
+    return db.tags.filter((t) => t.businessId === businessId);
+  }
+  function addTag(businessId, label) {
+    const existing = db.tags.find((t) => t.businessId === businessId && t.label.toLowerCase() === String(label).toLowerCase());
+    if (existing) return existing;
+    const t = { id: U().uid("tag"), businessId, label: String(label).trim(), createdAt: U().now() };
+    db.tags.push(t);
+    return t;
+  }
+  function removeTag(tagId) { db.tags = db.tags.filter((t) => t.id !== tagId); }
+
+  /* ── Phase 3: lifecycle + lead helpers ── */
+  function lifecycleStatus(lead) {
+    const stage = lead && lead.stage;
+    if (stage === "won") return { key: "won", label: "Won", color: "#3f9d5f", index: 8 };
+    if (stage === "lost") return { key: "lost", label: "Lost", color: "#c2362b", index: 8 };
+    const map = {
+      new: { key: "not_contacted", label: "Not contacted", color: "#8a8a90", index: 0 },
+      researching: { key: "not_contacted", label: "Not contacted", color: "#8a8a90", index: 0 },
+      contacted: { key: "contacted", label: "Contacted", color: "#ed4217", index: 1 },
+      responded: { key: "responded", label: "Responded", color: "#335fa8", index: 2 },
+      qualified: { key: "interested", label: "Interested", color: "#e0a53e", index: 3 },
+      meeting: { key: "meeting", label: "Meeting scheduled", color: "#6b51b5", index: 4 },
+      proposal: { key: "proposal", label: "Proposal sent", color: "#0e7490", index: 5 },
+      negotiation: { key: "negotiating", label: "Negotiating", color: "#c084fc", index: 6 },
+    };
+    return map[stage] || { key: "not_contacted", label: "Not contacted", color: "#8a8a90", index: 0 };
+  }
+  function contactNameFor(leadId) {
+    const lead = byId("leads", leadId);
+    if (!lead) return "Unknown contact";
+    const c = contactsFor(lead.businessId)[0];
+    return (c && c.name) ? c.name : "Unknown contact";
+  }
+  function recommendedServicesFor(leadId) {
+    try {
+      const lead = byId("leads", leadId);
+      if (!lead) return [];
+      const row = { lead, business: businessOf(lead), audit: auditOf(lead.businessId) };
+      if (V61.OpportunityEngine && V61.OpportunityEngine.recommended) return V61.OpportunityEngine.recommended(row).map((o) => o.service);
+    } catch (e) {}
+    return [];
+  }
+  function lastInteractionFor(leadId) {
+    let ts = 0;
+    const o = outreachFor(leadId)[0]; if (o) ts = Math.max(ts, o.contactedAt || 0);
+    const m = meetingsFor(leadId).slice(-1)[0]; if (m) ts = Math.max(ts, m.date || 0);
+    const f = followupsFor(leadId).filter((x) => x.status === "done").sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))[0]; if (f) ts = Math.max(ts, f.completedAt || 0);
+    const n = notesFor(leadId).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0]; if (n) ts = Math.max(ts, n.createdAt || 0);
+    const p = proposalsFor(leadId).slice(-1)[0]; if (p) ts = Math.max(ts, p.createdAt || 0);
+    return ts || null;
+  }
+  function timeToFirstResponse(leadId) {
+    const os = outreachFor(leadId);
+    const firstContact = os[os.length - 1];
+    if (!firstContact) return null;
+    const responded = os.find((o) => ["replied", "interested", "meeting_booked", "proposal_requested"].includes(o.status));
+    if (!responded) return null;
+    return Math.max(0, (responded.contactedAt || 0) - (firstContact.contactedAt || 0));
+  }
+  function daysContactToMeeting(leadId) {
+    const os = outreachFor(leadId);
+    const firstContact = os[os.length - 1];
+    if (!firstContact) return null;
+    const ms = meetingsFor(leadId).filter((m) => (m.date || 0) >= (firstContact.contactedAt || 0)).sort((a, b) => (a.date || 0) - (b.date || 0))[0];
+    if (!ms) return null;
+    return Math.round(((ms.date - firstContact.contactedAt) / 86400000) * 10) / 10;
+  }
+  function daysProposalToWin(leadId) {
+    const ps = proposalsFor(leadId).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    if (!ps.length) return null;
+    const lead = byId("leads", leadId);
+    if (!lead || lead.stage !== "won" || !lead.wonAt) return null;
+    return Math.round(((lead.wonAt - ps[0].createdAt) / 86400000) * 10) / 10;
+  }
+
+  /* ── Phase 3: won / lost transitions ── */
+  function markLost(leadId, reason, notes) {
+    const lead = byId("leads", leadId);
+    if (!lead) return;
+    lead.stage = "lost"; lead.lostReason = reason || ""; lead.lostNotes = notes || ""; lead.updatedAt = U().now();
+    addActivity(leadId, "stage", "Lead marked as Lost" + (reason ? " — " + reason : "") + ".");
+  }
+  function markWon(leadId, data) {
+    const lead = byId("leads", leadId);
+    if (!lead) return null;
+    lead.stage = "won"; lead.wonAt = lead.wonAt || U().now(); lead.updatedAt = U().now();
+    if (data) {
+      if (data.dealValue != null) lead.estimatedValue = Number(data.dealValue) || 0;
+      if (data.notes) lead.wonNotes = data.notes;
+      if (data.wonDate) lead.wonAt = new Date(data.wonDate + "T12:00:00").getTime();
+    }
+    const client = ensureClient(lead);
+    if (client && data && data.serviceIds) {
+      client.services = client.services || [];
+      data.serviceIds.forEach((serviceId) => { if (!client.services.some((s) => s.serviceId === serviceId)) client.services.push({ serviceId, status: "in_progress", startDate: U().now() }); });
+    }
+    addActivity(leadId, "stage", "Deal won — converted to client.");
+    return client;
+  }
+  function reactivateLead(leadId) {
+    const lead = byId("leads", leadId);
+    if (!lead) return;
+    const wasLost = lead.stage === "lost";
+    lead.stage = wasLost ? "contacted" : "new";
+    delete lead.lostReason; delete lead.lostNotes; lead.updatedAt = U().now();
+    addActivity(leadId, "stage", "Lead reactivated" + (wasLost ? " from Lost." : "."));
+  }
+
   function pipelineValue() {
     let v = 0;
     db.leads.forEach((l) => { if (!["won", "lost"].includes(l.stage)) v += l.estimatedValue || 0; });
@@ -517,6 +691,14 @@
     addActivity, addBusiness, addLead, addContact, upsertAudit,
     addDiscoveredBusiness, businessByGooglePlace, businessByName,
     nextFollowup, nextTask,
+    ACTIVITY_TYPES, MEETING_TYPES, DEFAULT_OUTCOMES, DEFAULT_LOST_REASONS, DEFAULT_TEMPLATES,
+    followupState, cancelFollowup,
+    meetingsFor, upcomingMeetings, addMeeting,
+    outreachDraftsFor, saveOutreachDraft, activeTemplates,
+    tagsFor, addTag, removeTag,
+    lifecycleStatus, contactNameFor, recommendedServicesFor, lastInteractionFor,
+    timeToFirstResponse, daysContactToMeeting, daysProposalToWin,
+    markLost, markWon, reactivateLead,
     pipelineValue, wonRevenue, outstandingPayments, mrr,
     leadRows, clientRows,
     exportLeadsCSV, exportClientsCSV, importCSV,

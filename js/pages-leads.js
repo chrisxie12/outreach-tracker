@@ -9,7 +9,7 @@ V61.Pages = V61.Pages || {};
   const UI = V61.UI;
 
   const state = { view: "table", query: "", cat: "all", loc: "all", stage: "all", contact: "all", temp: "all", sort: "newest", selected: new Set(), tempDrop: null,
-    dmin: 0, lmin: 0, omin: 0, prior: "all", website: "all", google: "all", audited: "all", high: false };
+    dmin: 0, lmin: 0, omin: 0, prior: "all", website: "all", google: "all", audited: "all", high: false, tag: "all" };
 
   function catList() { return [...new Set(S().db.businesses.map((b) => b.category).filter(Boolean))].sort(); }
   function locList() { return [...new Set(S().db.businesses.map((b) => b.city).filter(Boolean))].sort(); }
@@ -36,6 +36,13 @@ V61.Pages = V61.Pages || {};
     if (state.audited === "yes") rows = rows.filter((r) => !!r.audit);
     if (state.audited === "no") rows = rows.filter((r) => !r.audit);
     if (state.high) rows = rows.filter((r) => S().isHighOpportunity(r));
+    if (state.tag !== "all" && state.tag !== "new-tag") {
+      const tagLabel = state.tag;
+      rows = rows.filter((r) => {
+        const b = r.business || {};
+        return S().tagsFor(b.id).some((t) => t.label === tagLabel);
+      });
+    }
     if (state.contact !== "all") rows = rows.filter((r) => {
       const c = r.lead.stage;
       if (state.contact === "contacted") return !["new", "researching", "lost"].includes(c);
@@ -139,6 +146,7 @@ V61.Pages = V61.Pages || {};
       '<select class="select" id="flt-prior"><option value="all"' + (state.prior === "all" ? " selected" : "") + '>Any priority</option><option value="high"' + (state.prior === "high" ? " selected" : "") + '>HIGH</option><option value="medium"' + (state.prior === "medium" ? " selected" : "") + '>MEDIUM</option><option value="low"' + (state.prior === "low" ? " selected" : "") + '>LOW</option></select>' +
       '<select class="select" id="flt-website"><option value="all"' + (state.website === "all" ? " selected" : "") + '>Any website</option><option value="yes"' + (state.website === "yes" ? " selected" : "") + '>Has website</option><option value="no"' + (state.website === "no" ? " selected" : "") + '>No website</option></select>' +
       '<select class="select" id="flt-audited"><option value="all"' + (state.audited === "all" ? " selected" : "") + '>Audit: any</option><option value="yes"' + (state.audited === "yes" ? " selected" : "") + '>Audited</option><option value="no"' + (state.audited === "no" ? " selected" : "") + '>Not audited</option></select>' +
+      '<select class="select" id="flt-tag"><option value="all">All tags</option>' + (S().db.tags && S().db.tags.length ? S().db.tags.map((t) => '<option value="' + t.label + '"' + (state.tag === t.label ? " selected" : "") + '>' + U().escapeHtml(t.label) + "</option>").join("") : "") + '<option value="new-tag">+ New tag…</option></select>' +
       '<select class="select" id="flt-dmin"><option value="0"' + (state.dmin === 0 ? " selected" : "") + '>Any digital</option>' + [30, 50, 70].map((v) => '<option value="' + v + '"' + (state.dmin === v ? " selected" : "") + '>Digital ≥ ' + v + "</option>").join("") + "</select>" +
       '<select class="select" id="flt-lmin"><option value="0"' + (state.lmin === 0 ? " selected" : "") + '>Any lead</option>' + [50, 60, 70, 80].map((v) => '<option value="' + v + '"' + (state.lmin === v ? " selected" : "") + '>Lead ≥ ' + v + "</option>").join("") + "</select>" +
       '<select class="select" id="flt-omin"><option value="0"' + (state.omin === 0 ? " selected" : "") + '>Any opps</option>' + [1, 2, 3, 4, 5].map((v) => '<option value="' + v + '"' + (state.omin === v ? " selected" : "") + '>≥ ' + v + ' opps</option>').join("") + "</select>" +
@@ -379,10 +387,10 @@ V61.Pages = V61.Pages || {};
     const el = document.getElementById("content");
     const rows = filteredRows();
     el.innerHTML = filterBar() + stageStrip() + (state.view === "table" ? tableHtml(rows) : state.view === "grid" ? gridHtml(rows) : kanbanHtml(rows));
-    UI.bind(el);
+UI.bind(el);
     bindList();
   }
-
+  
   /* ── Bulk actions ── */
   function bulkStatusModal() {
     const m = UI.openModal({ title: "Set stage for " + state.selected.size + " lead(s)", icon: I.filter });
@@ -402,6 +410,53 @@ V61.Pages = V61.Pages || {};
         if (l) { S().db.leads = S().db.leads.filter((x) => x.id !== id); S().db.businesses = S().db.businesses.filter((x) => x.id !== l.businessId); }
       });
       state.selected.clear(); S().save(); V61.Toast.success("Leads deleted"); render();
+    });
+  }
+  /* ── Bulk tag: add tag to selected leads ── */
+  function bulkAddTag() {
+    const allTags = (S().db.tags || []).map((t) => t.label);
+    const uniqueTags = [...new Set(allTags)];
+    if (!uniqueTags.length) { V61.Toast.info("No tags defined yet."); return; }
+    const m = UI.openModal({ title: "Add tag to " + state.selected.size + " lead(s)", icon: I.tag });
+    const tagOptions = uniqueTags.map((lab) => '<option value="' + lab + '">' + U().escapeHtml(lab) + "</option>").join("");
+    m.setBody('<div class="field"><label>Tag</label><select class="select" id="bulk-tag">' + tagOptions + "</select></div>");
+    m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-go>Add Tag</button>');
+    m.q("[data-cancel]").addEventListener("click", () => m.close());
+    m.body.querySelector("[data-go]").addEventListener("click", () => {
+      const tagLabel = m.body.querySelector("#bulk-tag").value;
+      if (!tagLabel) return;
+      state.selected.forEach((id) => {
+        const l = S().byId("leads", id);
+        if (l) {
+          const biz = S().byId("businesses", l.businessId);
+          if (biz) {
+            const already = (S().db.tags || []).some((t) => t.businessId === l.businessId && t.label === tagLabel);
+            if (!already) S().db.tags.push({ id: "tag-" + Date.now().toString(36), businessId: l.businessId, label: tagLabel });
+          }
+        }
+      });
+      S().save(); V61.Toast.success("Tag added"); render();
+    });
+  }
+  /* ── Bulk tag: remove tag from selected leads ── */
+  function bulkRemoveTag() {
+    const selectedBizIds = [...state.selected].map((id) => {
+      const l = S().byId("leads", id);
+      return l ? l.businessId : null;
+    }).filter(Boolean);
+    const tagsOnSelected = (S().db.tags || []).filter((t) => selectedBizIds.includes(t.businessId));
+    const uniqueTagLabels = [...new Set(tagsOnSelected.map((t) => t.label))];
+    if (!uniqueTagLabels.length) { V61.Toast.info("No tags on selected leads."); return; }
+    const m = UI.openModal({ title: "Remove tag from " + state.selected.size + " lead(s)", icon: I.x });
+    const tagOptions = uniqueTagLabels.map((lab) => '<option value="' + lab + '">' + U().escapeHtml(lab) + "</option>").join("");
+    m.setBody('<div class="field"><label>Tag</label><select class="select" id="bulk-tag">' + tagOptions + "</select></div>");
+    m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-go>Remove Tag</button>');
+    m.q("[data-cancel]").addEventListener("click", () => m.close());
+    m.body.querySelector("[data-go]").addEventListener("click", () => {
+      const tagLabel = m.body.querySelector("#bulk-tag").value;
+      if (!tagLabel) return;
+      S().db.tags = (S().db.tags || []).filter((t) => !(selectedBizIds.includes(t.businessId) && t.label === tagLabel));
+      S().save(); V61.Toast.success("Tag removed"); render();
     });
   }
 
@@ -425,6 +480,9 @@ V61.Pages = V61.Pages || {};
     const outreach = S().outreachFor(lead.id);
     const followups = S().followupsFor(lead.id);
     const proposals = S().proposalsFor(lead.id);
+    const meetings = S().meetingsFor(lead.id);
+    const notes = S().notesFor(lead.id);
+    const recSvc = S().recommendedServicesFor(lead.id);
     const wa = biz.whatsapp || biz.phone;
 
     el.innerHTML =
@@ -437,15 +495,23 @@ V61.Pages = V61.Pages || {};
       (wa ? '<a class="btn btn-primary btn-sm" target="_blank" rel="noopener" href="' + U().waLink(wa, S().buildMessage(biz.name, biz.category)) + '">' + I.whatsapp + " WhatsApp</a>" : "") +
       (biz.phone ? '<a class="btn btn-sm" href="tel:' + U().phoneDigits(biz.phone) + '">' + I.phone + " Call</a>" : "") +
       (biz.email ? '<a class="btn btn-sm" href="mailto:' + U().escapeHtml(biz.email) + '">' + I.mail + " Email</a>" : "") +
+      (["new", "researching"].includes(lead.stage) ? '<button class="btn btn-sm btn-primary" data-cmd="markContacted:' + lead.id + '">' + I.send + " Mark contacted</button>" : "") +
+      '<button class="btn btn-sm" data-cmd="generateOutreach:' + lead.id + '">' + I.rocket + " Generate outreach</button>" +
+      '<button class="btn btn-sm" data-cmd="addActivityLog:' + lead.id + '">' + I.send + " Log activity</button>" +
+      '<button class="btn btn-sm" data-cmd="quickFollowup:' + lead.id + '">' + I.calendar + " Follow-up</button>" +
+      '<button class="btn btn-sm" data-cmd="logMeeting:' + lead.id + '">' + I.video + " Log meeting</button>" +
       '<button class="btn btn-sm" data-cmd="addTask:' + lead.id + '">' + I.checkSquare + " Add Task</button>" +
       '<button class="btn btn-sm" data-cmd="addNote:' + lead.id + '">' + I.pencil + " Add Note</button>" +
-      '<button class="btn btn-sm" data-cmd="addFollowup:' + lead.id + '">' + I.calendar + " Follow-up</button>" +
-      '<button class="btn btn-sm" data-cmd="addOutreach:' + lead.id + '">' + I.send + " Log Outreach</button>" +
       '<button class="btn btn-sm btn-primary" data-cmd="createProposal:' + lead.id + '">' + I.fileText + " Create Proposal</button>" +
+      (lead.stage === "lost" ? '<button class="btn btn-sm" data-cmd="reactivate:' + lead.id + '">' + I.refresh + " Reactivate</button>" : "") +
       "</div></div>" +
       '<div style="display:flex;gap:8px;align-items:center">' +
       '<button class="btn btn-ghost btn-sm" data-cmd="editLead:' + lead.id + '">' + I.pencil + " Edit</button>" +
+      (["won", "lost"].includes(lead.stage) ? "" : '<button class="btn btn-sm" data-cmd="markLost:' + lead.id + '">' + I.x + " Mark lost</button>") +
+      (lead.stage !== "won" ? '<button class="btn btn-sm" data-cmd="markWon:' + lead.id + '">' + I.trophy + " Mark won</button>" : "") +
       '<button class="btn btn-danger btn-sm" data-cmd="deleteLead:' + lead.id + '">' + I.trash + " Delete</button></div></div></div>" +
+
+      '<div class="panel" style="margin-bottom:18px"><div class="panel-head"><div class="panel-title">' + I.filter + " Outreach lifecycle" + "</div></div><div class='panel-body'>" + lifecycleStepper(lead) + "</div></div>" +
 
       '<div class="ld-grid">' +
       '<div style="display:flex;flex-direction:column;gap:18px">' +
@@ -492,7 +558,7 @@ V61.Pages = V61.Pages || {};
       /* contacts */
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.users + " Contacts" + '<span class="sub">' + contacts.length + "</span></div><button class='btn btn-sm' data-cmd='addContact:" + lead.id + "'>" + I.plus + " Add Contact</button></div>" +
       '<div class="panel-body"><div class="stack">' + (contacts.length ? contacts.map((c) =>
-        '<div class="contact-card"><div class="avatar">' + U().initials(c.name) + "</div><div style='flex:1'><div class='c-name'>" + U().escapeHtml(c.name) + '</div><div class="c-role">' + U().escapeHtml(c.role || "Contact") + "</div>" +
+        '<div class="contact-card"><div class="avatar">' + U().initials(c.name) + "</div><div style='flex:1'><div class='c-name'>" + U().escapeHtml(c.name) + '</div><div class="c-role">' + U().escapeHtml(c.role || "Contact") + (c.preferred ? '<span class="tag" style="margin-left:6px">Preferred: ' + U().escapeHtml(c.preferred) + "</span>" : "") + "</div>" +
         '<div class="c-links">' + UI.contactLinks(c) + '</div></div><button class="icon-btn" data-cmd="delContact:' + c.id + '">' + I.trash + "</button></div>"
       ).join("") : UI.emptyState("users", "No contacts yet.", "Add a contact so you always know who to reach at this business.")) + "</div></div></div>" +
 
@@ -532,6 +598,22 @@ V61.Pages = V61.Pages || {};
         '<div class="row-card" style="padding:11px 13px"><div class="rc-main"><div class="rc-title" style="font-size:13px">' + U().escapeHtml(f.title) + '</div><div class="rc-sub">' + I.clock + '<span class="' + (f.dueDate < U().todayStart() ? "kb-due overdue" : "") + '">' + U().formatDate(f.dueDate) + " (" + U().relativeDue(f.dueDate) + ")</span> · " + UI.badge(f.priority, f.priority === "high" ? "#e5484d" : f.priority === "medium" ? "#e0a53e" : "#8a8a90") + "</div></div>" +
         '<div class="rc-actions"><button class="icon-btn" data-cmd="completeFollowup:' + f.id + '" title="Complete">' + I.check + "</button><button class='icon-btn' data-cmd='reschedFollowup:" + f.id + "' title='Reschedule'>" + I.refresh + "</button><button class='icon-btn' data-cmd='delFollowup:" + f.id + "'>" + I.trash + "</button></div></div>"
       ).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No follow-ups scheduled.</div>') + "</div></div></div>" +
+
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.video + " Meetings" + '<span class="sub">' + meetings.length + "</span></div><button class='btn btn-sm' data-cmd='logMeeting:" + lead.id + "'>" + I.plus + " Log</button></div>" +
+      '<div class="panel-body"><div class="stack">' + (meetings.length ? meetings.slice().reverse().map((mt) => {
+        const over = (mt.date || 0) < U().now() && mt.status !== "done";
+        return '<div class="row-card" style="padding:11px 13px"><div class="rc-main"><div class="rc-title" style="font-size:13px">' + U().escapeHtml(mt.type || "Meeting") + " · " + U().formatDateTime(mt.date) + '</div><div class="rc-sub">' + (mt.notes ? U().escapeHtml(mt.notes) : "") + (mt.outcome ? " · " + U().escapeHtml(mt.outcome) : "") + (mt.nextAction ? " · next: " + U().escapeHtml(mt.nextAction) : "") + "</div></div>" +
+        (over ? '<span class="badge" style="background:rgba(229,72,77,.13);color:#e5484d">' + U().relativeTime(mt.date) + "</span>" : '<span class="badge" style="background:rgba(63,157,95,.13);color:#3f9d5f">Held</span>') + "</div>";
+      }).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No meetings logged.</div>') + "</div></div></div>" +
+
+      (recSvc.length ? '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.lightbulb + ' Recommended services</div></div><div class="panel-body"><div class="stack">' +
+        recSvc.map((svc) => '<div class="row-card" style="padding:11px 13px"><div class="rc-main"><div class="rc-title" style="font-size:13px">' + U().escapeHtml(svc) + '</div><div class="rc-sub">Recommended from this lead&#39;s audit</div></div>' +
+          '<div class="rc-actions"><button class="btn btn-sm" data-cmd="recommendProposal:' + lead.id + ":" + svc + '">' + I.fileText + " Proposal</button></div></div>").join("") + "</div></div></div>" : "") +
+
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.pencil + " Notes" + '<span class="sub">' + notes.length + "</span></div><button class='btn btn-sm' data-cmd='addNote:" + lead.id + "'>" + I.plus + " Add</button></div>" +
+      '<div class="panel-body"><div class="stack">' + (notes.length ? notes.slice().reverse().map((n) =>
+        '<div style="padding:10px 0;border-bottom:1px dashed var(--border);font-size:12.5px"><div style="color:var(--text-3);font-size:11px;margin-bottom:3px">' + U().formatDateTime(n.createdAt) + '</div>' + U().escapeHtml(n.content) + "</div>"
+      ).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No internal notes yet.</div>') + "</div></div></div>" +
 
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.checkSquare + " Tasks" + '<span class="sub">' + tasks.filter((t) => t.status !== "done").length + " open</span></div><button class='btn btn-sm' data-cmd='addTask:" + lead.id + "'>" + I.plus + " Add</button></div>" +
       '<div class="panel-body"><div class="stack">' + (tasks.length ? tasks.map((t) =>
@@ -660,13 +742,14 @@ V61.Pages = V61.Pages || {};
     m.setBody('<div class="field"><label>Name *</label><input class="input" id="c-name" placeholder="e.g. Contact name"></div>' +
       '<div class="field"><label>Role</label><input class="input" id="c-role" placeholder="e.g. Owner, Manager"></div>' +
       '<div class="field-row"><div class="field"><label>Phone</label><input class="input" id="c-phone"></div><div class="field"><label>WhatsApp</label><input class="input" id="c-wa"></div></div>' +
-      '<div class="field"><label>Email</label><input class="input" id="c-email"></div>');
+      '<div class="field-row"><div class="field"><label>Email</label><input class="input" id="c-email"></div>' +
+      '<div class="field"><label>Preferred channel</label><select class="select" id="c-pref"><option value="">—</option><option>WhatsApp</option><option>Phone</option><option>Email</option><option>Instagram</option><option>Facebook</option><option>LinkedIn</option></select></div></div>');
     m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-save>Add Contact</button>');
     m.q("[data-cancel]").addEventListener("click", () => m.close());
     m.q("[data-save]").addEventListener("click", () => {
       const name = m.body.querySelector("#c-name").value.trim();
       if (!name) return;
-      S().addContact(lead.businessId, { name, role: m.body.querySelector("#c-role").value.trim(), phone: m.body.querySelector("#c-phone").value.trim(), whatsapp: m.body.querySelector("#c-wa").value.trim() || m.body.querySelector("#c-phone").value.trim(), email: m.body.querySelector("#c-email").value.trim() });
+      S().addContact(lead.businessId, { name, role: m.body.querySelector("#c-role").value.trim(), phone: m.body.querySelector("#c-phone").value.trim(), whatsapp: m.body.querySelector("#c-wa").value.trim() || m.body.querySelector("#c-phone").value.trim(), email: m.body.querySelector("#c-email").value.trim(), preferred: m.body.querySelector("#c-pref").value });
       S().addActivity(lead.id, "contact", "Contact added: " + name);
       S().save(); m.close(); V61.Toast.success("Contact added"); refreshCurrent();
     });
@@ -711,6 +794,87 @@ V61.Pages = V61.Pages || {};
   }
   function refreshCurrent() { const hash = location.hash; if (hash && V61.App) V61.App.renderRoute(); }
 
+  /* ── Lifecycle stepper (Parts 4 & 20) ── */
+  function lifecycleStepper(lead) {
+    const steps = [
+      { key: "new", label: "Not contacted" },
+      { key: "contacted", label: "Contacted" },
+      { key: "responded", label: "Responded" },
+      { key: "qualified", label: "Interested" },
+      { key: "meeting", label: "Meeting" },
+      { key: "proposal", label: "Proposal sent" },
+      { key: "negotiation", label: "Negotiating" },
+    ];
+    const isEnd = ["won", "lost"].includes(lead.stage);
+    const curIdx = S().STAGES.findIndex((s) => s.key === lead.stage);
+    return '<div class="lifecycle">' + steps.map((st, i) => {
+      const stepIdx = S().STAGES.findIndex((s) => s.key === st.key);
+      const stColor = S().stageOf(st.key).color;
+      const reached = !isEnd && curIdx >= stepIdx;
+      const clickable = !isEnd && lead.stage !== st.key;
+      return '<button class="lc-step' + (reached ? " reached" : "") + (lead.stage === st.key ? " current" : "") + (clickable ? " clickable" : "") + '"' +
+        (clickable ? ' data-cmd="setStage:' + lead.id + ":" + st.key + '"' : "") + ' title="' + st.label + '"><span class="lc-dot" style="background:' + (reached ? stColor : "var(--border-2)") + '"></span><span class="lc-label">' + st.label + "</span></button>" +
+        (i < steps.length - 1 ? '<span class="lc-line" style="background:' + (reached ? stColor : "var(--border-2)") + '"></span>' : "");
+    }).join("") +
+      (isEnd ? '<span class="lc-line" style="background:' + (lead.stage === "won" ? "#3f9d5f" : "#c2362b") + '"></span><span class="lc-step current"><span class="lc-dot" style="background:' + (lead.stage === "won" ? "#3f9d5f" : "#c2362b") + '"></span><span class="lc-label">' + (lead.stage === "won" ? "Won" : "Lost") + "</span></span>" : "") +
+      "</div>";
+  }
+
+  function setStage(id, stage) {
+    const lead = S().byId("leads", id);
+    if (!lead || lead.stage === stage) return;
+    const from = lead.stage;
+    lead.stage = stage; lead.updatedAt = U().now();
+    if (stage === "won") { lead.wonAt = lead.wonAt || U().now(); if (!S().clientOf(lead.businessId)) S().ensureClient(lead); }
+    if (stage === "lost" && lead.wonAt) delete lead.wonAt;
+    S().addActivity(id, "stage", "Lead moved from " + S().stageOf(from).label + " to " + S().stageOf(stage).label + ".");
+    S().save(); V61.Toast.success("Lead moved to " + S().stageOf(stage).label);
+    refreshCurrent();
+  }
+
+  function markWonModal(leadId) {
+    const lead = S().byId("leads", leadId);
+    const biz = S().businessOf(lead);
+    const svcs = S().db.services.filter((s) => s.active);
+    const m = UI.openModal({ title: "Mark as Won", icon: I.trophy, size: "lg" });
+    m.setBody(
+      '<div class="field"><label>Client</label><div style="font-size:13px;color:var(--text-2)">' + U().escapeHtml(biz ? biz.name : "") + "</div></div>" +
+      '<div class="field-row"><div class="field"><label>Deal value (GH₵)</label><input class="input" id="w-val" type="number" min="0" value="' + (lead.estimatedValue || "") + '"></div>' +
+      '<div class="field"><label>Won date</label><input class="input" id="w-date" type="date" value="' + new Date().toISOString().slice(0, 10) + '"></div></div>' +
+      (svcs.length ? '<div class="field"><label>Services won (hold Ctrl/Cmd to select)</label><select class="select" id="w-svcs" multiple size="' + Math.min(6, svcs.length) + '" style="height:auto">' + svcs.map((s) => '<option value="' + s.id + '">' + U().escapeHtml(s.name) + "</option>").join("") + '</select></div>' : "") +
+      '<div class="field"><label>Notes</label><textarea class="textarea" id="w-notes" rows="2"></textarea></div>' +
+      '<p style="font-size:12px;color:var(--text-3)">Confirms the deal and links it to your existing Clients list without creating a duplicate.</p>'
+    );
+    m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-save>' + I.trophy + " Confirm Won</button>");
+    m.q("[data-cancel]").addEventListener("click", () => m.close());
+    m.q("[data-save]").addEventListener("click", () => {
+      const svcSel = m.body.querySelector("#w-svcs");
+      const serviceIds = svcSel ? Array.from(svcSel.selectedOptions).map((o) => o.value) : [];
+      S().markWon(leadId, { dealValue: Number(m.body.querySelector("#w-val").value) || 0, wonDate: m.body.querySelector("#w-date").value, notes: m.body.querySelector("#w-notes").value.trim(), serviceIds });
+      S().save(); m.close(); V61.Toast.success("Deal marked as won"); refreshCurrent();
+    });
+  }
+
+  function markLostModal(leadId) {
+    const reasons = (S().db.settings.lostReasons || []).slice();
+    const m = UI.openModal({ title: "Mark as Lost", icon: I.x });
+    m.setBody(
+      '<div class="field"><label>Reason</label><select class="select" id="l-reason">' + reasons.map((r) => "<option>" + U().escapeHtml(r) + "</option>").join("") + '<option value="__custom__">Other (type below)</option></select></div>' +
+      '<div class="field" id="l-custom-wrap" style="display:none"><label>Custom reason</label><input class="input" id="l-custom"></div>' +
+      '<div class="field"><label>Notes</label><textarea class="textarea" id="l-notes" rows="2"></textarea></div>'
+    );
+    m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-danger" data-save>' + I.x + " Mark Lost</button>");
+    const sel = m.body.querySelector("#l-reason");
+    sel.addEventListener("change", () => { m.body.querySelector("#l-custom-wrap").style.display = sel.value === "__custom__" ? "" : "none"; });
+    m.q("[data-cancel]").addEventListener("click", () => m.close());
+    m.q("[data-save]").addEventListener("click", () => {
+      let reason = sel.value;
+      if (reason === "__custom__") reason = m.body.querySelector("#l-custom").value.trim();
+      S().markLost(leadId, reason, m.body.querySelector("#l-notes").value.trim());
+      S().save(); m.close(); V61.Toast.success("Lead marked as lost"); refreshCurrent();
+    });
+  }
+
   function editLead(leadId) { const l = S().byId("leads", leadId); if (l) openLeadForm(l); }
 
   /* ── Commands exposed to global ── */
@@ -722,9 +886,14 @@ V61.Pages = V61.Pages || {};
     exportLeads: () => S().exportLeadsCSV(),
     bulkStatus: () => bulkStatusModal(),
     bulkDelete: () => bulkDelete(),
+    bulkAddTag: () => bulkAddTag(),
+    bulkRemoveTag: () => bulkRemoveTag(),
     addTask, addNote, addFollowup, addOutreach, addContact,
     completeFollowup, reschedFollowup, delFollowup, completeTask, reopenTask, delTask, delContact,
     overrideScore,
+    setStage: (arg) => { const i = arg.indexOf(":"); if (i < 0) return; setStage(arg.slice(0, i), arg.slice(i + 1)); },
+    markWon: markWonModal, markLost: markLostModal,
+    recommendProposal: (arg) => { const i = arg.indexOf(":"); if (i < 0) return; V61.Pages.sales.createProposal(arg.slice(0, i), arg.slice(i + 1)); },
     createProposal: (leadId) => { V61.Pages.sales.createProposal(leadId); },
     openAudit: (leadId) => V61.Pages.audit.openAudit(leadId),
   });

@@ -839,3 +839,31 @@ table.data .biz-cell .b-cat { font-size: 11.5px; color: var(--text-3); }
 .growth-down div { color: var(--danger) !important; }
 #aud-flt-sort, #flt-sort { min-width: 150px; }
 .audit-band .badge { margin-top: 4px; }
+/* Phase 3: sales engine */
+.lifecycle { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 0; }
+.lc-step { display: flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text-3); font-size: 12px; font-weight: 500; cursor: default; padding: 2px 4px; border-radius: 8px; }
+.lc-step.clickable { cursor: pointer; }
+.lc-step.clickable:hover { background: var(--surface-2); color: var(--text-2); }
+.lc-step.current { color: var(--text); font-weight: 700; }
+.lc-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.lc-line { width: 18px; height: 2px; border-radius: 1px; display: inline-block; flex-shrink: 0; }
+.lc-label { white-space: nowrap; }
+@media (max-width: 700px) {
+  .lifecycle { gap: 4px; }
+  .lc-line { width: 8px; }
+  .lc-label { font-size: 11px; }
+}
+.td-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.td-cell { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--border); border-radius: 12px; padding: 12px 13px; background: var(--surface-2); text-decoration: none; color: var(--text); }
+.td-cell.accent { border-color: rgba(229,72,77,.35); }
+.td-ic { color: var(--text-3); }
+.td-cell.accent .td-ic { color: var(--danger); }
+.td-num { font-size: 22px; font-weight: 800; line-height: 1.1; }
+.td-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.td-sub { font-size: 11.5px; color: var(--text-3); }
+.td-list { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.td-item { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); font-size: 12.5px; }
+.td-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.td-main { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-who { color: var(--text-3); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-when { color: var(--text-3); font-size: 11.5px; white-space: nowrap; }

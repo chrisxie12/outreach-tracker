@@ -231,10 +231,49 @@ V61.Pages = V61.Pages || {};
       }).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No activity yet.</div>') + "</div></div></div>";
   }
 
+  /* ── Phase 3: TODAY sales workspace ── */
+  function todayWorkspace() {
+    const now = U().now();
+    const todayStart = U().todayStart();
+    const tomorrow = todayStart + 86400e3;
+    const dueToday = S().db.followups.filter((f) => f.status === "pending" && U().dayStart(f.dueDate) === todayStart);
+    const overdue = S().db.followups.filter((f) => f.status === "pending" && (f.dueDate || 0) < todayStart);
+    const meetingsToday = S().db.meetings.filter((m) => (m.date || 0) >= todayStart && (m.date || 0) < tomorrow && m.status !== "done");
+    const toContact = S().leadRows().filter((r) => ["new", "researching"].includes(r.lead.stage));
+    const awaiting = S().db.proposals.filter((p) => ["sent", "viewed"].includes(p.status));
+    const due = dueToday.length + overdue.length;
+
+    const cell = (icon, count, label, sub, route, accent) =>
+      '<a class="td-cell' + (accent ? " accent" : "") + '" href="' + route + '"><span class="td-ic">' + (I[icon] || I.plus) + '</span>' +
+      '<span class="td-num">' + count + "</span><span class='td-label'>" + U().escapeHtml(label) + '</span>' +
+      (sub ? '<span class="td-sub">' + U().escapeHtml(sub) + "</span>" : "") + "</a>";
+
+    const rows = [dueToday, overdue, ...meetingsToday].sort((a, b) => (a.dueDate || a.date || 0) - (b.dueDate || b.date || 0)).slice(0, 4);
+    return '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.sun + " Today" + '<span class="sub">' + U().formatDate(now) + '</span></div>' +
+      (rows.length ? '<a class="btn btn-sm btn-ghost" href="#/followups">' + I.calendar + " Open queue</a>" : "") + "</div>" +
+      '<div class="panel-body"><div class="td-grid">' +
+      cell("calendar", due, "Follow-ups due", (dueToday.length ? dueToday.length + " today" : "") + (dueToday.length && overdue.length ? " · " : "") + (overdue.length ? overdue.length + " overdue" : (due ? "" : "none")), "#/followups", !!due) +
+      cell("video", meetingsToday.length, "Meetings today", meetingsToday.length ? "scheduled" : "none", meetingsToday.length ? "#/outreach" : "#/outreach", !!meetingsToday.length) +
+      cell("send", toContact.length, "Leads to contact", "new & researching", "#/leads", !!toContact.length) +
+      cell("fileText", awaiting.length, "Proposals pending", awaiting.length ? "awaiting decision" : "none", "#/proposals", !!awaiting.length) +
+      "</div>" +
+      (rows.length ? '<div class="td-list">' + rows.map((f) => {
+        const lead = S().byId("leads", f.leadId);
+        const biz = lead ? S().businessOf(lead) : null;
+        const isMeeting = f.type !== undefined;
+        const over = !isMeeting && (f.dueDate || 0) < todayStart;
+        return '<a class="td-item" href="#/leads/' + f.leadId + '"><span class="td-dot" style="background:' + (isMeeting ? "#6b51b5" : over ? "#e5484d" : "#e0a53e") + '"></span>' +
+          '<span class="td-main">' + U().escapeHtml(f.title || (f.type || "Meeting")) + '</span>' +
+          '<span class="td-who">' + (biz ? U().escapeHtml(biz.name) : "") + "</span>" +
+          '<span class="td-when">' + U().relativeDue(f.dueDate || f.date) + "</span></a>";
+      }).join("") + "</div>" : "") + "</div></div>";
+  }
+
   function render() {
     const el = document.getElementById("content");
     el.innerHTML =
       welcome() +
+      todayWorkspace() +
       buildKpis() +
       intelKpis() +
       '<div class="dash-grid">' +

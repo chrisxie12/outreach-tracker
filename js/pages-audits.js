@@ -315,6 +315,26 @@ V61.Pages = V61.Pages || {};
   }
 
   /* ── Opportunities page (aggregate) ── */
+  /* Phase 3: Today's prospect queue — high-opportunity leads ready to work now. */
+  function todaysQueue() {
+    const rows = S().leadRows()
+      .filter((r) => S().isHighOpportunity(r) && !["won", "lost"].includes(r.lead.stage))
+      .sort((a, b) => b.leadScore - a.leadScore)
+      .slice(0, 6);
+    if (!rows.length) return "";
+    return '<div class="panel" style="margin-bottom:16px"><div class="panel-head"><div class="panel-title">' + I.rocket + " Today's prospect queue" + '<span class="sub">high opportunities, act now</span></div></div>' +
+      '<div class="panel-body"><div class="stack">' + rows.map((r) => {
+        const opps = OE().forRow(r);
+        const b = r.business || {};
+        const wa = b.whatsapp || b.phone;
+        return '<div class="row-card" style="padding:12px 14px"><div class="rc-main"><div class="rc-title" style="font-size:13.5px"><a href="#/leads/' + r.lead.id + '" style="color:inherit">' + U().escapeHtml(b.name) + "</a></div>" +
+          '<div class="rc-sub">' + U().escapeHtml([b.category, b.city].filter(Boolean).join(" • ")) + (opps[0] ? " · <b style='color:var(--accent)'>" + U().escapeHtml(opps[0].service) + "</b>" : "") + "</div></div>" +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + UI.miniScore(r.leadScore) +
+          (wa ? '<a class="btn btn-sm" target="_blank" rel="noopener" href="' + U().waLink(wa, S().buildMessage(b.name, b.category)) + '" title="WhatsApp">' + I.whatsapp + "</a>" : "") +
+          '<button class="btn btn-sm" data-cmd="generateOutreach:' + r.lead.id + '">' + I.send + " Outreach</button></div></div>";
+      }).join("") + "</div></div></div>";
+  }
+
   function renderOpportunities() {
     const el = document.getElementById("content");
     const all = [];
@@ -330,6 +350,7 @@ V61.Pages = V61.Pages || {};
     el.innerHTML =
       '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">Prospecting</div>' +
       '<h1 class="page-title">Opportunities</h1><p class="page-sub">' + all.length + " opportunities detected across " + S().db.leads.length + " leads</p></div></div>" +
+      todaysQueue() +
       '<div class="grid-2-1"><div style="display:flex;flex-direction:column;gap:18px">' +
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.lightbulb + ' Top opportunity types</div></div><div class="panel-body"><div class="stack">' +
       top.map(([title, n]) => {

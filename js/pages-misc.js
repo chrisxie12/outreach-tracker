@@ -206,6 +206,28 @@ V61.Pages = V61.Pages || {};
       '<div class="hint">Get one free at console.cloud.google.com → enable <b>Places API</b> → create an API key and restrict it to your site&#39;s referrer.</div></div>' +
       '<button class="btn btn-primary" id="save-gkey">' + I.check + " Save data source</button>" +
       '<div style="font-size:12px;color:var(--text-3);margin-top:10px">Status: ' + (s.googleMapsApiKey ? '<b style="color:var(--ok)">Configured — discovery search enabled</b>' : '<b style="color:var(--warn)">Not configured — discovery shows setup help</b>') + "</div>" +
+
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.send + ' Outreach engine</div></div><div class="panel-body">' +
+      '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:12px">Outreach messages are generated deterministically from your templates and the lead&#39;s real audit facts — nothing is fabricated. ' +
+      '<b style="color:' + ((s.aiConfig && s.aiConfig.enabled && s.aiConfig.provider) ? "var(--ok)" : "var(--warn)") + '">AI-assisted generation is ' + ((s.aiConfig && s.aiConfig.enabled && s.aiConfig.provider) ? "enabled" : "not configured — offline, template-based") + '.</b> The CRM never sends messages automatically.</div>' +
+      '<div class="field-row">' +
+      '<div class="field"><label>Response outcomes (comma separated)</label><input class="input" id="set-outcomes" value="' + U().escapeHtml((s.responseOutcomes && s.responseOutcomes.length ? s.responseOutcomes : S().DEFAULT_OUTCOMES).join(", ")) + '"></div>' +
+      '<div class="field"><label>Lost reasons (comma separated)</label><input class="input" id="set-lost" value="' + U().escapeHtml((s.lostReasons && s.lostReasons.length ? s.lostReasons : S().DEFAULT_LOST_REASONS).join(", ")) + '"></div></div>' +
+      '<div class="field"><label>AI provider</label><input class="input" value="' + U().escapeHtml((s.aiConfig && s.aiConfig.provider) || "") + '" placeholder="Not configured — AI generation disabled" disabled>' +
+      '<div class="hint">Add a provider and enable AI in the code to use it. Until then the generator stays fully deterministic and offline.</div></div>' +
+      '<div style="font-weight:700;font-size:13px;margin:6px 0 10px">Outreach templates</div>' +
+      '<div class="stack" style="margin-bottom:12px">' + (S().db.outreachTemplates && S().db.outreachTemplates.length ? S().db.outreachTemplates.map((t) =>
+        '<div class="row-card" style="padding:11px 13px"><div class="rc-main"><div class="rc-title" style="font-size:13px">' + U().escapeHtml(t.name) + (t.active === false ? ' <span class="tag">paused</span>' : "") + '</div>' +
+        '<div class="rc-sub">' + UI.badge(t.channel, "#335fa8") + (t.subject ? " · " + U().escapeHtml(t.subject) : "") + "</div></div>" +
+        '<div class="rc-actions"><button class="btn btn-sm btn-ghost" data-cmd="outreachTplToggle:' + t.id + '">' + (t.active === false ? I.eye + " Enable" : I.x + " Pause") + '</button>' +
+        '<button class="icon-btn" data-cmd="outreachTplDelete:' + t.id + '" title="Delete">' + I.trash + "</button></div></div>"
+      ).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No templates — the generator falls back to built-in defaults.</div>') + "</div>" +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button class="btn" data-cmd="outreachTplAdd">' + I.plus + " Add template</button>" +
+      '<button class="btn btn-ghost" id="reset-templates">' + I.refresh + " Restore defaults</button>" +
+      '<button class="btn btn-primary" id="save-outreach">' + I.check + " Save outreach settings</button></div>" +
+      "</div></div>" +
+
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.pie + ' Lead scoring & opportunities</div></div><div class="panel-body">' +
       '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:12px">These thresholds control lead priority, temperature, the opportunity engine and batch auditing. Lower review threshold = more businesses flagged for review growth; lower priority scores = more leads marked HIGH.</div>' +
       '<div class="field-row">' +
@@ -256,6 +278,20 @@ V61.Pages = V61.Pages || {};
       s.targetAreas = (el.querySelector("#set-areas").value || "").split(",").map((x) => x.trim()).filter(Boolean);
       S().save(); V61.Toast.success("Scoring settings saved"); renderSettings();
     });
+    const outBtn = el.querySelector("#save-outreach");
+    if (outBtn) outBtn.addEventListener("click", () => {
+      const list = (sel) => (el.querySelector(sel).value || "").split(/,|\n/).map((x) => x.trim()).filter(Boolean);
+      s.responseOutcomes = list("#set-outcomes");
+      s.lostReasons = list("#set-lost");
+      S().save(); V61.Toast.success("Outreach settings saved"); renderSettings();
+    });
+    const resetTpl = el.querySelector("#reset-templates");
+    if (resetTpl) resetTpl.addEventListener("click", () => {
+      UI.confirmDialog("Restore default templates?", "This replaces your current outreach templates with the built-in defaults.", () => {
+        S().db.outreachTemplates = S().DEFAULT_TEMPLATES.map((t) => Object.assign({}, t));
+        S().save(); V61.Toast.success("Default templates restored"); renderSettings();
+      });
+    });
     el.querySelectorAll("[data-theme-btn]").forEach((b) => b.addEventListener("click", () => { V61.App.setTheme(b.dataset.themeBtn); renderSettings(); }));
     const clear = el.querySelector("#clear-data");
     if (clear) clear.addEventListener("click", () => {
@@ -264,12 +300,46 @@ V61.Pages = V61.Pages || {};
         S().load(); V61.Toast.success("Database cleared — you're starting fresh"); V61.App.nav("#/dashboard");
       });
     });
+    UI.bind(el);
   }
 
   V61.Cmd = V61.Cmd || {};
   Object.assign(V61.Cmd, {
     exportClients: () => S().exportClientsCSV(),
     exportBackup: () => U().download("vision61-crm-backup-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(S().db, null, 2), "application/json"),
+    outreachTplToggle: (id) => {
+      const t = (S().db.outreachTemplates || []).find((x) => x.id === id);
+      if (t) { t.active = t.active === false; S().save(); V61.Toast.success(t.active ? "Template enabled" : "Template paused"); renderSettings(); }
+    },
+    outreachTplDelete: (id) => {
+      const t = (S().db.outreachTemplates || []).find((x) => x.id === id);
+      if (!t) return;
+      UI.confirmDialog("Delete template?", "Remove " + t.name + "? The generator will fall back to built-in messages for this channel.", () => {
+        S().db.outreachTemplates = (S().db.outreachTemplates || []).filter((x) => x.id !== id);
+        S().save(); V61.Toast.success("Template deleted"); renderSettings();
+      });
+    },
+    outreachTplAdd: () => {
+      const channels = ["WhatsApp", "Email", "Instagram", "LinkedIn"];
+      const chans = channels.map((c) => '<option value="' + c + '">' + c + "</option>").join("");
+      UI.formModal({
+        title: "Add outreach template", icon: I.plus, size: "wide",
+        body: '<div class="field"><label>Template name</label><input class="input" id="tpl-name" placeholder="WhatsApp — follow-up after audit"></div>' +
+          '<div class="field-row"><div class="field"><label>Channel</label><select class="input" id="tpl-chan">' + chans + "</select></div>" +
+          '<div class="field"><label>Subject (email only)</label><input class="input" id="tpl-subj"></div></div>' +
+          '<div class="field"><label>Message</label><textarea class="input" rows="7" id="tpl-msg" placeholder="Hi {{contactName}}! ..."></textarea>' +
+          '<div class="hint">Use variables like {{contactName}}, {{businessName}}, {{category}}, {{location}}, {{senderName}} and sections {{#category}}...{{/category}}.</div></div>',
+        validate: ($) => { if (!($("#tpl-name").value.trim() && $("#tpl-msg").value.trim())) { V61.Toast.error("Name and message are required"); return false; } return true; },
+        onSave: ($) => {
+          S().db.outreachTemplates = S().db.outreachTemplates || [];
+          S().db.outreachTemplates.push({
+            id: "tpl-" + Date.now().toString(36), channel: $("#tpl-chan").value, name: $("#tpl-name").value.trim(),
+            subject: $("#tpl-subj").value.trim(), message: $("#tpl-msg").value, active: true,
+          });
+          S().save(); V61.Toast.success("Template added"); renderSettings();
+        },
+      });
+    },
   });
 
   V61.Pages.analytics = renderAnalytics;

@@ -186,7 +186,6 @@ V61.Pages = V61.Pages || {};
         validUntil: m.body.querySelector("#p-valid").value ? new Date(m.body.querySelector("#p-valid").value + "T09:00:00").getTime() : null,
         createdAt: U().now() };
       S().db.proposals.push(p);
-      if (lead.stage === "qualified" || lead.stage === "meeting" || lead.stage === "responded" || lead.stage === "contacted") lead.stage = "proposal";
       lead.updatedAt = U().now();
       S().addActivity(lead.id, "proposal", "Proposal created (" + U().formatMoney(total) + ").");
       S().save(); m.close(); V61.Toast.success("Proposal created");
@@ -217,8 +216,10 @@ V61.Pages = V61.Pages || {};
       '<div><b style="color:var(--text)">Deliverables & timeline</b><br>' + U().escapeHtml(p.deliverables || "—") + "</div>" +
       '<div><b style="color:var(--text)">Payment terms</b><br>' + U().escapeHtml(p.paymentTerms || "—") + "<br><br><b style='color:var(--text)'>Valid until</b><br>" + (p.validUntil ? U().formatDate(p.validUntil) : "—") + "</div></div>" +
       (lead ? '<div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-sm" href="#/leads/' + lead.id + '">' + I.eye + " Open lead</a>" +
+        (p.status === "draft" ? '<button class="btn btn-sm btn-primary" data-cmd="markProposalSent:' + p.id + '">' + I.send + " Mark as Sent</button>" : "") +
         '<button class="btn btn-sm btn-primary" data-cmd="acceptProposal:' + p.id + '">' + I.check + " Mark accepted</button>" +
-        '<button class="btn btn-sm btn-danger" data-cmd="rejectProposal:' + p.id + '">Mark rejected</button></div>' : "") +
+        '<button class="btn btn-sm btn-danger" data-cmd="rejectProposal:' + p.id + '">Mark rejected</button></div>' +
+        '<p style="font-size:12px;color:var(--text-3);margin-top:8px">Use "Mark as Sent" only after you have explicitly confirmed the proposal with the client — the lead moves to the Proposal Sent stage only then.</p>' : "") +
       "</div></div>";
     UI.bind(el);
     const sel = el.querySelector("[data-status]");
@@ -371,6 +372,7 @@ V61.Pages = V61.Pages || {};
     toggleService: (id) => { const s = S().byId("services", id); if (s) { s.active = !s.active; S().save(); renderServices(); } },
     delService: (id) => UI.confirmDialog("Delete service?", "This removes it from the services list.", () => { S().db.services = S().db.services.filter((x) => x.id !== id); S().save(); renderServices(); }),
     createProposal, acceptProposal: (id) => { const p = S().byId("proposals", id); if (p) { p.status = "accepted"; const l = S().byId("leads", p.leadId); if (l && l.stage !== "won") { l.stage = "won"; l.wonAt = U().now(); S().ensureClient(l); } S().addActivity(p.leadId, "proposal", "Proposal accepted."); S().save(); V61.Toast.success("Proposal accepted"); V61.App.renderRoute(); } },
+    markProposalSent: (id) => { const p = S().byId("proposals", id); if (p) { p.status = "sent"; const l = S().byId("leads", p.leadId); if (l && l.stage !== "won" && l.stage !== "lost" && l.stage !== "proposal" && l.stage !== "negotiation") l.stage = "proposal"; S().addActivity(p.leadId, "proposal", "Proposal marked as sent."); S().save(); V61.Toast.success("Proposal marked as sent"); V61.App.renderRoute(); } },
     rejectProposal: (id) => { const p = S().byId("proposals", id); if (p) { p.status = "rejected"; S().addActivity(p.leadId, "proposal", "Proposal rejected."); S().save(); V61.Toast.success("Proposal marked rejected"); V61.App.renderRoute(); } },
     addPayment, addClientService, toggleClientService,
     delPayment: (id) => { S().db.payments = S().db.payments.filter((x) => x.id !== id); S().save(); V61.Toast.success("Payment deleted"); V61.App.renderRoute(); },
