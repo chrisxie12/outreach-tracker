@@ -39,7 +39,10 @@ window.V61 = window.V61 || {};
     const onAbort = () => ctrl.abort();
     if (signal) { if (signal.aborted) ctrl.abort(); else signal.addEventListener("abort", onAbort, { once: true }); }
     const t = setTimeout(() => ctrl.abort(), 6000);
-    return fetch(url, { method: "GET", mode: "no-cors", credentials: "omit", redirect: "follow", signal: ctrl.signal })
+    let p;
+    try { p = fetch(url, { method: "GET", mode: "no-cors", credentials: "omit", redirect: "follow", signal: ctrl.signal }); }
+    catch (e) { p = Promise.reject(e); }
+    return p
       .then((r) => ({ ok: true, status: r.status }))
       .catch(() => ({ ok: false }))
       .finally(() => { clearTimeout(t); if (signal) signal.removeEventListener("abort", onAbort); });

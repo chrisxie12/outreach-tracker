@@ -408,22 +408,22 @@ V61.Pages = V61.Pages || {};
     refreshTemplates();
     chSel.addEventListener("change", refreshTemplates);
     tplSel.addEventListener("change", () => { const g = OE().generate(row, { channel: chSel.value, templateId: tplSel.value }); setDraft(g); });
-    m.body.querySelector("[data-regenerate]").addEventListener("click", () => { const g = OE().generate(row, { channel: chSel.value, templateId: tplSel.value }); setDraft(g); });
-    m.body.querySelector("[data-ai-generate]").addEventListener("click", () => {
+    m.q("[data-regenerate]").addEventListener("click", () => { const g = OE().generate(row, { channel: chSel.value, templateId: tplSel.value }); setDraft(g); });
+    m.q("[data-ai-generate]").addEventListener("click", () => {
       const row2 = S().leadRows().find((r) => r.lead.id === leadId);
       if (!row2) { V61.Toast.error("Lead data unavailable"); return; }
       V61.AI.generateOutreach(row2, { channel: chSel.value }).then((res) => V61.AI.present("outreach message", res, "AI Outreach Draft"));
     });
-    m.body.querySelector("[data-use-template]").addEventListener("click", refreshTemplates);
-    m.body.querySelector("[data-copy]").addEventListener("click", async () => {
+    m.q("[data-use-template]").addEventListener("click", refreshTemplates);
+    m.q("[data-copy]").addEventListener("click", async () => {
       const ok = await U().copyText(m.body.querySelector("#g-message").value);
       V61.Toast.success(ok ? "Draft copied" : "Could not copy");
     });
-    m.body.querySelector("[data-save-draft]").addEventListener("click", () => {
+    m.q("[data-save-draft]").addEventListener("click", () => {
       S().saveOutreachDraft(leadId, { channel: chSel.value, subject: m.body.querySelector("#g-subject").value.trim(), message: m.body.querySelector("#g-message").value, evidence: current.evidence });
       S().save(); V61.Toast.success("Draft saved");
     });
-    m.body.querySelector("[data-send-draft]").addEventListener("click", () => {
+    m.q("[data-send-draft]").addEventListener("click", () => {
       const when = U().now();
       const status = outcomeStatus("");
       S().db.outreach.push({ id: U().uid("o"), leadId, channel: chSel.value, activityType: chSel.value, status, outcome: "", message: m.body.querySelector("#g-message").value, notes: "Sent via " + chSel.value, contactedAt: when, manual: true, draft: true });

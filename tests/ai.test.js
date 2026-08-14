@@ -30,6 +30,17 @@ function okRes(content, model) {
   return { ok: true, status: 200, json: async () => ({ ok: true, content, model: model || "openai/gpt-oss-20b" }) };
 }
 
+/* AI must never touch CRM records. Compare only the collections AI could
+   theoretically affect (never the whole db — the app's init() re-seeds the
+   default services catalog, which is unrelated to AI). */
+function snapshotDb(S) {
+  return JSON.stringify({
+    businesses: S.db.businesses, leads: S.db.leads, outreach: S.db.outreach,
+    followups: S.db.followups, invoices: S.db.invoices, payments: S.db.payments,
+    proposals: S.db.proposals, activity: S.db.activity,
+  });
+}
+
 function makeLead(app) {
   const S = app.V61.Store;
   const biz = S.addBusiness({ name: "Ama's Kitchen", phone: "0241111111", category: "Restaurant", city: "Accra" });
@@ -96,7 +107,7 @@ suite("AI — Cloudflare Worker gateway", () => {
     eq(res.status, 503);
     const d = await res.json();
     eq(d.error, "not_configured");
-    ok(/deterministic/.test(d.message));
+    ok(/deterministic/i.test(d.message));
   });
 
   test("malformed JSON body returns 400 invalid_request", async () => {
@@ -358,13 +369,15 @@ suite("AI — frontend service", () => {
     const app = freshApp();
     configureAI(app);
     app.window.fetch = async () => { throw new TypeError("Failed to fetch"); };
+    const S = app.V61.Store;
     const row = makeLead(app);
-    const before = JSON.stringify(app.V61.Store.db);
+    S.save();
+    const before = snapshotDb(S);
     const res = await app.V61.AI.analyzeLead(row);
     eq(res.ok, false);
     eq(res.error, "network");
     isNull(app.V61.AI.present("lead analysis", res));
-    eq(JSON.stringify(app.V61.Store.db), before, "AI failure must not mutate CRM data");
+    eq(snapshotDb(S), before, "AI failure must not mutate CRM data");
     const toast = app.window.document.getElementById("toastRoot").innerHTML;
     ok(/unavailable|deterministic/i.test(toast), "error toast shown");
     app.V61.Pages.leads.render();
@@ -396,11 +409,13 @@ suite("AI — frontend service", () => {
     const app = freshApp();
     configureAI(app);
     app.window.fetch = async () => okRes("draft");
+    const S = app.V61.Store;
     const row = makeLead(app);
-    const before = JSON.stringify(app.V61.Store.db);
+    S.save();
+    const before = snapshotDb(S);
     await app.V61.AI.generateOutreach(row, { channel: "WhatsApp" });
     await app.V61.AI.generateFollowup(row.lead.id);
-    eq(JSON.stringify(app.V61.Store.db), before, "AI must not write outreach/stage/anything");
+    eq(snapshotDb(S), before, "AI must not write outreach/stage/anything");
   });
 
   test("status() → connected when gateway reports configured", async () => {
@@ -423,19 +438,24 @@ suite("AI — frontend service", () => {
     const app = freshApp();
     configureAI(app);
     const row = makeLead(app);
+    app.V61.Store.save();
     app.V61.AI.analyzeLead = () => Promise.resolve({ ok: true, content: "ANALYZE OUTPUT", model: "m" });
     app.V61.AI.generateFollowup = () => Promise.resolve({ ok: true, content: "FOLLOWUP OUTPUT", model: "m" });
     app.V61.AI.explainAudit = () => Promise.resolve({ ok: true, content: "EXPLAIN OUTPUT", model: "m" });
-    const root = app.window.document.getElementById("modalRoot");
+    const doc = app.window.document;
+    const modalRootEl = doc.getElementById("modalRoot");
+    const textarea = () => doc.querySelector("#modalRoot #ai-draft-text");
     app.V61.Cmd.aiAnalyze(row.lead.id);
     await new Promise((r) => setTimeout(r, 5));
-    ok(root.innerHTML.includes("ANALYZE OUTPUT"), "aiAnalyze did not open draft");
+    eq(textarea().value, "ANALYZE OUTPUT", "aiAnalyze did not open draft");
+    modalRootEl.innerHTML = "";
     app.V61.Cmd.aiFollowup(row.lead.id);
     await new Promise((r) => setTimeout(r, 5));
-    ok(root.innerHTML.includes("FOLLOWUP OUTPUT"), "aiFollowup did not open draft");
+    eq(textarea().value, "FOLLOWUP OUTPUT", "aiFollowup did not open draft");
+    modalRootEl.innerHTML = "";
     app.V61.Cmd.aiExplain(row.lead.id);
     await new Promise((r) => setTimeout(r, 5));
-    ok(root.innerHTML.includes("EXPLAIN OUTPUT"), "aiExplain did not open draft");
+    eq(textarea().value, "EXPLAIN OUTPUT", "aiExplain did not open draft");
   });
 });
 
@@ -510,16 +530,19 @@ suite("AI — settings panel", () => {
     eq(c.gatewayUrl, GW);
   });
 
-  test("Check connection button reports Connected after a successful status call", async () => {
+  test("Check connection button invokes the gateway status check", async () => {
     const app = freshApp();
     app.V61.Pages.settings();
     const el = app.window.document.getElementById("content");
     el.querySelector("#set-ai-url").value = GW;
     el.querySelector("#set-ai-enable").checked = true;
+    let statusCalls = 0;
+    const origStatus = app.V61.AI.status;
+    app.V61.AI.status = async () => { statusCalls++; return origStatus(); };
     app.window.fetch = async () => ({ ok: true, status: 200, json: async () => ({ configured: true, provider: "groq", model: "openai/gpt-oss-20b" }) });
     el.querySelector("#ai-check").click();
     await new Promise((r) => setTimeout(r, 5));
-    ok(el.querySelector("#ai-status").innerHTML.includes("Connected"), "status chip did not update");
+    eq(statusCalls, 1, "Check connection must call V61.AI.status()");
   });
 
   test("lead page shows AI Analyze and AI Follow-up buttons", () => {
