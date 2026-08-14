@@ -345,7 +345,7 @@ V61.Pages = V61.Pages || {};
       s.aiConfig.enabled = enabled;
       s.aiConfig.gatewayUrl = url;
       S().save();
-      V61.Toast.success(enabled && url ? "AI settings saved — gateway connection required" : "AI settings saved — deterministic outreach remains active");
+      V61.Toast.success(enabled && url ? "AI settings saved — press Check connection to test" : "AI settings saved — deterministic outreach remains active");
       renderSettings();
     });
     const aiCheckBtn = el.querySelector("#ai-check");
@@ -364,14 +364,14 @@ V61.Pages = V61.Pages || {};
       const map = { connected: ["Connected", "#3f9d5f"], not_configured: ["Not configured", "#8a8a90"], rate_limited: ["Rate limited", "#e0a53e"], unauthorized: ["Unavailable", "#e5484d"], error: ["Unavailable", "#e5484d"] };
       const pick = map[st.status] || map.error;
       const chip = el.querySelector("#ai-status");
-      if (chip) chip.innerHTML = '<span class="badge" style="background:' + UI.hexA(pick[1], .13) + ";color:" + pick[1] + '">' + pick[0] + "</span>";
+      if (chip) chip.innerHTML = '<span class="badge" style="background:' + UI.hexA(pick[1], .13) + ";color:" + pick[1] + '"' + (st.detail ? ' title="' + U().escapeHtml(st.detail) + '"' : "") + '>' + pick[0] + "</span>";
       if (st.status === "connected") {
         V61.Toast.success("AI gateway connected (" + (st.model || "model") + ")");
         if (modelInput && st.model) modelInput.value = st.model;
       } else if (st.status === "not_configured") {
         V61.Toast.warn("AI unavailable — deterministic outreach remains active");
       } else {
-        V61.Toast.error(st.status === "rate_limited" ? "AI gateway is rate-limited" : "AI gateway check failed");
+        V61.Toast.error(st.status === "rate_limited" ? "AI gateway is rate-limited" : ("AI gateway check failed" + (st.detail ? " — " + st.detail : "")));
       }
     });
     const resetTpl = el.querySelector("#reset-templates");

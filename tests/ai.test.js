@@ -607,6 +607,33 @@ suite("AI — frontend service", () => {
     eq(st.status, "unauthorized");
   });
 
+  test("status() surfaces the reason for a network failure", async () => {
+    const app = freshApp();
+    configureAI(app);
+    app.window.fetch = async () => { throw new TypeError("Failed to fetch"); };
+    const st = await app.V61.AI.status();
+    eq(st.status, "error");
+    ok(/gateway/i.test(st.detail || ""), "detail explains the failure");
+  });
+
+  test("status() detail identifies an origin rejection", async () => {
+    const app = freshApp();
+    configureAI(app);
+    app.window.fetch = async () => ({ ok: false, status: 403, json: async () => ({}) });
+    const st = await app.V61.AI.status();
+    eq(st.status, "unauthorized");
+    ok(/origin/i.test(st.detail || ""), "detail mentions the origin");
+  });
+
+  test("status() detail surfaces a gateway error status", async () => {
+    const app = freshApp();
+    configureAI(app);
+    app.window.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+    const st = await app.V61.AI.status();
+    eq(st.status, "error");
+    ok(/500/.test(st.detail || ""), "detail includes the HTTP status");
+  });
+
   test("V61.Cmd aiAnalyze / aiFollowup / aiExplain are wired to the draft modal", async () => {
     const app = freshApp();
     configureAI(app);

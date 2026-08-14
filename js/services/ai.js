@@ -92,7 +92,7 @@ window.V61 = window.V61 || {};
       return { token: _token, code: "ok" };
     }
     clearSession();
-    return { token: null, code: (res.status === 401 || res.status === 403) ? "unauthorized" : "gateway_error" };
+    return { token: null, code: (res.status === 401 || res.status === 403) ? "unauthorized" : "gateway_error", status: res.status };
   }
 
   /* ── Small verified context builders (only fields actually present) ── */
@@ -216,10 +216,15 @@ window.V61 = window.V61 || {};
   /* Gateway connection status (explicit user action only). */
   async function status() {
     const c = aiConfig();
-    if (!isConfigured()) return { status: "not_configured", provider: c.provider, model: c.model };
+    if (!isConfigured()) {
+      return { status: "not_configured", provider: c.provider, model: c.model, detail: "Enable AI assistance and set a gateway URL in Settings." };
+    }
     const s = await acquireSession();
     if (!s.token) {
-      return { status: s.code === "network" ? "error" : (s.code === "not_configured" ? "not_configured" : "unauthorized"), provider: c.provider, model: c.model };
+      if (s.code === "network") return { status: "error", provider: c.provider, model: c.model, detail: "Could not reach the gateway — check your connection or ad blocker." };
+      if (s.code === "unauthorized") return { status: "unauthorized", provider: c.provider, model: c.model, detail: "The gateway rejected this origin — open the CRM from https://chrisxie12.github.io." };
+      if (s.code === "gateway_error") return { status: "error", provider: c.provider, model: c.model, detail: "Gateway returned status " + (s.status || "unknown") + "." };
+      return { status: "not_configured", provider: c.provider, model: c.model, detail: "AI is not configured yet." };
     }
     const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
@@ -229,15 +234,16 @@ window.V61 = window.V61 || {};
         signal: ctrl ? ctrl.signal : undefined,
       });
       if (timer) clearTimeout(timer);
-      if (res.status === 401) { clearSession(); return { status: "unauthorized", provider: c.provider, model: c.model }; }
-      if (res.status === 429) return { status: "rate_limited", provider: c.provider, model: c.model };
-      if (!res.ok) return { status: "error", provider: c.provider, model: c.model };
+      if (res.status === 401) { clearSession(); return { status: "unauthorized", provider: c.provider, model: c.model, detail: "Session was rejected — press Check connection again." }; }
+      if (res.status === 429) return { status: "rate_limited", provider: c.provider, model: c.model, detail: "The gateway is rate-limited — try again in a moment." };
+      if (res.status === 403) return { status: "unauthorized", provider: c.provider, model: c.model, detail: "The gateway rejected this origin — open the CRM from https://chrisxie12.github.io." };
+      if (!res.ok) return { status: "error", provider: c.provider, model: c.model, detail: "Gateway returned status " + res.status + "." };
       const d = await res.json().catch(() => null);
-      if (d && d.configured) return { status: "connected", provider: d.provider || c.provider, model: d.model || c.model };
-      return { status: "error", provider: c.provider, model: c.model };
+      if (d && d.configured) return { status: "connected", provider: d.provider || c.provider, model: d.model || c.model, detail: "Gateway connected." };
+      return { status: "error", provider: c.provider, model: c.model, detail: "Gateway reports it is not configured." };
     } catch (e) {
       if (timer) clearTimeout(timer);
-      return { status: "error", provider: c.provider, model: c.model };
+      return { status: "error", provider: c.provider, model: c.model, detail: "Could not reach the gateway — check your connection or ad blocker." };
     }
   }
 
