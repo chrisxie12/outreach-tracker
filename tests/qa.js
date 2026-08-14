@@ -7,6 +7,7 @@ require("./phase1-discovery.test.js");
 require("./phase2-audit.test.js");
 require("./phase3-leads-outreach-sales.test.js");
 require("./phase4-finance.test.js");
+require("./phase4-services-catalog.test.js");
 require("./e2e.test.js");
 require("./integrity.test.js");
 require("./phase5-mobile-console.test.js");

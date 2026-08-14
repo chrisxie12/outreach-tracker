@@ -24,10 +24,11 @@ V61.Pages.sales = V61.Pages.sales || {};
     const el = document.getElementById("content");
     const svcs = S().db.services;
     const active = svcs.filter((s) => s.active);
-    const minPrice = svcs.length ? Math.min(...svcs.map((s) => s.price)) : 0;
+    const activePrices = active.map((s) => s.price).filter((p) => typeof p === "number" && Number.isFinite(p) && p >= 0);
+    const minPrice = activePrices.length ? Math.min(...activePrices) : 0;
     el.innerHTML =
       '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">Business</div>' +
-      '<h1 class="page-title">Services</h1><p class="page-sub">' + active.length + " active service" + (active.length === 1 ? "" : "s") + (svcs.length ? " · starting from GH₵ " + minPrice : "") + "</p></div>" +
+      '<h1 class="page-title">Services</h1><p class="page-sub">' + active.length + " active service" + (active.length === 1 ? "" : "s") + (activePrices.length ? " · starting from GH₵ " + minPrice : "") + "</p></div>" +
       '<div class="page-actions"><button class="btn btn-primary" data-cmd="addService">' + I.plus + " Add Service</button></div></div>" +
       (svcs.length ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">' +
       svcs.map((s) =>
@@ -54,7 +55,7 @@ V61.Pages.sales = V61.Pages.sales || {};
     m.q("[data-save]").addEventListener("click", () => {
       const name = m.body.querySelector("#s-name").value.trim();
       if (!name) return;
-      const data = { name, description: m.body.querySelector("#s-desc").value.trim(), price: Number(m.body.querySelector("#s-price").value) || 0, deliveryDays: Number(m.body.querySelector("#s-days").value) || 14 };
+      const data = { name, description: m.body.querySelector("#s-desc").value.trim(), price: Math.max(0, Number(m.body.querySelector("#s-price").value) || 0), deliveryDays: Math.max(1, Number(m.body.querySelector("#s-days").value) || 14) };
       if (existing) Object.assign(existing, data);
       else S().db.services.push(Object.assign({ id: U().uid("svc"), active: true }, data));
       S().save(); m.close(); V61.Toast.success(existing ? "Service updated" : "Service added"); renderServices();
@@ -73,7 +74,8 @@ V61.Pages.sales = V61.Pages.sales || {};
       (props.length ? '<div class="table-wrap"><table class="data"><thead><tr><th>Proposal</th><th>Client</th><th>Status</th><th>Total</th><th>Valid until</th><th>Created</th><th></th></tr></thead><tbody>' +
         props.map((p) => {
           const biz = byLead(p);
-          return "<tr><td><div class='b-name'>" + U().escapeHtml(p.title || "Proposal") + "</div><div class='b-cat'>" + p.items.length + " line item" + (p.items.length === 1 ? "" : "s") + "</div></td>" +
+          const itemCount = (p.items || []).length;
+          return "<tr><td><div class='b-name'>" + U().escapeHtml(p.title || "Proposal") + "</div><div class='b-cat'>" + itemCount + " line item" + (itemCount === 1 ? "" : "s") + "</div></td>" +
             "<td>" + (biz ? '<div class="b-name"><a href="#/proposals/' + p.id + '">' + U().escapeHtml(biz.name) + "</a></div>" : "—") + "</td>" +
             "<td>" + UI.badge(propStatus(p.status).label, propStatus(p.status).color, true) + "</td>" +
             "<td><b>" + U().formatMoney(p.total) + "</b></td>" +
