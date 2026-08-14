@@ -8,8 +8,33 @@ V61.Pages = V61.Pages || {};
   const I = V61.Icons;
   const UI = V61.UI;
   const GP = () => V61.GooglePlaces;
+  const D = () => V61.Discovery;
   const Score = () => V61.Score;
   const OE = () => V61.OpportunityEngine;
+
+  function detailsSourceFor(biz) { return (biz && biz.osmId) ? "osm" : "google"; }
+  /* Auto-fill audit facts from a real data source. Only facts the source
+     genuinely provides are set — nothing is invented. Google gives rating,
+     reviews, photos and Google-listing facts; OpenStreetMap gives a real
+     website presence and contact info only. */
+  function applyDetails(audit, d, source) {
+    audit.website = audit.website || {};
+    audit.website.exists = !!d.website;
+    audit.website.contact = !!d.phone;
+    if (source === "google") {
+      audit.google = audit.google || {};
+      audit.google.exists = true;
+      audit.google.photos = d.photos > 0;
+      audit.google.reviews = d.reviews > 0;
+      audit.google.rating = (d.rating || 0) >= 4;
+      audit.google.hours = !!d.hours;
+      audit.google.phone = !!d.phone;
+      audit.google.website_linked = !!d.website;
+      audit.seo = audit.seo || {};
+      audit.seo.maps = true;
+      audit.seo.reviews = (d.reviews || 0) >= 15;
+    }
+  }
 
   const catMeta = {
     website: { label: "Website", weight: 25 },
@@ -158,8 +183,8 @@ V61.Pages = V61.Pages || {};
       '<div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap">' +
       '<div><div style="font-weight:700;font-size:14px">Tap each item that is true for this business.</div>' +
       '<div style="font-size:12.5px;color:var(--text-3)">The Digital Presence Score updates as you go.</div></div>' +
-      (biz && biz.googlePlaceId && GP().discoveryKey() ?
-        '<button class="btn" id="audit-autofill" style="margin-left:auto">' + I.scan + " Auto-fill from Google</button>" : "") +
+      (biz && ((biz.googlePlaceId && D().key()) || biz.osmId) ?
+        '<button class="btn" id="audit-autofill" style="margin-left:auto">' + I.scan + " Auto-fill from " + (detailsSourceFor(biz) === "osm" ? "OpenStreetMap" : "Google") + "</button>" : "") +
       "</div>" +
       sectionHtml("website") + sectionHtml("google") + sectionHtml("social") + sectionHtml("branding") + sectionHtml("conversion") + sectionHtml("seo")
     );
@@ -205,23 +230,11 @@ V61.Pages = V61.Pages || {};
     });
     const autofill = m.body.querySelector("#audit-autofill");
     if (autofill) autofill.addEventListener("click", () => {
+      const src = detailsSourceFor(biz);
+      const label = src === "osm" ? "Auto-fill from OpenStreetMap" : "Auto-fill from Google";
       autofill.disabled = true; autofill.textContent = "Fetching…";
-      GP().placeDetails(biz.googlePlaceId).then((d) => {
-        /* Only facts Google genuinely provides are auto-checked; everything else stays manual. */
-        audit.website = audit.website || {};
-        audit.website.exists = !!d.website;
-        audit.website.contact = !!d.phone;
-        audit.google = audit.google || {};
-        audit.google.exists = true;
-        audit.google.photos = d.photos > 0;
-        audit.google.reviews = d.reviews > 0;
-        audit.google.rating = (d.rating || 0) >= 4;
-        audit.google.hours = !!d.hours;
-        audit.google.phone = !!d.phone;
-        audit.google.website_linked = !!d.website;
-        audit.seo = audit.seo || {};
-        audit.seo.maps = true;
-        audit.seo.reviews = (d.reviews || 0) >= 15;
+      D().details(src === "osm" ? biz.osmId : biz.googlePlaceId).then((d) => {
+        applyDetails(audit, d, src);
         audit.updatedAt = U().now();
         recalc();
         m.body.querySelectorAll(".check-item").forEach((it) => {
@@ -232,11 +245,11 @@ V61.Pages = V61.Pages || {};
           const chip = m.body.querySelector('[data-scorechip="' + cat + '"]');
           if (chip) chip.textContent = m.body.querySelectorAll('[data-check^="' + cat + '"].on').length + "/" + m.body.querySelectorAll('[data-check^="' + cat + '"]').length;
         });
-        autofill.disabled = false; autofill.textContent = "Auto-fill from Google";
-        V61.Toast.success("Filled from real Google data — review the rest manually");
+        autofill.disabled = false; autofill.textContent = label;
+        V61.Toast.success(src === "osm" ? "Filled from real OpenStreetMap data — review the rest manually" : "Filled from real Google data — review the rest manually");
       }).catch((e) => {
-        autofill.disabled = false; autofill.textContent = "Auto-fill from Google";
-        V61.Toast.error(e.message || "Could not fetch Google data");
+        autofill.disabled = false; autofill.textContent = label;
+        V61.Toast.error(e.message || "Could not fetch source data");
       });
     });
   }
@@ -270,23 +283,11 @@ V61.Pages = V61.Pages || {};
         listEl.querySelectorAll("div")[i].innerHTML = rowHtml(biz.name, "analyzing…");
         let audit = S().auditOf(lead.businessId);
         if (!audit) { audit = S().emptyAudit(lead.businessId); S().db.audits.push(audit); }
-        if (biz.googlePlaceId && GP().discoveryKey()) {
+        if ((biz.googlePlaceId && D().key()) || biz.osmId) {
           try {
-            const d = await GP().placeDetails(biz.googlePlaceId);
-            audit.website = audit.website || {};
-            audit.website.exists = !!d.website;
-            audit.website.contact = !!d.phone;
-            audit.google = audit.google || {};
-            audit.google.exists = true;
-            audit.google.photos = d.photos > 0;
-            audit.google.reviews = d.reviews > 0;
-            audit.google.rating = (d.rating || 0) >= 4;
-            audit.google.hours = !!d.hours;
-            audit.google.phone = !!d.phone;
-            audit.google.website_linked = !!d.website;
-            audit.seo = audit.seo || {};
-            audit.seo.maps = true;
-            audit.seo.reviews = (d.reviews || 0) >= 15;
+            const src = detailsSourceFor(biz);
+            const d = await D().details(src === "osm" ? biz.osmId : biz.googlePlaceId);
+            applyDetails(audit, d, src);
           } catch (e) {}
         }
         if (biz.website) {

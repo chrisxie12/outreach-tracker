@@ -422,6 +422,7 @@
 
   function byId(col, id) { return db[col].find((x) => x.id === id) || null; }
   function businessByGooglePlace(placeId) { return db.businesses.find((b) => b.googlePlaceId === placeId) || null; }
+  function businessByOsm(osmId) { return osmId ? db.businesses.find((b) => b.osmId === osmId) || null : null; }
   function businessByName(name) { return db.businesses.find((b) => b.name.toLowerCase() === String(name || "").toLowerCase()) || null; }
   function businessOf(lead) { return byId("businesses", lead.businessId); }
   function auditOf(businessId) { return db.audits.find((a) => a.businessId === businessId) || null; }
@@ -526,8 +527,9 @@
      Returns { business, lead } reusing an existing record when already in the CRM. */
   function addDiscoveredBusiness(place) {
     const p = place || {};
+    const osm = p.osmId || "";
     const gid = p.googlePlaceId || p.placeId || "";
-    const existing = gid ? businessByGooglePlace(gid) : businessByName(p.name);
+    const existing = osm ? businessByOsm(osm) : gid ? businessByGooglePlace(gid) : businessByName(p.name);
     if (existing) {
       const lead = leadOf(existing.id) || addLead(existing.id, { source: p.source || "discovery" });
       return { business: existing, lead, created: false };
@@ -546,6 +548,7 @@
       instagramUrl: p.instagramUrl || "",
       facebookUrl: p.facebookUrl || "",
       googlePlaceId: gid,
+      osmId: osm,
       placeRating: p.rating || null,
       placeReviews: p.reviews || null,
       placeLat: p.lat || null,
@@ -1006,7 +1009,7 @@
     outreachFor, followupsFor, tasksFor, notesFor, activityFor, projectOf, projectsFor,
     projectTasksFor, milestonesFor, invoicesFor, invoiceItemsFor, approvalsFor, revisionsFor,
     addActivity, addBusiness, addLead, addContact, upsertAudit,
-    addDiscoveredBusiness, businessByGooglePlace, businessByName,
+    addDiscoveredBusiness, businessByGooglePlace, businessByOsm, businessByName,
     nextFollowup, nextTask, addProject, projectTaskOf, addProjectTask,
     milestoneOf, addMilestone,
     invoiceOf, addInvoice, invoiceItemOf, addInvoiceItem,

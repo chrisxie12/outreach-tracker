@@ -8,10 +8,11 @@ V61.Pages = V61.Pages || {};
   const I = V61.Icons;
   const UI = V61.UI;
   const GP = () => V61.GooglePlaces;
+  const D = () => V61.Discovery;
 
   function render() {
     const el = document.getElementById("content");
-    const hasKey = !!GP().discoveryKey();
+    const ready = D().ready();
     el.innerHTML =
       '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">Prospecting</div>' +
       '<h1 class="page-title">Lead Discovery</h1><p class="page-sub">Find real businesses by location and category, review them, then add the ones you want to prospect.</p></div></div>' +
@@ -25,16 +26,16 @@ V61.Pages = V61.Pages || {};
       '<button class="btn btn-primary" data-open-file>' + I.upload + " Choose file</button></div>" +
       '<div style="margin-top:14px;font-size:12px;color:var(--text-3);line-height:1.7"><b style="color:var(--text-2)">Recognised headers:</b> Business name, Category, Location, Address, Phone, WhatsApp, Email, Website, Google profile, Instagram, Facebook, Digital score, Lead score, Stage, Deal value, Notes.</div>' +
       "</div></div>" +
-      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.search + " Search real businesses" + (hasKey ? '<span class="sub">Google Places</span>' : '<span class="sub">Needs API key</span>') + "</div></div>" +
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.search + " Search real businesses" + (ready ? '<span class="sub">' + D().label() + "</span>" : '<span class="sub">Needs a data source</span>') + "</div></div>" +
       '<div class="panel-body">' +
-      (hasKey ?
+      (ready ?
         '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px">' +
         '<input class="input" id="discovery-cat" style="flex:1;min-width:150px" placeholder="Category — e.g. restaurants, salons, clinics" list="disc-cat-list">' +
         '<datalist id="disc-cat-list">' + GP().catMetaOptions() + "</datalist>" +
         '<input class="input" id="discovery-loc" style="width:190px" placeholder="Location — e.g. Osu, Accra">' +
         '<button class="btn btn-primary" id="discovery-go">' + I.search + " Search</button></div>" +
         '<div id="discovery-results"></div>' :
-        '<div class="empty" style="padding:22px"><div style="font-size:13px;color:var(--text-3);margin-bottom:10px">Discovery uses the Google Places API to find real businesses. No API key is configured yet — so no results are shown and nothing is fabricated.</div>' +
+        '<div class="empty" style="padding:22px"><div style="font-size:13px;color:var(--text-3);margin-bottom:10px">Discovery searches real businesses from a data source. No source is configured yet — so no results are shown and nothing is fabricated. Use the free OpenStreetMap source (no key needed) or add a Google Places key.</div>' +
         '<a class="btn btn-primary" href="#/settings">' + I.settings + " Configure data source</a></div>") +
       "</div></div>" +
       "</div>";
@@ -72,8 +73,8 @@ V61.Pages = V61.Pages || {};
     const loc = (el.querySelector("#discovery-loc").value || "").trim();
     const out = el.querySelector("#discovery-results");
     if (!cat && !loc) { V61.Toast.warn("Enter a category or location to search"); return; }
-    out.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3)">Searching Google Places…</div>';
-    GP().discoverySearch(cat, loc).then((results) => {
+    out.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3)">Searching ' + D().label() + '…</div>';
+    D().search(cat, loc).then((results) => {
       if (!results.length) { out.innerHTML = '<div class="empty" style="padding:24px">' + I.search + '<h3>No businesses found</h3><p>Try a different category or location.</p></div>'; return; }
       out.innerHTML = results.map((r, i) => resultCard(r, i)).join("");
       bindResultActions(out, results);
@@ -83,7 +84,7 @@ V61.Pages = V61.Pages || {};
   }
 
   function resultCard(r, i) {
-    const existing = r.placeId ? S().businessByGooglePlace(r.placeId) : S().businessByName(r.name);
+    const existing = r.osmId ? S().businessByOsm(r.osmId) : r.placeId ? S().businessByGooglePlace(r.placeId) : S().businessByName(r.name);
     const lead = existing ? S().leadOf(existing.id) : null;
     const stars = r.rating != null ? '<span style="color:#e0a53e;display:inline-flex;align-items:center;gap:2px;font-weight:700">' + I.star + " " + r.rating + "</span><span style='color:var(--text-3);font-size:12px'> (" + r.reviews + ")</span>" : "";
     return '<div class="disc-result" data-result="' + i + '">' +
@@ -103,11 +104,12 @@ V61.Pages = V61.Pages || {};
     out.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
       const r = results[Number(b.dataset.add)];
       b.disabled = true; b.textContent = "Adding…";
-      (r.placeId ? GP().placeDetails(r.placeId).catch(() => ({})) : Promise.resolve({})).then((d) => {
-        const place = Object.assign({}, r, d, { source: "google-discovery", query: (document.getElementById("discovery-cat") ? document.getElementById("discovery-cat").value : "") + " in " + (document.getElementById("discovery-loc") ? document.getElementById("discovery-loc").value : "") });
+      (r.osmId ? D().details(r.osmId) : r.placeId ? D().details(r.placeId) : Promise.resolve({})).then((d) => {
+        const prov = D().provider();
+        const place = Object.assign({}, r, d, { source: prov === "osm" ? "osm-discovery" : "google-discovery", query: (document.getElementById("discovery-cat") ? document.getElementById("discovery-cat").value : "") + " in " + (document.getElementById("discovery-loc") ? document.getElementById("discovery-loc").value : "") });
         const res = S().addDiscoveredBusiness(place);
         S().save();
-        if (res.created) { S().addActivity(res.lead.id, "note", "Business discovered via Google Places."); }
+        if (res.created) { S().addActivity(res.lead.id, "note", "Business discovered via " + (prov === "osm" ? "OpenStreetMap." : "Google Places.")); }
         V61.Toast.success(res.created ? "Added " + place.name + " to your CRM" : place.name + " was already in your CRM");
         const refreshed = results.map((x, i) => resultCard(x, i));
         out.innerHTML = refreshed.join("");

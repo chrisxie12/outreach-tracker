@@ -68,6 +68,18 @@ function freshApp() {
   return app;
 }
 
+/* jsdom fires DOMContentLoaded on a later tick, so V61.App.init() re-renders
+   the dashboard AFTER tests render a page — overwriting it. settle() waits
+   until that init render has happened so tests are deterministic. */
+async function settle(app) {
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
+    const c = app.window.document.getElementById("content");
+    if (c && c.innerHTML.indexOf("hero") >= 0) return;
+    await new Promise((r) => setTimeout(r, 5));
+  }
+}
+
 /* Simulate a browser refresh: persist current state, build a brand-new window,
    and load it back. */
 function refresh(app) {
@@ -77,4 +89,4 @@ function refresh(app) {
   return app2;
 }
 
-module.exports = { createApp, freshApp, refresh, KEY, ROOT };
+module.exports = { createApp, freshApp, refresh, settle, KEY, ROOT };

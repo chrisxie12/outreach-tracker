@@ -4,6 +4,7 @@
  "js/ui.js",
  "js/lock.js",
  "js/services/googlePlaces.js",
+ "js/services/openstreetmap.js",
  "js/services/websiteAnalyzer.js",
  "js/services/scoring.js",
  "js/services/opportunities.js",

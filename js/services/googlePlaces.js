@@ -98,5 +98,26 @@ window.V61 = window.V61 || {};
     return cats.map((c) => "<option value='" + c + "'>").join("");
   }
 
+  /* ── Provider dispatcher ──
+     Google Places (default): ratings + reviews, needs a browser API key.
+     OpenStreetMap: 100% free, no key, but no ratings or reviews.
+     The pages only talk to V61.Discovery, never to a provider directly. */
+  function discoveryProvider() { return (S().db.settings.discoveryProvider === "osm") ? "osm" : "google"; }
+  function discoveryReady() { return discoveryProvider() === "osm" || !!discoveryKey(); }
+  function discoveryLabel() { return discoveryProvider() === "osm" ? "OpenStreetMap" : "Google Places"; }
+  function discoverySearchAny(query, location) {
+    return discoveryProvider() === "osm" ? V61.OpenStreetMap.discoverySearch(query, location) : V61.GooglePlaces.discoverySearch(query, location);
+  }
+  /* Resolve details for whichever identifier the result carries: OSM ids look
+     like "node/123"; Google place ids are any other non-empty string. */
+  function discoveryDetails(id) {
+    return /^(node|way|relation)\//.test(String(id || "")) ? V61.OpenStreetMap.placeDetails(id) : V61.GooglePlaces.placeDetails(id);
+  }
+  const Discovery = {
+    provider: discoveryProvider, ready: discoveryReady, label: discoveryLabel, key: discoveryKey,
+    search: discoverySearchAny, details: discoveryDetails, catMetaOptions,
+  };
+
   V61.GooglePlaces = { discoveryKey, placesReady, placesService, normalizeType, extractCity, discoverySearch, placeDetails, catMetaOptions };
+  V61.Discovery = Discovery;
 })();

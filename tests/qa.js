@@ -11,6 +11,7 @@ require("./phase4-services-catalog.test.js");
 require("./e2e.test.js");
 require("./integrity.test.js");
 require("./phase5-mobile-console.test.js");
+require("./discovery-providers.test.js");
 require("./ai.test.js");
 
 runAll().then((results) => {

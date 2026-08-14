@@ -192,6 +192,7 @@ V61.Pages = V61.Pages || {};
       ? '<span class="badge" style="background:rgba(63,157,95,.13);color:#3f9d5f">Configured — press Check connection</span>'
       : '<span class="badge" style="background:rgba(138,138,144,.13);color:var(--text-3)">Not configured</span>';
     const aiCaps = ["Lead analysis", "AI outreach drafts", "AI follow-up drafts", "Audit explanations"].map(function (c) { return "\u2713 " + c; }).join(" &middot; ");
+    const prov = (s.discoveryProvider === "osm") ? "osm" : "google";
     el.innerHTML =
       '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">System</div>' +
       '<h1 class="page-title">Settings</h1><p class="page-sub">Profile, appearance and data management</p></div></div>' +
@@ -212,12 +213,17 @@ V61.Pages = V61.Pages || {};
       '<div style="display:flex;gap:8px"><button class="btn btn-danger" id="clear-data">' + I.trash + " Clear all data</button></div></div></div></div>" +
 
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.search + ' Data sources</div></div><div class="panel-body">' +
-      '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:12px">Lead Discovery uses the <b style="color:var(--text)">Google Places API</b> to find real businesses by location and category. Add your own API key below — the CRM never invents businesses or reviews; it only shows what the API returns.</div>' +
-      '<div class="field"><label>Google Maps / Places API key</label>' +
-      '<input class="input" id="set-gkey" type="password" value="' + U().escapeHtml(s.googleMapsApiKey || "") + '" placeholder="AIza..." autocomplete="off">' +
-      '<div class="hint">Get one free at console.cloud.google.com → enable <b>Places API</b> → create an API key and restrict it to your site&#39;s referrer.</div></div>' +
+      '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:12px">Lead Discovery finds real businesses by location and category. The CRM never invents businesses or reviews — it only shows what the selected source returns.</div>' +
+      '<div class="field"><label>Discovery provider</label>' +
+      '<select class="input" id="set-provider"><option value="google"' + (prov !== "osm" ? " selected" : "") + '>Google Places — ratings &amp; reviews</option>' +
+      '<option value="osm"' + (prov === "osm" ? " selected" : "") + '>OpenStreetMap — free, no API key</option></select></div>' +
+      (prov === "osm" ?
+        '<div id="osm-note" style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin:10px 0">100% free and no key needed — powered by OpenStreetMap. Real businesses, addresses, and (where mapped) phone, website and opening hours are shown. There are no ratings or review counts.</div>' :
+        '<div class="field" id="gkey-field"><label>Google Maps / Places API key</label>' +
+        '<input class="input" id="set-gkey" type="password" value="' + U().escapeHtml(s.googleMapsApiKey || "") + '" placeholder="AIza..." autocomplete="off">' +
+        '<div class="hint">Get one free at console.cloud.google.com → enable <b>Places API</b> and <b>Maps JavaScript API</b> → create an API key and restrict it to your site&#39;s referrer.</div></div>') +
       '<button class="btn btn-primary" id="save-gkey">' + I.check + " Save data source</button>" +
-      '<div style="font-size:12px;color:var(--text-3);margin-top:10px">Status: ' + (s.googleMapsApiKey ? '<b style="color:var(--ok)">Configured — discovery search enabled</b>' : '<b style="color:var(--warn)">Not configured — discovery shows setup help</b>') + "</div>" +
+      '<div style="font-size:12px;color:var(--text-3);margin-top:10px">Status: ' + (prov === "osm" ? '<b style="color:var(--ok)">Configured — OpenStreetMap discovery enabled (free)</b>' : (s.googleMapsApiKey ? '<b style="color:var(--ok)">Configured — Google Places discovery enabled</b>' : '<b style="color:var(--warn)">Not configured — add a Google Places key or switch to OpenStreetMap</b>')) + "</div>" +
 
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.send + ' Outreach engine</div></div><div class="panel-body">' +
       '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:12px">Outreach messages are generated deterministically from your templates and the lead&#39;s real audit facts — nothing is fabricated. ' +
@@ -293,10 +299,25 @@ V61.Pages = V61.Pages || {};
     });
     const gkeyBtn = el.querySelector("#save-gkey");
     if (gkeyBtn) gkeyBtn.addEventListener("click", () => {
-      const v = (el.querySelector("#set-gkey").value || "").trim();
-      s.googleMapsApiKey = v;
-      if (v) s.discoveryProvider = "google";
-      S().save(); V61.Toast.success(v ? "Data source saved — discovery search is now active" : "Data source removed");
+      const provSel = el.querySelector("#set-provider");
+      const pv = provSel ? provSel.value : "google";
+      s.discoveryProvider = pv;
+      if (pv === "google") {
+        const v = (el.querySelector("#set-gkey").value || "").trim();
+        s.googleMapsApiKey = v;
+        V61.Toast.success(v ? "Google Places enabled — discovery search is active" : "Google key removed");
+      } else {
+        V61.Toast.success("OpenStreetMap enabled — free discovery, no key needed");
+      }
+      S().save(); renderSettings();
+    });
+    const provSel = el.querySelector("#set-provider");
+    if (provSel) provSel.addEventListener("change", () => {
+      const isOsm = provSel.value === "osm";
+      const gf = el.querySelector("#gkey-field");
+      const on = el.querySelector("#osm-note");
+      if (gf) gf.style.display = isOsm ? "none" : "";
+      if (on) on.style.display = isOsm ? "" : "none";
     });
     const scoreBtn = el.querySelector("#save-scoring");
     if (scoreBtn) scoreBtn.addEventListener("click", () => {
