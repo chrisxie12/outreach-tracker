@@ -143,10 +143,47 @@ suite("Phase 4 — Invoicing & Payments", () => {
     const app = freshApp();
     const { S, client } = makeClient(app);
     const inv = S.addInvoice(client.id, {});
-    S.addInvoiceItem(inv.id, { service: "x", quantity: NaN, unitPrice: "abc" });
+    const item = S.addInvoiceItem(inv.id, { service: "x", quantity: NaN, unitPrice: "abc" });
     ok(Number.isFinite(inv.total), "total not finite");
     ok(inv.total >= 0);
+    ok(Number.isFinite(item.total), "item total not finite");
+    eq(item.quantity, 1);
+    eq(item.unitPrice, 0);
+    eq(item.total, 0);
   });
+
+  test("regression: invoice totals never become NaN/Infinity regardless of input", () => {
+    const app = freshApp();
+    const { S, client } = makeClient(app);
+    const inv = S.addInvoice(client.id, {});
+    const inputs = [
+      { service: "a", quantity: "3", unitPrice: "200" },
+      { service: "b", quantity: null, unitPrice: null },
+      { service: "c", quantity: undefined, unitPrice: undefined },
+      { service: "d", quantity: Infinity, unitPrice: -5 },
+      { service: "e", quantity: 0, unitPrice: 10 },
+      { service: "f", quantity: 2.5, unitPrice: 1.1 },
+    ];
+    inputs.forEach((x) => S.addInvoiceItem(inv.id, x));
+    ok(Number.isFinite(inv.total), "invoice total not finite: " + inv.total);
+    ok(inv.total >= 0, "invoice total negative");
+    eq(inv.balance, inv.total);
+    eq(inv.status, "sent");
+  });
+
+  test("regression: adding items to a cancelled invoice is refused and never un-cancels it", () => {
+    const app = freshApp();
+    const { S, client } = makeClient(app);
+    const inv = S.addInvoice(client.id, { status: "cancelled" });
+    const before = S.invoiceItemsFor(inv.id).length;
+    const item = S.addInvoiceItem(inv.id, { service: "x", quantity: 1, unitPrice: 500 });
+    isNull(item, "item should be refused on a cancelled invoice");
+    eq(S.invoiceItemsFor(inv.id).length, before, "no items may be added to a cancelled invoice");
+    eq(S.invoiceOf(inv.id).status, "cancelled", "cancelled invoice must stay cancelled");
+    eq(S.invoiceOf(inv.id).total, 0);
+    eq(S.invoiceOf(inv.id).balance, 0);
+  });
+
 
   test("empty invoice has zero total, not NaN", () => {
     const app = freshApp();

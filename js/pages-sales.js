@@ -208,7 +208,7 @@ V61.Pages.sales = V61.Pages.sales || {};
       '<select class="select" style="width:130px" data-status="' + p.id + '">' + PROP_STATUS.map((s) => '<option value="' + s.key + '"' + (p.status === s.key ? " selected" : "") + ">" + s.label + "</option>").join("") + "</select></div></div>" +
       '<div class="panel-body">' +
       '<table class="data" style="min-width:0"><thead><tr><th>Service</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>' +
-      p.items.map((i) => "<tr><td>" + U().escapeHtml(i.name) + "</td><td>" + i.qty + "</td><td>" + U().formatMoney(i.price) + "</td><td><b>" + U().formatMoney(i.price * i.qty) + "</b></td></tr>").join("") +
+      (p.items && p.items.length ? p.items.map((i) => "<tr><td>" + U().escapeHtml(i.name) + "</td><td>" + i.qty + "</td><td>" + U().formatMoney(i.price) + "</td><td><b>" + U().formatMoney(i.price * i.qty) + "</b></td></tr>").join("") : '<tr><td colspan="4" class="cell-sub">No items on this proposal.</td></tr>') +
       "</tbody></table>" +
       '<div class="totals"><div class="row-t"><span style="color:var(--text-3)">Subtotal</span><span>' + U().formatMoney(p.subtotal) + "</span></div>" +
       '<div class="row-t"><span style="color:var(--text-3)">Discount</span><span style="color:var(--danger)">-' + U().formatMoney(p.discount) + "</span></div>" +

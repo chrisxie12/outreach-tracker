@@ -228,6 +228,7 @@
     activity: [], services: [], proposals: [], clients: [], payments: [],
     websiteAudits: [], auditSnapshots: [], meetings: [], outreachDrafts: [], outreachTemplates: [], tags: [],
     projects: [], projectTasks: [], milestones: [], invoices: [], invoiceItems: [], approvals: [], revisions: [],
+    clientContacts: [],
     settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "", enabled: false } },
   });
 
@@ -389,7 +390,13 @@
     return rec;
   }
   function latestWebsiteAudit(businessId) {
-    return db.websiteAudits.filter((w) => w.businessId === businessId).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0] || null;
+    let best = null;
+    for (const w of db.websiteAudits) {
+      if (w.businessId !== businessId) continue;
+      // forward iteration: on equal createdAt the later-inserted record wins
+      if (!best || (w.createdAt || 0) >= (best.createdAt || 0)) best = w;
+    }
+    return best;
   }
   function websiteAuditsFor(businessId) {
     return db.websiteAudits.filter((w) => w.businessId === businessId).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
@@ -406,6 +413,10 @@
   function contactsFor(businessId) { return db.contacts.filter((c) => c.businessId === businessId); }
   function clientOf(businessId) { return db.clients.find((c) => c.businessId === businessId) || null; }
   function clientById(clientId) { return db.clients.find((c) => c.id === clientId) || null; }
+  function clientBusiness(clientId) {
+    const cl = clientById(clientId);
+    return cl ? businessOf({ businessId: cl.businessId }) : null;
+  }
   function ensureClient(lead) {
     if (!lead || !lead.businessId) return null;
     const existing = clientOf(lead.businessId);
@@ -764,11 +775,20 @@
   /* ── Invoice Item ── */
   function invoiceItemOf(itemId) { return db.invoiceItems.find((item) => item.id === itemId) || null; }
   function addInvoiceItem(invoiceId, data) {
-    const now = U().now();
-    const item = Object.assign({ id: U().uid("inv-it"), invoiceId, service: data.service || "", description: data.description || "", quantity: data.quantity !== undefined ? data.quantity : 1, unitPrice: data.unitPrice || 0, total: (data.quantity || 1) * (data.unitPrice || 0) }, data);
-    db.invoiceItems.push(item);
-    // Recalculate invoice totals
     const inv = invoiceOf(invoiceId);
+    if (inv && inv.status === "cancelled") return null;
+    const now = U().now();
+    const qty = Number(data.quantity);
+    const price = Number(data.unitPrice);
+    const quantity = Number.isFinite(qty) && qty > 0 ? qty : 1;
+    const unitPrice = Number.isFinite(price) && price >= 0 ? price : 0;
+    const item = Object.assign({ id: U().uid("inv-it"), invoiceId, service: data.service || "", description: data.description || "", quantity, unitPrice, total: quantity * unitPrice }, data);
+    item.quantity = quantity;
+    item.unitPrice = unitPrice;
+    item.total = quantity * unitPrice;
+    db.invoiceItems.push(item);
+    // Recalculate invoice totals (a cancelled invoice is immutable and never
+    // silently flipped back to sent/paid by a recalculation)
     if (inv) {
       const items = invoiceItemsFor(invoiceId);
       inv.subtotal = items.reduce((s, it) => s + it.total, 0);
@@ -952,7 +972,7 @@
     addAuditSnapshot, auditSnapshotsFor,
     projectProgress, clientFinancialSummary,
     pipelineValue, wonRevenue, outstandingPayments, mrr,
-    leadRows, clientRows, clientById,
+    leadRows, clientRows, clientById, clientBusiness,
     PROJECT_STATUS, projectStatusOf, TASK_STATUS, taskStatusOf, TASK_PRIORITY, INVOICE_STATUS, invoiceStatusOf, DEFAULT_PROJECT_TEMPLATES,
     exportLeadsCSV, exportClientsCSV, importCSV,
     /* Phase 3 helpers used by pages and services (were defined but not exported) */

@@ -9,6 +9,7 @@ require("./phase3-leads-outreach-sales.test.js");
 require("./phase4-finance.test.js");
 require("./e2e.test.js");
 require("./integrity.test.js");
+require("./phase5-mobile-console.test.js");
 
 const results = runAll();
 

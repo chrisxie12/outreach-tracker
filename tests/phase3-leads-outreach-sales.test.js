@@ -166,7 +166,8 @@ suite("Phase 3 — Outreach", () => {
     eq(S.followupState(today).key, "today");
     eq(S.followupState(upcoming).key, "upcoming");
     eq(S.followupState(done).key, "completed");
-    eq(S.nextFollowup(lead.id).id, "f2");
+    // overdue is the most urgent pending follow-up, so it is "next"
+    eq(S.nextFollowup(lead.id).id, "f1");
   });
 
   test("cancelling a follow-up is idempotent and reflects state", () => {

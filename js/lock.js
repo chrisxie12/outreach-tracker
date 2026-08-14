@@ -1,4 +1,24 @@
-/* VISION 61 CRM — client-side password lock (basic access gate; see app CSS .lock-screen) */
+/* VISION 61 CRM — local UI lock (NOT security).
+   ------------------------------------------------------------------
+   SECURITY LIMITATION — READ BEFORE USING THIS AS ANY KIND OF GATE:
+   This is a cosmetic, client-side screen overlay only. It does NOT
+   protect your data and must not be presented as real security.
+
+   * The password is hardcoded below in plain text and is visible to
+     anyone who opens this file or the browser devtools.
+   * The unlock state is a plain `sessionStorage` flag; anyone can set
+     it, or hide the overlay via devtools, to bypass the screen.
+   * All CRM data is stored in plain `localStorage` (key "v61crm_v1")
+     and is fully readable/editable from the browser devtools regardless
+     of this lock.
+   * Nothing else in the app (router, data layer, pages) checks this
+     lock — it is purely a visual gate.
+
+   Intended purpose: a light convenience screen to discourage casual
+   peeking when the app is left open. If you need real authentication
+   or access control, a server-side login (with credentials kept out of
+   the front-end bundle) and encrypted/authorized storage are required.
+   ------------------------------------------------------------------ */
 (function () {
   var PWD = "vision61";
   var KEY = "v61_unlocked";

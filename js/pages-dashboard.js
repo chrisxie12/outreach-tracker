@@ -250,7 +250,7 @@ V61.Pages = V61.Pages || {};
       '<span class="td-num">' + count + "</span><span class='td-label'>" + U().escapeHtml(label) + '</span>' +
       (sub ? '<span class="td-sub">' + U().escapeHtml(sub) + "</span>" : "") + "</a>";
 
-    const rows = [dueToday, overdue, ...meetingsToday].sort((a, b) => (a.dueDate || a.date || 0) - (b.dueDate || b.date || 0)).slice(0, 4);
+    const rows = [...dueToday, ...overdue, ...meetingsToday].sort((a, b) => (a.dueDate || a.date || 0) - (b.dueDate || b.date || 0)).slice(0, 4);
     return '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.sun + " Today" + '<span class="sub">' + U().formatDate(now) + '</span></div>' +
       (rows.length ? '<a class="btn btn-sm btn-ghost" href="#/followups">' + I.calendar + " Open queue</a>" : "") + "</div>" +
       '<div class="panel-body"><div class="td-grid">' +

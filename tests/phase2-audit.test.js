@@ -146,9 +146,12 @@ suite("Phase 2 — Digital Audit", () => {
   test("websiteScore capped by weight total", () => {
     const app = freshApp();
     const Score = app.V61.Score;
-    const s = Score.websiteScore(Object.fromEntries(Object.keys(Score.WEBSITE_WEIGHTS).map((k) => [k, true])));
+    const s = Score.websiteScore(Object.assign(
+      Object.fromEntries(Object.keys(Score.WEBSITE_WEIGHTS).map((k) => [k, true])),
+      { social: { instagram: true, facebook: true } }
+    ));
     ok(s <= 100);
-    // base weights sum to 20+20+25+15+10 = 90, +5+5 social = 100
+    // base weights sum to 90, +5 first social +5 two+ socials = 100
     eq(s, 100);
   });
 

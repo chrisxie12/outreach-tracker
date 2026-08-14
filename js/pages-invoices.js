@@ -31,11 +31,11 @@ V61.Pages = V61.Pages || {};
       (invs.length ? '<div class="table-wrap"><table class="data"><thead><tr><th>Invoice #</th><th>Client</th><th>Issue Date</th><th>Due Date</th><th>Total</th><th>Balance</th><th>Status</th><th></th></tr></thead><tbody>' +
         invs.map((inv) => {
           const cl = S().clientById(inv.clientId);
-          const biz = S().businessOf({ businessId: cl.businessId });
+          const biz = cl ? S().clientBusiness(inv.clientId) : null;
           const st = S().invoiceStatusOf(inv.status);
           return "<tr>" +
             "<td><b>#" + inv.invoiceNumber + "</b></td>" +
-            "<td><div class='b-name'><a href='#/clients/" + cl.id + "'>" + U().escapeHtml(biz.name) + "</a></div></td>" +
+            "<td><div class='b-name'><a href='#/clients/" + (cl ? cl.id : "") + "'>" + U().escapeHtml(biz ? biz.name : "Deleted client") + "</a></div></td>" +
             "<td><span class='cell-sub'>" + U().formatDate(inv.issueDate) + "</span></td>" +
             "<td><span class='cell-sub " + (inv.status === 'overdue' ? 'overdue' : '') + "'>" + U().formatDate(inv.dueDate) + "</span></td>" +
             "<td><b>" + U().formatMoney(inv.total) + "</b></td>" +
@@ -98,7 +98,7 @@ V61.Pages = V61.Pages || {};
     const inv = S().invoiceOf(invoiceId);
     if (!inv) return;
     const cl = S().clientById(inv.clientId);
-    const biz = S().businessOf({ businessId: cl.businessId });
+    const biz = cl ? S().clientBusiness(inv.clientId) : null;
 
     const m = UI.openModal({ title: "Record Payment — #" + inv.invoiceNumber, icon: I.credit });
     m.setBody(

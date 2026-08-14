@@ -68,11 +68,11 @@ window.V61 = window.V61 || {};
 
   Utils.relativeDue = (ts) => {
     if (!ts) return "";
-    const diff = Utils.dayStart(ts) - Utils.dayStart(Utils.now());
-    if (diff < 0) return "overdue";
-    if (diff === 0) return "today";
-    if (diff === 1) return "tomorrow";
-    return "in " + diff + "d";
+    const diffDays = Math.round((Utils.dayStart(ts) - Utils.dayStart(Utils.now())) / 86400000);
+    if (diffDays < 0) return "overdue";
+    if (diffDays === 0) return "today";
+    if (diffDays === 1) return "tomorrow";
+    return "in " + diffDays + "d";
   };
 
   Utils.initials = (name) => {

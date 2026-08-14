@@ -20,13 +20,13 @@ V61.Pages = V61.Pages || {};
 
       (projs.length ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px">' +
         projs.map((p) => {
-          const biz = S().businessOf({ businessId: S().clientById(p.clientId).businessId });
+          const biz = S().clientBusiness(p.clientId);
           const st = S().projectStatusOf(p.status);
           const tasks = S().projectTasksFor(p.id);
           const done = tasks.filter(t => t.status === 'done').length;
           return '<div class="card project-card" style="display:flex;flex-direction:column;gap:12px;cursor:pointer" onclick="location.hash=\'#/projects/' + p.id + '\'">' +
             '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
-              '<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase">' + U().escapeHtml(biz.name) + '</div>' +
+              '<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase">' + U().escapeHtml(biz ? biz.name : "Deleted client") + '</div>' +
               '<div style="font-weight:700;font-size:16px;margin-top:2px">' + U().escapeHtml(p.name) + '</div></div>' +
               UI.badge(st.label, st.color, true) +
             '</div>' +
@@ -49,7 +49,7 @@ V61.Pages = V61.Pages || {};
     const p = S().projectOf(id);
     if (!p) { V61.App.nav("#/projects"); return; }
     const cl = S().clientById(p.clientId);
-    const biz = S().businessOf({ businessId: cl.businessId });
+    const biz = cl ? S().clientBusiness(p.clientId) : null;
     const tasks = S().projectTasksFor(p.id);
     const milestones = S().milestonesFor(p.id);
     const st = S().projectStatusOf(p.status);
@@ -62,7 +62,7 @@ V61.Pages = V61.Pages || {};
       '<div class="panel" style="padding:22px;border-top:4px solid ' + st.color + '">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px">' +
           '<div>' +
-            '<div style="font-size:12px;color:var(--text-3);font-weight:700;text-transform:uppercase"><a href="#/clients/' + cl.id + '">' + U().escapeHtml(biz.name) + '</a></div>' +
+            '<div style="font-size:12px;color:var(--text-3);font-weight:700;text-transform:uppercase">' + (cl ? '<a href="#/clients/' + cl.id + '">' : '') + U().escapeHtml(biz ? biz.name : "Deleted client") + (cl ? "</a>" : "") + '</div>' +
             '<h1 class="page-title" style="margin-top:4px">' + U().escapeHtml(p.name) + '</h1>' +
           '</div>' +
           '<div style="display:flex;gap:8px">' +
