@@ -1,6 +1,7 @@
 /* VISION 61 CRM — Services, Proposals, Clients, Payments */
 window.V61 = window.V61 || {};
 V61.Pages = V61.Pages || {};
+V61.Pages.sales = V61.Pages.sales || {};
 
 (function () {
   const U = () => V61.Utils;
@@ -381,9 +382,7 @@ V61.Pages = V61.Pages || {};
   V61.Pages.services = renderServices;
   V61.Pages.proposals = renderProposals;
   V61.Pages.clients = renderClients;
-  V61.Pages.projects = renderProjects;
-  V61.Pages.projectDetail = projectDetail;
-  Object.assign(V61.Pages.sales, { renderProposals, createProposal, proposalDetail, renderServices, renderClients, clientDetail, renderProjects, projectDetail });
+  Object.assign(V61.Pages.sales, { renderProposals, createProposal, proposalDetail, renderServices, renderClients, clientDetail });
   /* ── Phase 4: Invoices ── */
   function renderInvoices() {
     const el = document.getElementById("content");
@@ -445,7 +444,7 @@ V61.Pages = V61.Pages || {};
       "</div>" +
 
       '<div style="margin-top:24px">' +
-      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.bill + " Invoice Items</div>' +
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.bill + ' Invoice Items</div>' +
       '<div class="panel-body">' + (items.length ?
         '<table class="data" style="min-width:640px"><thead><tr><th>Service/Item</th><th>Description</th><th>Qty</th><th>Unit price</th><th>Total</th><th></th></tr></thead><tbody>' +
         items.map((it) =>
@@ -537,3 +536,4 @@ V61.Pages = V61.Pages || {};
 
   V61.Pages.invoices = renderInvoices;
   V61.Pages.invoiceDetail = invoiceDetail;
+})();
