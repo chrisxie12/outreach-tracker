@@ -321,6 +321,10 @@
 
   function migrate(d) {
     d = d || emptyDb();
+    const base = emptyDb();
+    Object.keys(base).forEach((k) => {
+      if (Array.isArray(base[k])) d[k] = Array.isArray(d[k]) ? d[k] : [];
+    });
     d.settings = Object.assign({}, SETTINGS_DEFAULTS, d.settings || {});
     d.websiteAudits = d.websiteAudits || [];
     d.auditSnapshots = d.auditSnapshots || [];
