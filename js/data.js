@@ -313,6 +313,49 @@
 
   const SETTINGS_DEFAULTS = { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "", enabled: false } };
 
+  /* ── Official Vision 61 Studios launch service catalog ──
+     Seed values. Prices are numeric Ghana cedis (no "GH₵" in the field).
+     The Digital Audit is a free acquisition mechanism and is intentionally
+     NOT a catalog service. No recurring services are included yet. */
+  const OFFICIAL_SERVICES = [
+    { id: "svc-website-development", name: "Website Development", description: "Professional responsive website designed for small and growing businesses. Includes essential business pages, mobile optimization, contact options, WhatsApp integration, basic SEO, analytics setup, and launch support.", price: 3500, deliveryDays: 14, active: true },
+    { id: "svc-landing-page-development", name: "Landing Page Development", description: "High-converting single-page website designed to promote a business, product, service, campaign, or specific offer with clear calls to action.", price: 1500, deliveryDays: 5, active: true },
+    { id: "svc-website-redesign", name: "Website Redesign", description: "Modern redesign of an existing website to improve its appearance, mobile experience, usability, performance, and ability to convert visitors into customers.", price: 2500, deliveryDays: 10, active: true },
+    { id: "svc-ecommerce-website", name: "E-commerce Website", description: "Custom online store with product listings, shopping cart, checkout, payment integration, order management, mobile optimization, and essential e-commerce configuration. Final pricing depends on store complexity and product volume.", price: 10000, deliveryDays: 30, active: true },
+    { id: "svc-gbp-setup", name: "Google Business Profile Setup", description: "Set up and configure a Google Business Profile so customers can discover the business through Google Search and Maps, including essential business information and profile configuration.", price: 500, deliveryDays: 2, active: true },
+    { id: "svc-gbp-optimization", name: "Google Business Profile Optimization", description: "Optimize an existing Google Business Profile to improve its completeness, presentation, local visibility, customer information, and conversion opportunities.", price: 750, deliveryDays: 3, active: true },
+    { id: "svc-local-seo-setup", name: "Local SEO Setup", description: "Establish the foundations for local search visibility, including local business information, on-page fundamentals, location signals, and essential search configuration.", price: 1000, deliveryDays: 5, active: true },
+    { id: "svc-seo-setup-optimization", name: "SEO Setup & Optimization", description: "Improve the technical and on-page foundations of a business website to make it easier for search engines to understand and customers to discover.", price: 1500, deliveryDays: 7, active: true },
+    { id: "svc-logo-design", name: "Logo Design", description: "Custom logo design created to give a business a professional and recognizable visual identity across digital and physical platforms.", price: 800, deliveryDays: 5, active: true },
+    { id: "svc-basic-brand-identity", name: "Basic Brand Identity", description: "A foundational visual identity package covering the logo direction, typography, color system, and basic brand usage guidelines for a consistent business presence.", price: 1500, deliveryDays: 7, active: true },
+    { id: "svc-social-media-setup", name: "Social Media Setup", description: "Set up and professionally configure selected business social media profiles, including profile information, branding elements, contact details, and essential business links.", price: 500, deliveryDays: 2, active: true },
+    { id: "svc-business-email-setup", name: "Business Email Setup", description: "Set up professional business email using the client's domain, including account configuration and essential email settings.", price: 400, deliveryDays: 1, active: true },
+  ];
+
+  const normalizeServiceName = (name) => String(name || "").trim().toLowerCase();
+
+  /* Seed the official launch catalog into db.services.
+     Non-destructive and idempotent: only creates official services that are
+     missing (matched by stable id, else exact normalized name). Existing
+     services — including user-edited prices/descriptions and intentionally
+     deactivated ones — are NEVER overwritten, NEVER reactivated, NEVER
+     deleted, and no duplicate is ever created. Only touches db.services.
+     Runs on every boot; cheap no-op when everything is already present. */
+  function seedOfficialCatalog() {
+    if (!db || !Array.isArray(db.services)) return 0;
+    let created = 0;
+    OFFICIAL_SERVICES.forEach((off) => {
+      const exists = db.services.some((s) => s.id === off.id) ||
+        db.services.some((s) => normalizeServiceName(s.name) === normalizeServiceName(off.name));
+      if (!exists) {
+        db.services.push({ id: off.id, name: off.name, description: off.description, price: off.price, deliveryDays: off.deliveryDays, active: off.active });
+        created++;
+      }
+    });
+    if (created) save();
+    return created;
+  }
+
   let db = null;
   const listeners = { change: [] };
 
@@ -979,6 +1022,7 @@
     lifecycleStatus, contactNameFor, recommendedServicesFor, lastInteractionFor,
     timeToFirstResponse, daysContactToMeeting, daysProposalToWin,
     markLost, markWon, reactivateLead,
+    seedOfficialCatalog, OFFICIAL_SERVICES,
     tagsFor, addTag, removeTag,
     outreachDraftsFor, saveOutreachDraft, activeTemplates,
     followupState, cancelFollowup, meetingsFor, upcomingMeetings, addMeeting,

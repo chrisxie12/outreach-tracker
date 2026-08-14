@@ -363,6 +363,7 @@
   /* ═══ Init ═══ */
   function init() {
     S().load();
+    S().seedOfficialCatalog();
     const s = S().db.settings;
     App.theme = s.theme || "dark";
     App.collapsed = !!s.sidebarCollapsed;

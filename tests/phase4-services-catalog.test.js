@@ -13,6 +13,10 @@ function addSvc(S, overrides) {
   return svc;
 }
 
+function normalizeNameForTest(name) {
+  return String(name || "").trim().toLowerCase();
+}
+
 function setupLead(app) {
   const S = app.V61.Store;
   const biz = S.addBusiness({ name: "Prospect Co" });
@@ -147,6 +151,22 @@ suite("Phase 4 — Proposals from catalog", () => {
     S.save();
     eq(p.items[0].price, 5000, "existing proposal keeps original price");
     eq(p.total, 5000);
+  });
+
+  test("seeded catalog price change does not mutate an existing proposal (scenario 6)", () => {
+    const app = freshApp();
+    const { S, lead } = setupLead(app);
+    S.seedOfficialCatalog();
+    const before = S.db.proposals.length;
+    app.V61.Pages.sales.createProposal(lead.id, "Website Development");
+    fillModal(app, {});
+    const p = S.db.proposals[before];
+    eq(p.items[0].price, 3500, "price snapshot at creation");
+    const wd = S.db.services.find((s) => s.name === "Website Development");
+    wd.price = 9999;
+    S.save();
+    eq(p.items[0].price, 3500, "existing proposal keeps original price after catalog change");
+    eq(p.total, 3500);
   });
 
   test("createProposal with a custom quote (manual item) when service has no catalog match", () => {
@@ -318,5 +338,227 @@ suite("Phase 4 — Opportunity → proposal bridge", () => {
     const p = S.db.proposals[before];
     eq(p.items[0].serviceId, S.db.services[0].id);
     eq(p.items[0].price, 4200);
+  });
+});
+
+suite("Phase 4 — Official launch catalog (seed)", () => {
+  test("seedOfficialCatalog creates exactly the 12 official services, all active, numeric prices", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    eq(S.db.services.length, 0, "empty before seeding");
+    const created = S.seedOfficialCatalog();
+    eq(created, 12);
+    eq(S.db.services.length, 12);
+    const names = S.db.services.map((s) => s.name).sort();
+    eq(names.join("|"),
+      "Basic Brand Identity|Business Email Setup|E-commerce Website|Google Business Profile Optimization|Google Business Profile Setup|Landing Page Development|Local SEO Setup|Logo Design|SEO Setup & Optimization|Social Media Setup|Website Development|Website Redesign");
+    S.db.services.forEach((s) => {
+      ok(s.active === true, s.name + " active");
+      eq(typeof s.price, "number", s.name + " numeric price");
+      ok(Number.isFinite(s.price), s.name + " finite price");
+      ok(String(s.price).indexOf("GH₵") === -1, s.name + " price has no GH₵ string");
+      ok(s.price >= 0, s.name + " non-negative price");
+      ok(s.deliveryDays >= 1, s.name + " delivery days set");
+    });
+    const byName = (n) => S.db.services.find((s) => s.name === n);
+    eq(byName("Website Development").price, 3500);
+    eq(byName("E-commerce Website").price, 10000);
+    eq(byName("Business Email Setup").price, 400);
+    eq(byName("Business Email Setup").deliveryDays, 1);
+    eq(byName("E-commerce Website").deliveryDays, 30);
+  });
+
+  test("seeding is idempotent (no duplicates on second run)", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    S.seedOfficialCatalog();
+    eq(S.db.services.length, 12);
+    const second = S.seedOfficialCatalog();
+    eq(second, 0);
+    eq(S.db.services.length, 12, "no duplicates after re-seed");
+  });
+
+  test("repeated reloads create no duplicates and keep 12 services (scenario 2)", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    eq(S.seedOfficialCatalog(), 12, "first boot seeds the catalog");
+    for (let i = 0; i < 5; i++) {
+      const created = S.seedOfficialCatalog();
+      eq(created, 0, "reload " + i + " creates nothing new");
+    }
+    eq(S.db.services.length, 12, "exactly 12 after 5 reloads");
+    const uniq = new Set(S.db.services.map((s) => s.id)).size;
+    eq(uniq, 12, "all ids unique");
+  });
+
+  test("seed preserves legitimate user-created services", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    addSvc(S, { name: "Video Ad Edit", price: 900 });
+    S.seedOfficialCatalog();
+    eq(S.db.services.length, 13);
+    ok(S.db.services.some((s) => s.name === "Video Ad Edit"), "user service preserved");
+  });
+
+  test("seed does NOT overwrite an existing same-named service (user edits preserved)", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    addSvc(S, { name: "Website Development", price: 9000, description: "my custom description", deliveryDays: 40, active: false });
+    S.seedOfficialCatalog();
+    const wd = S.db.services.find((s) => s.name === "Website Development");
+    eq(wd.price, 9000, "user price preserved");
+    eq(wd.description, "my custom description", "user description preserved");
+    eq(wd.deliveryDays, 40, "user delivery days preserved");
+    eq(wd.active, false, "user deactivation preserved");
+    eq(S.db.services.length, 12, "no duplicate created");
+  });
+
+  test("seed matches by exact normalized name but leaves the existing record untouched", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    addSvc(S, { name: "  logo design ", price: 111 });
+    S.seedOfficialCatalog();
+    const ld = S.db.services.find((s) => normalizeNameForTest(s.name) === "logo design");
+    notNull(ld, "matched the existing service");
+    eq(ld.price, 111, "existing user record untouched");
+    eq(S.db.services.length, 12, "no duplicate 'Logo Design' created");
+    eq(S.db.services.filter((s) => normalizeNameForTest(s.name) === "logo design").length, 1, "exactly one logo service");
+  });
+
+  test("seed does NOT reactivate an intentionally deactivated official service", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    S.seedOfficialCatalog();
+    const lg = S.db.services.find((s) => s.name === "Logo Design");
+    lg.active = false;
+    S.save();
+    const again = S.seedOfficialCatalog();
+    eq(again, 0, "no new services created");
+    eq(lg.active, false, "stays deactivated after re-seed");
+  });
+
+  test("seed leaves unrelated CRM records untouched (clients, projects, invoices, payments)", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    S.seedOfficialCatalog();
+    S.db.clients.push({ id: "cli-test", name: "Client One" });
+    S.db.projects.push({ id: "prj-test", clientId: "cli-test", name: "Website Build", status: "active", tasks: [] });
+    S.db.invoices.push({ id: "inv-test", clientId: "cli-test", projectId: "prj-test", number: "INV-001", items: [{ service: "Website Development", qty: 1, unitPrice: 3500 }], total: 3500, balance: 3500, status: "draft" });
+    S.db.payments.push({ id: "pay-test", invoiceId: "inv-test", amount: 0, method: "cash", date: "2026-01-01" });
+    const snap = JSON.stringify(S.db);
+    S.seedOfficialCatalog();
+    eq(JSON.stringify(S.db), snap, "no unrelated records changed");
+  });
+
+  test("seed adds missing official services to partial/corrupted data without destroying valid ones", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    addSvc(S, { name: "Website Development", price: 3500 });
+    addSvc(S, { name: "My Custom", price: 700 });
+    S.seedOfficialCatalog();
+    eq(S.db.services.length, 13, "1 existing official + 1 custom + 11 missing = 13");
+    eq(S.db.services.filter((s) => s.name === "My Custom").length, 1, "custom preserved");
+    eq(S.db.services.filter((s) => s.name === "Website Development").length, 1, "existing official not duplicated");
+    eq(S.db.services.filter((s) => s.name === "Logo Design").length, 1, "missing official added");
+  });
+
+  test("official catalog is only populated through seedOfficialCatalog, not via load() alone", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    eq(S.db.services.length, 0, "load()/freshApp alone does not seed");
+    const created = S.seedOfficialCatalog();
+    eq(created, 12, "explicit seed call populates");
+    eq(S.db.services.length, 12);
+  });
+
+  test("seeded catalog renders on Services page with no NaN/undefined", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    S.seedOfficialCatalog();
+    S.save();
+    app.V61.Pages.services();
+    const html = app.window.document.getElementById("content").innerHTML;
+    assertCleanHTML(html, "services seeded");
+    ok(html.indexOf("12 active services") >= 0, "shows 12 active");
+    ok(html.indexOf("starting from GH₵ 400") >= 0, "min price = cheapest official service");
+    ok(html.indexOf("Website Development") >= 0, "lists official service");
+  });
+
+  test("empty catalog behavior remains intact before seeding", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    eq(S.db.services.length, 0);
+    app.V61.Pages.services();
+    const html = app.window.document.getElementById("content").innerHTML;
+    assertCleanHTML(html, "services empty");
+    ok(html.indexOf("No services yet") >= 0, "empty state still renders");
+  });
+});
+
+suite("Phase 4 — OpportunityEngine → official catalog mapping", () => {
+  function recNamesFor(app, biz, lead, auditPatch) {
+    const S = app.V61.Store;
+    S.upsertAudit(biz.id, auditPatch);
+    const audit = S.auditOf(biz.id);
+    return app.V61.OpportunityEngine.recommended({ lead, business: biz, audit }).map((o) => o.service);
+  }
+
+  test("weak website maps to Website Redesign (not Website Improvement)", () => {
+    const app = freshApp();
+    const { S, biz, lead } = setupLead(app);
+    const names = recNamesFor(app, biz, lead, { website: { exists: true } });
+    ok(names.indexOf("Website Redesign") >= 0, "recommends Website Redesign, got " + names.join(","));
+    ok(names.indexOf("Website Improvement") === -1, "old name gone");
+  });
+
+  test("local search weaknesses map to Local SEO Setup (not Local SEO)", () => {
+    const app = freshApp();
+    const { S, biz, lead } = setupLead(app);
+    const names = recNamesFor(app, biz, lead, { seo: { maps: false } });
+    ok(names.indexOf("Local SEO Setup") >= 0, "recommends Local SEO Setup, got " + names.join(","));
+    ok(names.indexOf("Local SEO") === -1, "old name gone");
+  });
+
+  test("missing social profiles map to Social Media Setup (not Social Media Management)", () => {
+    const app = freshApp();
+    const { S, biz, lead } = setupLead(app);
+    const names = recNamesFor(app, biz, lead, {});
+    ok(names.indexOf("Social Media Setup") >= 0, "recommends Social Media Setup, got " + names.join(","));
+    ok(names.indexOf("Social Media Management") === -1, "old name gone");
+  });
+
+  test("every mapped recommendation matches an active catalog service after seeding", () => {
+    const app = freshApp();
+    const { S, biz, lead } = setupLead(app);
+    S.seedOfficialCatalog();
+    S.upsertAudit(biz.id, { website: { exists: true }, seo: { maps: false } });
+    const audit = S.auditOf(biz.id);
+    const names = app.V61.OpportunityEngine.recommended({ lead, business: biz, audit }).map((o) => o.service);
+    ok(names.length > 0, "got recommendations");
+    names.forEach((n) => {
+      const match = S.db.services.some((s) => s.active && s.name.toLowerCase() === n.toLowerCase());
+      if (["Website Redesign", "Local SEO Setup", "Social Media Setup", "Website Development", "Google Business Profile Setup", "Google Business Profile Optimization"].indexOf(n) >= 0) {
+        ok(match, n + " maps to an active catalog service");
+      }
+    });
+  });
+
+  test("recommendation with a catalog match flows into proposal at catalog price", () => {
+    const app = freshApp();
+    const { S, biz, lead } = setupLead(app);
+    S.seedOfficialCatalog();
+    S.upsertAudit(biz.id, { website: { exists: true } });
+    const rec = app.V61.OpportunityEngine.recommended({ lead, business: biz, audit: S.auditOf(biz.id) })
+      .find((o) => o.service === "Website Redesign");
+    notNull(rec, "Website Redesign recommended");
+    const before = S.db.proposals.length;
+    app.V61.Pages.sales.createProposal(lead.id, rec.service);
+    fillModal(app, {});
+    const p = S.db.proposals[before];
+    eq(p.items.length, 1);
+    eq(p.items[0].name, "Website Redesign");
+    eq(p.items[0].price, 2500, "official catalog price used");
+    const svc = S.db.services.find((s) => s.name === "Website Redesign");
+    eq(p.items[0].serviceId, svc.id);
   });
 });

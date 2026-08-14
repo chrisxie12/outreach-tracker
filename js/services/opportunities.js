@@ -45,11 +45,11 @@ window.V61 = window.V61 || {};
       if (!w.contact && !websiteSignal(wa, "contactDetails")) gaps.push("no visible contact info");
       if (!w.seo && (!websiteSignal(wa, "metaDesc") && !websiteSignal(wa, "h1"))) gaps.push("weak SEO basics");
       if (ws != null && ws < 50) {
-        push("Website Improvement", "Website", "refresh", ws < 30 ? PRI.high : PRI.medium,
+        push("Website Redesign", "Website", "refresh", ws < 30 ? PRI.high : PRI.medium,
           "Existing website has significant improvement opportunities.",
           "Website Score " + ws + "/100" + (gaps.length ? " — " + gaps.slice(0, 3).join(", ") + "." : "."));
       } else if (gaps.length >= 2) {
-        push("Website Improvement", "Website", "refresh", PRI.medium,
+        push("Website Redesign", "Website", "refresh", PRI.medium,
           "Existing website could be sharper.",
           "Detected gaps: " + gaps.slice(0, 3).join(", ") + ".");
       }
@@ -109,18 +109,18 @@ window.V61 = window.V61 || {};
       if (!websiteSignal(wa, "canonical")) seoWeak.push("missing canonical tag");
     } else if (a.seo && a.seo.maps === false) seoWeak.push("not listed on Google Maps");
     if (seoWeak.length >= 2) {
-      push("Local SEO", "SEO", "zap", seoWeak.length >= 3 ? PRI.high : PRI.medium,
+      push("Local SEO Setup", "SEO", "zap", seoWeak.length >= 3 ? PRI.high : PRI.medium,
         "Multiple local-search weaknesses detected.",
         "Detected: " + seoWeak.slice(0, 3).join(", ") + ".");
     }
 
     if (!(b.instagramUrl) && !(s.instagram && s.instagram.exists) && !websiteSocial(wa, "instagram")) {
-      push("Social Media Management", "Social", "instagram", PRI.medium,
+      push("Social Media Setup", "Social", "instagram", PRI.medium,
         "No active Instagram presence detected.",
         "No Instagram URL, profile mention or social link was found.");
     }
     if (!(b.facebookUrl) && !(s.facebook && s.facebook.exists) && !websiteSocial(wa, "facebook")) {
-      push("Social Media Management", "Social", "facebook", PRI.low,
+      push("Social Media Setup", "Social", "facebook", PRI.low,
         "No Facebook presence detected.",
         "No Facebook page or link was found.");
     }
