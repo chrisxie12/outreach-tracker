@@ -2,8 +2,15 @@
    Requirements covered:
    - AI is an OPTIONAL enhancement: deterministic outreach must keep working
      with zero AI configuration, and the AI service must fail safe.
-   - No secret (GROQ_API_KEY / Authorization / provider endpoint) ever reaches
-     the frontend bundle or localStorage.
+   - No secret VALUE (GROQ_API_KEY / V61_SHARED_SECRET / provider endpoint)
+     ever reaches the frontend bundle, HTML, or localStorage. The browser only
+     ever holds a short-lived, origin-bound session token in memory.
+   - Session tokens are issued by POST /v1/session, must be sent as
+     `Authorization: Bearer <token>` on /v1/status and AI endpoints, and are
+     rejected when missing, tampered, expired, or minted for another origin.
+   - Every request must come from the approved origin
+     (https://chrisxie12.github.io); anything else is rejected with 403 and
+     CORS is pinned (never echoed).
    - Only a small verified context object is sent per request — never the full
      CRM database or unrelated records.
    - AI never runs on page load / navigation and never sends anything
@@ -18,6 +25,8 @@ const { suite, test, assert, eq, ok, isNull, notNull, assertCleanHTML } = requir
 const { freshApp, KEY, ROOT } = require("./harness");
 
 const GW = "https://vision61-gw.test";
+const PROD_ORIGIN = "https://chrisxie12.github.io";
+const SHARED_SECRET = "test-shared-secret";
 
 function configureAI(app, opts) {
   const S = app.V61.Store;
@@ -28,6 +37,19 @@ function configureAI(app, opts) {
 
 function okRes(content, model) {
   return { ok: true, status: 200, json: async () => ({ ok: true, content, model: model || "openai/gpt-oss-20b" }) };
+}
+
+/* Frontend fetch stub: routes /v1/session to a token response, everything else
+   to `respond`. Mirrors the real gateway flow. */
+function sessionRes(token) {
+  return { ok: true, status: 200, json: async () => ({ ok: true, token: token || "test-token-abc", expiresAt: Date.now() + 900000 }) };
+}
+function gwFetch(respond) {
+  return async (url, opts) => {
+    if (String(url).includes("/v1/session")) return sessionRes();
+    if (typeof respond === "function") return respond(url, opts);
+    return respond;
+  };
 }
 
 /* AI must never touch CRM records. Compare only the collections AI could
@@ -66,19 +88,46 @@ function groqRes(status, body) {
 function validCtx(over) {
   return Object.assign({ business: { name: "Ama's Kitchen", category: "Restaurant" }, channel: "WhatsApp" }, over || {});
 }
+
+/* Independent re-implementation of the worker's token format so tests mint
+   their own tokens: base64url(payload) + "." + hex(HMAC-SHA256(secret, b64)). */
+function b64url(str) {
+  return Buffer.from(str, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+async function hmacHex(secret, data) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
+  return Array.from(new Uint8Array(sig)).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+async function mintTestToken(secret, origin, over) {
+  const payload = b64url(JSON.stringify(Object.assign({ v: 1, iat: Date.now(), exp: Date.now() + 900000, origin }, over || {})));
+  return payload + "." + await hmacHex(secret, payload);
+}
+
 async function callWorker(kind, opts) {
   opts = opts || {};
   const worker = loadWorker();
   const url = "https://gw.test" + (kind ? "/v1/" + kind : "/v1/status");
+  const env = opts.env || {};
+  const allowed = (env.ALLOWED_ORIGIN && String(env.ALLOWED_ORIGIN).trim()) || PROD_ORIGIN;
+  const headers = { "Content-Type": "application/json" };
+  const origin = opts.origin !== undefined ? opts.origin : (opts.noOrigin ? null : allowed);
+  if (origin) headers.Origin = origin;
+  if (opts.token !== null) {
+    if (opts.token) headers.Authorization = "Bearer " + opts.token;
+    else if (env.V61_SHARED_SECRET && opts.auth !== false) headers.Authorization = "Bearer " + await mintTestToken(env.V61_SHARED_SECRET, origin || allowed, opts.tokenOver);
+  }
   let req;
   if (opts.bodyRaw !== undefined) {
-    req = new Request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: opts.bodyRaw });
+    req = new Request(url, { method: "POST", headers, body: opts.bodyRaw });
+  } else if (kind === "session") {
+    req = new Request(url, { method: "POST", headers, body: JSON.stringify({ origin: (opts.body && opts.body.origin) || origin || allowed }) });
   } else if (kind) {
-    req = new Request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ context: opts.body || validCtx() }) });
+    req = new Request(url, { method: "POST", headers, body: JSON.stringify({ context: opts.body || validCtx() }) });
   } else {
-    req = new Request(url, { method: opts.method || "GET", headers: opts.origin ? { Origin: opts.origin } : {} });
+    req = new Request(url, { method: opts.method || "GET", headers });
   }
-  return worker.fetch(req, opts.env || {});
+  return worker.fetch(req, env);
 }
 function withGroq(stub, fn) {
   const prev = globalThis.fetch;
@@ -87,8 +136,16 @@ function withGroq(stub, fn) {
 }
 
 suite("AI — Cloudflare Worker gateway", () => {
+  test("GET /v1/status without a session token returns 401", async () => {
+    const res = await callWorker(null, { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }, token: null });
+    eq(res.status, 401);
+    const d = await res.json();
+    eq(d.error, "unauthorized");
+    eq(d.code, "missing_token");
+  });
+
   test("GET /v1/status reports not configured when key missing", async () => {
-    const res = await callWorker(null, { env: {} });
+    const res = await callWorker(null, { env: { V61_SHARED_SECRET: SHARED_SECRET } });
     eq(res.status, 200);
     const d = await res.json();
     eq(d.configured, false);
@@ -97,13 +154,100 @@ suite("AI — Cloudflare Worker gateway", () => {
   });
 
   test("GET /v1/status reports configured when secret present", async () => {
-    const res = await callWorker(null, { env: { GROQ_API_KEY: "sk-gateway-test" } });
+    const res = await callWorker(null, { env: { GROQ_API_KEY: "sk-gateway-test", V61_SHARED_SECRET: SHARED_SECRET } });
+    eq(res.status, 200);
     const d = await res.json();
     eq(d.configured, true);
   });
 
+  test("POST /v1/session issues a short-lived token bound to the origin", async () => {
+    const res = await callWorker("session", { env: { V61_SHARED_SECRET: SHARED_SECRET } });
+    eq(res.status, 200);
+    const d = await res.json();
+    eq(d.ok, true);
+    ok(typeof d.token === "string" && d.token.indexOf(".") > 0, "token must be payload.signature");
+    ok(d.expiresAt > Date.now() + 899000 && d.expiresAt <= Date.now() + 901000, "token must expire ~15 minutes from now");
+    eq(d.provider, "groq");
+    eq(d.model, "openai/gpt-oss-20b");
+  });
+
+  test("POST /v1/session rejects a wrong origin with 403", async () => {
+    const res = await callWorker("session", { env: { V61_SHARED_SECRET: SHARED_SECRET }, origin: "https://evil.example", body: { origin: "https://evil.example" } });
+    eq(res.status, 403);
+    eq((await res.json()).error, "forbidden_origin");
+  });
+
+  test("POST /v1/session accepts a body-only origin when no Origin header is sent", async () => {
+    const res = await callWorker("session", { env: { V61_SHARED_SECRET: SHARED_SECRET }, noOrigin: true, body: { origin: PROD_ORIGIN } });
+    eq(res.status, 200);
+    eq((await res.json()).ok, true);
+  });
+
+  test("POST /v1/session fails closed when shared secret is missing", async () => {
+    const res = await callWorker("session", { env: { GROQ_API_KEY: "sk-x" } });
+    eq(res.status, 503);
+    eq((await res.json()).error, "not_configured");
+  });
+
+  test("AI endpoint rejects a request from a disallowed origin with 403", async () => {
+    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }, origin: "https://other-site.com" });
+    eq(res.status, 403);
+    eq((await res.json()).error, "forbidden_origin");
+  });
+
+  test("AI endpoint rejects a tampered token", async () => {
+    const good = await mintTestToken(SHARED_SECRET, PROD_ORIGIN);
+    const bad = good.slice(0, -2) + (good.endsWith("00") ? "ff" : "00");
+    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }, token: bad });
+    eq(res.status, 401);
+    eq((await res.json()).code, "invalid_signature");
+  });
+
+  test("AI endpoint rejects an expired token", async () => {
+    const token = await mintTestToken(SHARED_SECRET, PROD_ORIGIN, { exp: Date.now() - 1000 });
+    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }, token });
+    eq(res.status, 401);
+    eq((await res.json()).code, "expired_token");
+  });
+
+  test("AI endpoint rejects a token signed for another origin", async () => {
+    const token = await mintTestToken(SHARED_SECRET, "https://evil.example");
+    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }, token });
+    eq(res.status, 401);
+    eq((await res.json()).code, "origin_mismatch");
+  });
+
+  test("AI endpoint rejects a token signed with a different secret", async () => {
+    const token = await mintTestToken("wrong-secret", PROD_ORIGIN);
+    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }, token });
+    eq(res.status, 401);
+    eq((await res.json()).code, "invalid_signature");
+  });
+
+  test("valid token is accepted and reaches the provider", async () => {
+    await withGroq(async () => groqRes(429, {}), async () => {
+      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET } });
+      eq(res.status, 429);
+      eq((await res.json()).error, "rate_limited");
+    });
+  });
+
+  test("OPTIONS preflight for the approved origin returns 204 with pinned CORS", async () => {
+    const res = await callWorker(null, { method: "OPTIONS", origin: PROD_ORIGIN });
+    eq(res.status, 204);
+    eq(res.headers.get("Access-Control-Allow-Origin"), PROD_ORIGIN);
+    eq(res.headers.get("Access-Control-Allow-Methods"), "GET, POST, OPTIONS");
+    ok((res.headers.get("Access-Control-Allow-Headers") || "").includes("Authorization"), "CORS must permit the Authorization header");
+    ok((res.headers.get("Access-Control-Allow-Headers") || "").includes("Content-Type"), "CORS must permit Content-Type");
+  });
+
+  test("OPTIONS from a disallowed origin is rejected with 403", async () => {
+    const res = await callWorker(null, { method: "OPTIONS", origin: "https://evil.example" });
+    eq(res.status, 403);
+  });
+
   test("POST without server secret returns 503 not_configured", async () => {
-    const res = await callWorker("analyze", { env: {} });
+    const res = await callWorker("analyze", { env: { V61_SHARED_SECRET: SHARED_SECRET } });
     eq(res.status, 503);
     const d = await res.json();
     eq(d.error, "not_configured");
@@ -111,31 +255,31 @@ suite("AI — Cloudflare Worker gateway", () => {
   });
 
   test("malformed JSON body returns 400 invalid_request", async () => {
-    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x" }, bodyRaw: "not-json{{" });
+    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }, bodyRaw: "not-json{{" });
     eq(res.status, 400);
     eq((await res.json()).error, "invalid_request");
   });
 
   test("missing business context returns 400", async () => {
-    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x" }, body: {} });
+    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }, body: {} });
     eq(res.status, 400);
     eq((await res.json()).error, "invalid_request");
   });
 
   test("unknown endpoint returns 404", async () => {
-    const res = await callWorker("bogus", { env: { GROQ_API_KEY: "sk-x" } });
+    const res = await callWorker("bogus", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET } });
     eq(res.status, 404);
     eq((await res.json()).error, "not_found");
   });
 
   test("unsupported outreach channel returns 400", async () => {
-    const res = await callWorker("outreach", { env: { GROQ_API_KEY: "sk-x" }, body: validCtx({ channel: "SnailMail" }) });
+    const res = await callWorker("outreach", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }, body: validCtx({ channel: "SnailMail" }) });
     eq(res.status, 400);
   });
 
   test("Groq 401 → 502 auth_failed without leaking the key", async () => {
     await withGroq(async () => groqRes(401, {}), async () => {
-      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-secret-xyz" } });
+      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-secret-xyz", V61_SHARED_SECRET: SHARED_SECRET } });
       eq(res.status, 502);
       const d = await res.json();
       eq(d.error, "auth_failed");
@@ -145,7 +289,7 @@ suite("AI — Cloudflare Worker gateway", () => {
 
   test("Groq 429 → 429 rate_limited", async () => {
     await withGroq(async () => groqRes(429, {}), async () => {
-      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x" } });
+      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET } });
       eq(res.status, 429);
       eq((await res.json()).error, "rate_limited");
     });
@@ -153,7 +297,7 @@ suite("AI — Cloudflare Worker gateway", () => {
 
   test("Groq 500 → 502 provider_error", async () => {
     await withGroq(async () => groqRes(500, {}), async () => {
-      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x" } });
+      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET } });
       eq(res.status, 502);
       eq((await res.json()).error, "provider_error");
     });
@@ -161,7 +305,7 @@ suite("AI — Cloudflare Worker gateway", () => {
 
   test("upstream network failure → 502 upstream_unreachable", async () => {
     await withGroq(async () => { throw new TypeError("connect ECONNREFUSED"); }, async () => {
-      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x" } });
+      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET } });
       eq(res.status, 502);
       eq((await res.json()).error, "upstream_unreachable");
     });
@@ -169,7 +313,7 @@ suite("AI — Cloudflare Worker gateway", () => {
 
   test("Groq non-JSON body → 502 malformed_response", async () => {
     await withGroq(async () => ({ status: 200, ok: true, json: async () => { throw new SyntaxError("bad"); } }), async () => {
-      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x" } });
+      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET } });
       eq(res.status, 502);
       eq((await res.json()).error, "malformed_response");
     });
@@ -177,7 +321,7 @@ suite("AI — Cloudflare Worker gateway", () => {
 
   test("Groq empty content → 502 empty_response", async () => {
     await withGroq(async () => groqRes(200, { choices: [{ message: { content: "" } }] }), async () => {
-      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x" } });
+      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET } });
       eq(res.status, 502);
       eq((await res.json()).error, "empty_response");
     });
@@ -186,7 +330,7 @@ suite("AI — Cloudflare Worker gateway", () => {
   test("successful response returns content + model; key used only server-side", async () => {
     let captured = null;
     await withGroq(async (url, opts) => { captured = { url, opts }; return groqRes(200, { choices: [{ message: { content: "Hello Ama" } }] }); }, async () => {
-      const res = await callWorker("outreach", { env: { GROQ_API_KEY: "sk-gateway-key" }, body: validCtx() });
+      const res = await callWorker("outreach", { env: { GROQ_API_KEY: "sk-gateway-key", V61_SHARED_SECRET: SHARED_SECRET }, body: validCtx() });
       eq(res.status, 200);
       const d = await res.json();
       eq(d.ok, true);
@@ -205,7 +349,7 @@ suite("AI — Cloudflare Worker gateway", () => {
   test("GROQ_MODEL overrides the default model", async () => {
     let captured = null;
     await withGroq(async (url, opts) => { captured = opts; return groqRes(200, { choices: [{ message: { content: "ok" } }] }); }, async () => {
-      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", GROQ_MODEL: "llama-3.1-70b" } });
+      const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET, GROQ_MODEL: "llama-3.1-70b" } });
       const d = await res.json();
       eq(d.model, "llama-3.1-70b");
       eq(JSON.parse(captured.body).model, "llama-3.1-70b");
@@ -214,21 +358,9 @@ suite("AI — Cloudflare Worker gateway", () => {
 
   test("oversized body rejected with 400", async () => {
     const big = "x".repeat(20 * 1024);
-    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x" }, body: { business: { name: big } } });
+    const res = await callWorker("analyze", { env: { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }, body: { business: { name: big } } });
     eq(res.status, 400);
     eq((await res.json()).error, "invalid_request");
-  });
-
-  test("OPTIONS preflight returns 204 with CORS headers", async () => {
-    const res = await callWorker(null, { method: "OPTIONS", origin: "https://chrisxie12.github.io" });
-    eq(res.status, 204);
-    eq(res.headers.get("Access-Control-Allow-Origin"), "https://chrisxie12.github.io");
-  });
-
-  test("ALLOWED_ORIGIN env echoed in CORS when no Origin header", async () => {
-    const res = await callWorker(null, { env: { ALLOWED_ORIGIN: "https://example.com" } });
-    eq(res.status, 200);
-    eq(res.headers.get("Access-Control-Allow-Origin"), "https://example.com");
   });
 });
 
@@ -255,20 +387,50 @@ suite("AI — frontend service", () => {
     eq(calls, 0);
   });
 
-  test("configured gateway → successful analysis posts only verified context", async () => {
+  test("configured gateway → session then authenticated analysis posts only verified context", async () => {
     const app = freshApp();
     configureAI(app);
     const calls = [];
-    app.window.fetch = async (url, opts) => { calls.push({ url, opts }); return okRes("AI summary"); };
+    app.window.fetch = gwFetch((url, opts) => { calls.push({ url, opts }); return okRes("AI summary"); });
     const res = await app.V61.AI.analyzeLead(makeLead(app));
     eq(res.ok, true);
     eq(res.content, "AI summary");
     eq(res.model, "openai/gpt-oss-20b");
     eq(calls.length, 1);
     eq(calls[0].url, GW + "/v1/analyze");
+    eq(calls[0].opts.headers.Authorization, "Bearer test-token-abc");
     const ctx = JSON.parse(calls[0].opts.body).context;
     eq(ctx.business.name, "Ama's Kitchen");
     ok(typeof ctx.audit === "object");
+  });
+
+  test("session request carries the browser origin; token reused in memory", async () => {
+    const app = freshApp();
+    configureAI(app);
+    const S = app.V61.Store;
+    const row = makeLead(app);
+    S.save();
+    const log = [];
+    app.window.fetch = async (url, opts) => {
+      log.push({ url: String(url), opts });
+      if (String(url).includes("/v1/session")) return sessionRes("mem-token-xyz");
+      return okRes("analyzed");
+    };
+    const res = await app.V61.AI.analyzeLead(row);
+    eq(res.ok, true);
+    const sessionCall = log.find((c) => c.url.includes("/v1/session"));
+    const aiCall = log.find((c) => c.url.includes("/v1/analyze"));
+    notNull(sessionCall);
+    notNull(aiCall);
+    eq(sessionCall.url, GW + "/v1/session");
+    eq(JSON.parse(sessionCall.opts.body).origin, "http://localhost");
+    eq(aiCall.opts.headers.Authorization, "Bearer mem-token-xyz");
+    /* Second call reuses the in-memory token — no second session fetch. */
+    log.length = 0;
+    await app.V61.AI.generateOutreach(row, { channel: "WhatsApp" });
+    eq(log.length, 1, "token must be reused from memory, not re-fetched");
+    eq(log[0].url.includes("/v1/outreach"), true);
+    eq(log[0].opts.headers.Authorization, "Bearer mem-token-xyz");
   });
 
   test("only verified facts sent — unrelated CRM data never leaves the client", async () => {
@@ -289,7 +451,7 @@ suite("AI — frontend service", () => {
     S.db.services = (S.db.services || []).concat([{ name: "Website", price: 500, active: true }]);
     S.save();
     const calls = [];
-    app.window.fetch = async (url, opts) => { calls.push({ url, opts }); return okRes("hello"); };
+    app.window.fetch = gwFetch((url, opts) => { calls.push({ url, opts }); return okRes("hello"); });
     const row = S.leadRows().find((r) => r.lead.id === lead.id);
     await app.V61.AI.generateOutreach(row, { channel: "WhatsApp" });
     eq(calls.length, 1);
@@ -317,7 +479,7 @@ suite("AI — frontend service", () => {
     row.lead.notes = "Owner travels a lot in June.";
     S.save();
     const calls = [];
-    app.window.fetch = async (url, opts) => { calls.push({ url, opts }); return okRes("follow-up"); };
+    app.window.fetch = gwFetch((url, opts) => { calls.push({ url, opts }); return okRes("follow-up"); });
     await app.V61.AI.generateFollowup(row.lead.id);
     eq(calls.length, 1);
     eq(calls[0].url, GW + "/v1/followup");
@@ -333,7 +495,7 @@ suite("AI — frontend service", () => {
     configureAI(app);
     const row = makeLead(app);
     const calls = [];
-    app.window.fetch = async (url, opts) => { calls.push({ url, opts }); return okRes("f"); };
+    app.window.fetch = gwFetch((url, opts) => { calls.push({ url, opts }); return okRes("f"); });
     await app.V61.AI.generateFollowup(row.lead.id);
     const ctx = JSON.parse(calls[0].opts.body).context;
     isNull(ctx.previousOutreach);
@@ -344,7 +506,7 @@ suite("AI — frontend service", () => {
     app.window.V61_AI_GATEWAY_URL = "https://fallback-gw.test";
     configureAI(app, { gatewayUrl: "" });
     let called = "";
-    app.window.fetch = async (url) => { called = String(url); return okRes("m"); };
+    app.window.fetch = gwFetch((url) => { called = String(url); return okRes("m"); });
     await app.V61.AI.analyzeLead(makeLead(app));
     eq(called, "https://fallback-gw.test/v1/analyze");
   });
@@ -352,7 +514,7 @@ suite("AI — frontend service", () => {
   test("AI draft modal opens: AI Draft badge, readonly textarea, no send button", async () => {
     const app = freshApp();
     configureAI(app);
-    app.window.fetch = async () => okRes("Draft message body");
+    app.window.fetch = gwFetch(() => okRes("Draft message body"));
     const res = await app.V61.AI.generateOutreach(makeLead(app), { channel: "WhatsApp" });
     const m = app.V61.AI.present("outreach message", res, "AI Outreach Draft");
     notNull(m);
@@ -402,13 +564,13 @@ suite("AI — frontend service", () => {
     const gen = app.V61.OutreachEngine.generate(makeLead(app), { channel: "WhatsApp" });
     ok(gen.message.length > 0, "deterministic message empty");
     eq(gen.ai.enabled, false);
-    eq(gen.ai.provider, "");
+    eq(gen.ai.provider, "groq");
   });
 
   test("AI output is never sent automatically — CRM unchanged after AI calls", async () => {
     const app = freshApp();
     configureAI(app);
-    app.window.fetch = async () => okRes("draft");
+    app.window.fetch = gwFetch(() => okRes("draft"));
     const S = app.V61.Store;
     const row = makeLead(app);
     S.save();
@@ -421,7 +583,7 @@ suite("AI — frontend service", () => {
   test("status() → connected when gateway reports configured", async () => {
     const app = freshApp();
     configureAI(app);
-    app.window.fetch = async () => ({ ok: true, status: 200, json: async () => ({ configured: true, provider: "groq", model: "openai/gpt-oss-20b" }) });
+    app.window.fetch = gwFetch(() => ({ ok: true, status: 200, json: async () => ({ configured: true, provider: "groq", model: "openai/gpt-oss-20b" }) }));
     const st = await app.V61.AI.status();
     eq(st.status, "connected");
   });
@@ -429,9 +591,20 @@ suite("AI — frontend service", () => {
   test("status() → rate_limited on 429 from gateway", async () => {
     const app = freshApp();
     configureAI(app);
-    app.window.fetch = async () => ({ ok: false, status: 429, json: async () => ({}) });
+    app.window.fetch = gwFetch(() => ({ ok: false, status: 429, json: async () => ({}) }));
     const st = await app.V61.AI.status();
     eq(st.status, "rate_limited");
+  });
+
+  test("status() → unauthorized when session issuance is rejected", async () => {
+    const app = freshApp();
+    configureAI(app);
+    app.window.fetch = async (url) => {
+      if (String(url).includes("/v1/session")) return { ok: false, status: 403, json: async () => ({ ok: false, error: "forbidden_origin" }) };
+      return { ok: false, status: 401, json: async () => ({}) };
+    };
+    const st = await app.V61.AI.status();
+    eq(st.status, "unauthorized");
   });
 
   test("V61.Cmd aiAnalyze / aiFollowup / aiExplain are wired to the draft modal", async () => {
@@ -461,7 +634,7 @@ suite("AI — frontend service", () => {
 
 /* ────────────────────────── Security guarantees ────────────────────────── */
 suite("AI — security", () => {
-  test("no secret or provider endpoint in the frontend source", () => {
+  test("no secret VALUE or provider endpoint in the frontend source", () => {
     const files = [];
     files.push(path.join(ROOT, "index.html"));
     (function walk(dir) {
@@ -471,25 +644,48 @@ suite("AI — security", () => {
         else if (e.name.endsWith(".js")) files.push(p);
       }
     })(path.join(ROOT, "js"));
-    const forbidden = ["GROQ_API_KEY", "sk-", "Authorization", "Bearer ", "api.groq.com"];
+    const forbidden = ["GROQ_API_KEY", "sk-", "V61_SHARED_SECRET", "api.groq.com"];
     for (const f of files) {
       const text = fs.readFileSync(f, "utf8");
       for (const tok of forbidden) ok(!text.includes(tok), f + " contains forbidden token: " + tok);
     }
   });
 
-  test("no credentials in localStorage after an AI call", async () => {
+  test("no credentials or session token in localStorage after an AI call", async () => {
     const app = freshApp();
     configureAI(app);
-    app.window.fetch = async () => okRes("x");
+    app.window.fetch = gwFetch(() => okRes("x"));
     await app.V61.AI.analyzeLead(makeLead(app));
     const stored = app.window.localStorage.getItem(KEY);
     ok(!stored.includes("GROQ_API_KEY"));
     ok(!stored.includes("sk-"));
-    ok(!stored.includes("Authorization"));
+    ok(!stored.includes("V61_SHARED_SECRET"));
+    ok(!stored.includes("test-token-abc"));
     const c = app.V61.Store.db.settings.aiConfig;
     eq(c.provider, "groq");
     ok(!("key" in c) && !("apiKey" in c) && !("secret" in c), "aiConfig stores no key fields");
+    ok(!("token" in c) && !("session" in c), "aiConfig stores no session token");
+  });
+
+  test("session token is not exposed on the public V61.AI API", async () => {
+    const app = freshApp();
+    configureAI(app);
+    app.window.fetch = gwFetch(() => okRes("x"));
+    await app.V61.AI.analyzeLead(makeLead(app));
+    const A = app.V61.AI;
+    ok(!("token" in A) && !("_token" in A), "token must live only in module scope");
+    ok(typeof A.getToken !== "function" && typeof A.readSession !== "function", "no token accessor exposed");
+  });
+
+  test("Google Places config stays a separate settings field with no AI coupling", () => {
+    const app = freshApp();
+    app.V61.Pages.settings();
+    const el = app.window.document.getElementById("content");
+    notNull(el.querySelector("#set-gkey"), "Google Maps/Places key field missing");
+    notNull(el.querySelector("#set-ai-url"), "AI gateway URL field missing");
+    const cfg = app.V61.Store.db.settings;
+    ok(!("ai" in (cfg.googleMapsApiKey || {})), "Google key field must never hold AI config");
+    ok(!("googleMapsApiKey" in (cfg.aiConfig || {})), "Google key must never live inside aiConfig");
   });
 });
 
@@ -501,10 +697,12 @@ suite("AI — settings panel", () => {
     const h = app.window.document.getElementById("content").innerHTML;
     ok(h.includes("AI Assistant"), "missing AI panel");
     ok(h.includes("Groq"), "missing provider");
+    ok(h.includes("Vision 61 AI Gateway"), "missing gateway label");
     ok(h.includes("Check connection"), "missing check button");
     ok(h.includes("set-ai-url"), "missing gateway URL input");
-    ok(h.includes("never placed in the browser"), "missing security copy");
+    ok(h.includes("never stored in this CRM or sent to the browser"), "missing security notice");
     ok(h.includes("AI unavailable — deterministic outreach remains active."), "missing fallback notice");
+    ok(h.includes("AI outreach drafts"), "missing capability list");
     assertCleanHTML(h, "settings");
   });
 

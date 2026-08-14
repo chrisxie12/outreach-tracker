@@ -12,3 +12,6 @@ wrangler.local.toml
 .DS_Store
 Thumbs.db
 .idea/workspace.xml
+
+# Tool caches
+node_modules/.cache/

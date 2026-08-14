@@ -25,6 +25,14 @@ window.V61 = window.V61 || {};
 
   const DEFAULT_MODEL = "openai/gpt-oss-20b";
   const TIMEOUT_MS = 25000;
+  /* Short-lived session tokens issued by the gateway. Held in memory only —
+     never localStorage/sessionStorage/IndexedDB/HTML. Expiry matches the
+     worker's 15-minute session TTL. */
+  const SESSION_TTL_MS = 15 * 60 * 1000;
+  let _token = null;
+  let _tokenExp = 0;
+
+  function clearSession() { _token = null; _tokenExp = 0; }
 
   /* ── Config (from settings; gateway URL is user-editable, not the key) ── */
   function aiConfig() {
@@ -46,6 +54,45 @@ window.V61 = window.V61 || {};
   function gatewayBase() {
     const c = aiConfig();
     return c.gatewayUrl.replace(/\/+$/, "");
+  }
+
+  /* The browser's own origin. The gateway only accepts the approved CRM origin,
+     so this must always be the real page origin — never a stored value. */
+  function requestOrigin() {
+    try {
+      if (typeof window !== "undefined" && window.location && window.location.origin) return window.location.origin;
+    } catch (e) {}
+    return "";
+  }
+
+  /* Obtain a session token (reusing the in-memory copy while still fresh).
+     Returns { token } or { token: null, code } — never throws. The token is
+     only ever kept in this closure, never persisted. */
+  async function acquireSession() {
+    const c = aiConfig();
+    if (!isConfigured()) return { token: null, code: "not_configured" };
+    const now = Date.now();
+    if (_token && _tokenExp - now > 30000) return { token: _token, code: "ok" };
+    let res;
+    try {
+      res = await fetch(gatewayBase() + "/v1/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origin: requestOrigin() }),
+      });
+    } catch (e) {
+      clearSession();
+      return { token: null, code: "network" };
+    }
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (res.ok && data && data.ok && typeof data.token === "string" && data.token) {
+      _token = data.token;
+      _tokenExp = (typeof data.expiresAt === "number" && data.expiresAt) || (now + SESSION_TTL_MS);
+      return { token: _token, code: "ok" };
+    }
+    clearSession();
+    return { token: null, code: (res.status === 401 || res.status === 403) ? "unauthorized" : "gateway_error" };
   }
 
   /* ── Small verified context builders (only fields actually present) ── */
@@ -125,11 +172,17 @@ window.V61 = window.V61 || {};
     } catch (e) { return null; }
   }
 
-  /* ── Fetch with timeout; returns structured result, never throws ── */
-  async function callGateway(kind, context) {
+  /* ── Fetch with timeout + bearer token; returns structured result, never throws ── */
+  async function callGateway(kind, context, retried) {
     const c = aiConfig();
     if (!isConfigured()) {
       return { ok: false, error: "not_configured", message: "AI unavailable — deterministic outreach remains active.", provider: c.provider };
+    }
+    const s = await acquireSession();
+    if (!s.token) {
+      if (s.code === "network") return { ok: false, error: "network", message: "AI is temporarily unavailable. Deterministic outreach tools remain available.", provider: c.provider };
+      if (s.code === "not_configured") return { ok: false, error: "not_configured", message: "AI unavailable — deterministic outreach remains active.", provider: c.provider };
+      return { ok: false, error: "unauthorized", message: "AI gateway session unavailable — deterministic outreach remains active.", provider: c.provider };
     }
     const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), TIMEOUT_MS) : null;
@@ -137,7 +190,7 @@ window.V61 = window.V61 || {};
     try {
       res = await fetch(gatewayBase() + "/v1/" + kind, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + s.token },
         body: JSON.stringify({ context }),
         signal: ctrl ? ctrl.signal : undefined,
       });
@@ -146,6 +199,10 @@ window.V61 = window.V61 || {};
       return { ok: false, error: "network", message: "AI is temporarily unavailable. Deterministic outreach tools remain available.", provider: c.provider };
     }
     if (timer) clearTimeout(timer);
+    if (res.status === 401 && !retried) {
+      clearSession();
+      return callGateway(kind, context, true);
+    }
     let data = null;
     try { data = await res.json(); } catch (e) { data = null; }
     if (res.ok && data && data.ok && typeof data.content === "string" && data.content.trim()) {
@@ -160,11 +217,19 @@ window.V61 = window.V61 || {};
   async function status() {
     const c = aiConfig();
     if (!isConfigured()) return { status: "not_configured", provider: c.provider, model: c.model };
+    const s = await acquireSession();
+    if (!s.token) {
+      return { status: s.code === "network" ? "error" : (s.code === "not_configured" ? "not_configured" : "unauthorized"), provider: c.provider, model: c.model };
+    }
     const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
     try {
-      const res = await fetch(gatewayBase() + "/v1/status", { signal: ctrl ? ctrl.signal : undefined });
+      const res = await fetch(gatewayBase() + "/v1/status", {
+        headers: { "Authorization": "Bearer " + s.token },
+        signal: ctrl ? ctrl.signal : undefined,
+      });
       if (timer) clearTimeout(timer);
+      if (res.status === 401) { clearSession(); return { status: "unauthorized", provider: c.provider, model: c.model }; }
       if (res.status === 429) return { status: "rate_limited", provider: c.provider, model: c.model };
       if (!res.ok) return { status: "error", provider: c.provider, model: c.model };
       const d = await res.json().catch(() => null);

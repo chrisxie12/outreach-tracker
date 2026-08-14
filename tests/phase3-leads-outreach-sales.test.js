@@ -121,7 +121,7 @@ suite("Phase 3 — Outreach", () => {
     ok(gen.subject.length > 0);
     ok(gen.message.length > 0);
     eq(gen.ai.enabled, false, "AI must be disabled by default");
-    eq(gen.ai.provider, "");
+    eq(gen.ai.provider, "groq");
   });
 
   test("template CRUD: create, edit, toggle active, reset", () => {

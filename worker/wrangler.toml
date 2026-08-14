@@ -2,15 +2,21 @@
 #
 # Deploy:   cd worker && npx wrangler deploy
 # Secrets:  npx wrangler secret put GROQ_API_KEY
+#           npx wrangler secret put V61_SHARED_SECRET
 # Local:    npx wrangler dev
 #
 # Environment variables:
-#   GROQ_API_KEY  (secret — set via `wrangler secret put`, NEVER committed)
-#   GROQ_MODEL    (optional, defaults to openai/gpt-oss-20b)
+#   GROQ_API_KEY     (secret — set via `wrangler secret put`, NEVER committed)
+#   V61_SHARED_SECRET (secret — signs short-lived session tokens, NEVER committed)
+#   GROQ_MODEL       (plain var, optional, defaults to openai/gpt-oss-20b)
+#   ALLOWED_ORIGIN   (plain var, the ONLY browser origin allowed to call the gateway)
 name = "vision61-ai-gateway"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
 
-# GROQ_MODEL is not secret; the API key is stored only as a Worker secret.
+# Plain (non-secret) variables. Secrets live only in `wrangler secret put`.
 [vars]
+# The CRM is served from https://chrisxie12.github.io/outreach-tracker/ but the
+# browser Origin is always the apex: https://chrisxie12.github.io
+ALLOWED_ORIGIN = "https://chrisxie12.github.io"
 GROQ_MODEL = "openai/gpt-oss-20b"

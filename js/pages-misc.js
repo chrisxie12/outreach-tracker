@@ -191,7 +191,7 @@ V61.Pages = V61.Pages || {};
     const aiStatusHtml = aiReady
       ? '<span class="badge" style="background:rgba(63,157,95,.13);color:#3f9d5f">Configured — press Check connection</span>'
       : '<span class="badge" style="background:rgba(138,138,144,.13);color:var(--text-3)">Not configured</span>';
-    const aiCaps = ["Lead analysis", "Outreach generation", "Follow-up generation", "Audit explanation"].map(function (c) { return "\u2713 " + c; }).join(" &middot; ");
+    const aiCaps = ["Lead analysis", "AI outreach drafts", "AI follow-up drafts", "Audit explanations"].map(function (c) { return "\u2713 " + c; }).join(" &middot; ");
     el.innerHTML =
       '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">System</div>' +
       '<h1 class="page-title">Settings</h1><p class="page-sub">Profile, appearance and data management</p></div></div>' +
@@ -228,20 +228,21 @@ V61.Pages = V61.Pages || {};
       '<div class="panel" style="padding:14px;margin-top:12px;border:1px solid var(--border);border-radius:10px">' +
       '<div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;margin-bottom:10px">' + I.lightbulb + ' AI Assistant <span class="tag" style="margin-left:auto">Optional</span></div>' +
       '<div class="field-row">' +
-      '<div class="field"><label>AI provider</label><input class="input" value="Groq" disabled></div>' +
-      '<div class="field"><label>AI mode</label><input class="input" value="Optional — AI never sends anything" disabled></div></div>' +
+      '<div class="field"><label>Provider</label><input class="input" value="Groq" disabled></div>' +
+      '<div class="field"><label>Status</label><div id="ai-status">' + aiStatusHtml + '</div></div></div>' +
       '<div class="field-row">' +
-      '<div class="field"><label>Connection status</label><div id="ai-status">' + aiStatusHtml + '</div></div>' +
-      '<div class="field"><label>Model</label><input class="input" id="set-ai-model" value="' + U().escapeHtml((aiCfg.model) || "openai/gpt-oss-20b") + '" disabled></div></div>' +
-      '<div class="field"><label>AI gateway URL</label><input class="input" id="set-ai-url" placeholder="https://vision61-ai-gateway.&lt;your-subdomain&gt;.workers.dev" value="' + U().escapeHtml(aiCfg.gatewayUrl || "") + '">' +
-      '<div class="hint">The gateway is a small server-side function that holds your Groq key. The key is never placed in the browser — it lives only as a server secret.</div></div>' +
+      '<div class="field"><label>Model</label><input class="input" id="set-ai-model" value="' + U().escapeHtml(aiCfg.model || "openai/gpt-oss-20b") + '" disabled></div>' +
+      '<div class="field"><label>Gateway</label><input class="input" value="Vision 61 AI Gateway" disabled></div></div>' +
+      '<div class="field"><label>Gateway URL</label><input class="input" id="set-ai-url" placeholder="https://vision61-ai-gateway.&lt;your-subdomain&gt;.workers.dev" value="' + U().escapeHtml(aiCfg.gatewayUrl || "") + '">' +
+      '<div class="hint">A server-side function holds your Groq key and signs short-lived session tokens — the key never reaches this browser.</div></div>' +
       '<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:600"><input type="checkbox" id="set-ai-enable"' + (aiCfg.enabled ? " checked" : "") + '> Enable AI assistance</label></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
       '<button class="btn" id="ai-check">' + I.refresh + ' Check connection</button>' +
       '<button class="btn btn-primary" id="save-ai">' + I.check + ' Save AI settings</button></div>' +
       '<div style="font-size:12px;color:var(--text-3);margin-top:12px;line-height:1.8">' +
       '<b style="color:var(--text-2)">Capabilities:</b> ' + aiCaps + "<br>" +
-      '<b style="color:var(--text-2)">Security:</b> Your Groq API key is stored server-side and is never placed in the browser.<br>' +
+      '<b style="color:var(--text-2)">AI is optional.</b> The deterministic outreach engine remains available when AI is unavailable.<br>' +
+      '<b style="color:var(--text-2)">Security:</b> AI requests are processed through the Vision 61 secure AI gateway. Your Groq API key is never stored in this CRM or sent to the browser.<br>' +
       (aiReady ? "" : '<b style="color:var(--warn)">AI unavailable — deterministic outreach remains active.</b>') +
       "</div></div>" +
       '<div style="font-weight:700;font-size:13px;margin:6px 0 10px">Outreach templates</div>' +
@@ -339,7 +340,7 @@ V61.Pages = V61.Pages || {};
       let st = { status: "error" };
       try { st = await V61.AI.status(); } catch (e) {}
       aiCheckBtn.disabled = false; aiCheckBtn.textContent = I.refresh + " Check connection";
-      const map = { connected: ["Connected", "#3f9d5f"], not_configured: ["Not configured", "#8a8a90"], error: ["Error", "#e5484d"], rate_limited: ["Rate limited", "#e0a53e"] };
+      const map = { connected: ["Connected", "#3f9d5f"], not_configured: ["Not configured", "#8a8a90"], rate_limited: ["Rate limited", "#e0a53e"], unauthorized: ["Unavailable", "#e5484d"], error: ["Unavailable", "#e5484d"] };
       const pick = map[st.status] || map.error;
       const chip = el.querySelector("#ai-status");
       if (chip) chip.innerHTML = '<span class="badge" style="background:' + UI.hexA(pick[1], .13) + ";color:" + pick[1] + '">' + pick[0] + "</span>";
