@@ -45,14 +45,14 @@ function assertCleanHTML(html, label) {
   assert(bad.length === 0, (label || "HTML") + " contains forbidden tokens: " + bad.join(", ") + " — first 200 chars: " + String(html).slice(0, 200));
 }
 
-function runAll() {
+async function runAll() {
   let pass = 0, fail = 0;
   const failures = [];
   for (const s of suites) {
     current = { name: s.name, tests: [] };
-    try { s.fn(); } catch (e) { failures.push({ suite: s.name, test: "(suite setup)", err: e }); fail++; }
+    try { await s.fn(); } catch (e) { failures.push({ suite: s.name, test: "(suite setup)", err: e }); fail++; }
     for (const t of current.tests) {
-      try { t.fn(); pass++; }
+      try { await t.fn(); pass++; }
       catch (e) { fail++; failures.push({ suite: s.name, test: t.name, err: e }); }
     }
     current = null;

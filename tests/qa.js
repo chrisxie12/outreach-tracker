@@ -11,8 +11,9 @@ require("./phase4-services-catalog.test.js");
 require("./e2e.test.js");
 require("./integrity.test.js");
 require("./phase5-mobile-console.test.js");
+require("./ai.test.js");
 
-const results = runAll();
+runAll().then((results) => {
 
 const bySuite = {};
 for (const f of results.failures) {
@@ -38,3 +39,4 @@ if (results.fail) {
 }
 console.log("RESULT: " + (results.fail ? "FAIL" : "ALL PASS"));
 process.exit(results.fail ? 1 : 0);
+}).catch((e) => { console.error("QA runner crashed:", e); process.exit(1); });

@@ -5,7 +5,7 @@
    - The Groq API key is NEVER present in this file or any frontend bundle.
      It lives only server-side as a Cloudflare Worker secret.
    - The frontend talks exclusively to a configurable AI gateway URL
-     (settings.aiConfig.gatewayUrl). It never calls api.groq.com directly.
+     (settings.aiConfig.gatewayUrl). It never calls the provider endpoint directly.
    - Only a small, verified context object is sent per request — never the
      full localStorage database, never unrelated CRM records, never payments
      or credentials.
@@ -29,10 +29,11 @@ window.V61 = window.V61 || {};
   /* ── Config (from settings; gateway URL is user-editable, not the key) ── */
   function aiConfig() {
     const c = (S().db.settings && S().db.settings.aiConfig) || {};
+    const envUrl = (typeof window !== "undefined" && window.V61_AI_GATEWAY_URL) || "";
     return {
-      provider: c.provider || "",
+      provider: c.provider || "groq",
       enabled: !!c.enabled,
-      gatewayUrl: (c.gatewayUrl || "").trim(),
+      gatewayUrl: (c.gatewayUrl || envUrl || "").trim(),
       model: c.model || DEFAULT_MODEL,
     };
   }

@@ -497,6 +497,7 @@ UI.bind(el);
       (biz.email ? '<a class="btn btn-sm" href="mailto:' + U().escapeHtml(biz.email) + '">' + I.mail + " Email</a>" : "") +
       (["new", "researching"].includes(lead.stage) ? '<button class="btn btn-sm btn-primary" data-cmd="markContacted:' + lead.id + '">' + I.send + " Mark contacted</button>" : "") +
       '<button class="btn btn-sm" data-cmd="generateOutreach:' + lead.id + '">' + I.rocket + " Generate outreach</button>" +
+      '<button class="btn btn-sm" data-cmd="aiAnalyze:' + lead.id + '">' + I.lightbulb + " AI Analyze</button>" +
       '<button class="btn btn-sm" data-cmd="addActivityLog:' + lead.id + '">' + I.send + " Log activity</button>" +
       '<button class="btn btn-sm" data-cmd="quickFollowup:' + lead.id + '">' + I.calendar + " Follow-up</button>" +
       '<button class="btn btn-sm" data-cmd="logMeeting:' + lead.id + '">' + I.video + " Log meeting</button>" +
@@ -593,7 +594,7 @@ UI.bind(el);
         (o.notes ? '<div style="font-size:12px;color:var(--text-2);margin-top:4px">' + U().escapeHtml(o.notes) + "</div>" : "") + "</div>";
       }).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No outreach logged yet.</div>') + "</div></div></div>" +
 
-      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.calendar + " Follow-ups" + '<span class="sub">' + followups.filter((f) => f.status === "pending").length + " pending</span></div><button class='btn btn-sm' data-cmd='addFollowup:" + lead.id + "'>" + I.plus + " Add</button></div>" +
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.calendar + " Follow-ups" + '<span class="sub">' + followups.filter((f) => f.status === "pending").length + " pending</span></div><button class='btn btn-sm' data-cmd='addFollowup:" + lead.id + "'>" + I.plus + " Add</button><button class='btn btn-sm' data-cmd='aiFollowup:" + lead.id + "'>" + I.lightbulb + " AI Follow-up</button></div>" +
       '<div class="panel-body"><div class="stack">' + (followups.length ? followups.map((f) =>
         '<div class="row-card" style="padding:11px 13px"><div class="rc-main"><div class="rc-title" style="font-size:13px">' + U().escapeHtml(f.title) + '</div><div class="rc-sub">' + I.clock + '<span class="' + (f.dueDate < U().todayStart() ? "kb-due overdue" : "") + '">' + U().formatDate(f.dueDate) + " (" + U().relativeDue(f.dueDate) + ")</span> · " + UI.badge(f.priority, f.priority === "high" ? "#e5484d" : f.priority === "medium" ? "#e0a53e" : "#8a8a90") + "</div></div>" +
         '<div class="rc-actions"><button class="icon-btn" data-cmd="completeFollowup:' + f.id + '" title="Complete">' + I.check + "</button><button class='icon-btn' data-cmd='reschedFollowup:" + f.id + "' title='Reschedule'>" + I.refresh + "</button><button class='icon-btn' data-cmd='delFollowup:" + f.id + "'>" + I.trash + "</button></div></div>"
@@ -914,6 +915,14 @@ UI.bind(el);
     recommendProposal: (arg) => { const i = arg.indexOf(":"); if (i < 0) return; V61.Pages.sales.createProposal(arg.slice(0, i), arg.slice(i + 1)); },
     createProposal: (leadId) => { V61.Pages.sales.createProposal(leadId); },
     openAudit: (leadId) => V61.Pages.audit.openAudit(leadId),
+    aiAnalyze: (leadId) => {
+      const row = S().leadRows().find((r) => r.lead.id === leadId);
+      if (!row) return;
+      V61.AI.analyzeLead(row).then((res) => V61.AI.present("lead analysis", res, "AI Lead Analysis — " + ((row.business && row.business.name) || "Lead")));
+    },
+    aiFollowup: (leadId) => {
+      V61.AI.generateFollowup(leadId).then((res) => V61.AI.present("follow-up", res, "AI Follow-up Draft"));
+    },
   });
 
   V61.Pages.leads = { render, openLead, openLeadForm };

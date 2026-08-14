@@ -229,7 +229,7 @@
     websiteAudits: [], auditSnapshots: [], meetings: [], outreachDrafts: [], outreachTemplates: [], tags: [],
     projects: [], projectTasks: [], milestones: [], invoices: [], invoiceItems: [], approvals: [], revisions: [],
     clientContacts: [],
-    settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "", enabled: false } },
+    settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "", enabled: false, gatewayUrl: "", model: "openai/gpt-oss-20b" } },
   });
 
   const PROJECT_STATUS = [
@@ -311,7 +311,7 @@
     }
   ];
 
-  const SETTINGS_DEFAULTS = { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "", enabled: false } };
+  const SETTINGS_DEFAULTS = { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "", enabled: false, gatewayUrl: "", model: "openai/gpt-oss-20b" } };
 
   /* ── Official Vision 61 Studios launch service catalog ──
      Seed values. Prices are numeric Ghana cedis (no "GH₵" in the field).
@@ -378,7 +378,7 @@
     d.tags = d.tags || [];
     d.settings.responseOutcomes = (d.settings.responseOutcomes && d.settings.responseOutcomes.length) ? d.settings.responseOutcomes : DEFAULT_OUTCOMES.slice();
     d.settings.lostReasons = (d.settings.lostReasons && d.settings.lostReasons.length) ? d.settings.lostReasons : DEFAULT_LOST_REASONS.slice();
-    d.settings.aiConfig = Object.assign({ provider: "", enabled: false }, d.settings.aiConfig || {});
+    d.settings.aiConfig = Object.assign({ provider: "", enabled: false, gatewayUrl: "", model: "openai/gpt-oss-20b" }, d.settings.aiConfig || {});
     return d;
   }
 

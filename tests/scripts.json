@@ -8,6 +8,7 @@
  "js/services/scoring.js",
  "js/services/opportunities.js",
  "js/services/outreach.js",
+ "js/services/ai.js",
  "js/pages-discovery.js",
  "js/pages-dashboard.js",
  "js/pages-leads.js",

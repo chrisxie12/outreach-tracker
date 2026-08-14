@@ -388,6 +388,7 @@ V61.Pages = V61.Pages || {};
     m.setFoot(
       '<button class="btn" data-cancel>Cancel</button>' +
       '<button class="btn" data-use-template>Use template</button>' +
+      '<button class="btn" data-ai-generate>' + I.lightbulb + " Generate with AI</button>" +
       '<button class="btn" data-regenerate>' + I.refresh + " Regenerate</button>" +
       '<button class="btn" data-save-draft>' + I.download + " Save Draft</button>" +
       '<button class="btn" data-copy>' + I.copy + " Copy</button>" +
@@ -408,6 +409,11 @@ V61.Pages = V61.Pages || {};
     chSel.addEventListener("change", refreshTemplates);
     tplSel.addEventListener("change", () => { const g = OE().generate(row, { channel: chSel.value, templateId: tplSel.value }); setDraft(g); });
     m.body.querySelector("[data-regenerate]").addEventListener("click", () => { const g = OE().generate(row, { channel: chSel.value, templateId: tplSel.value }); setDraft(g); });
+    m.body.querySelector("[data-ai-generate]").addEventListener("click", () => {
+      const row2 = S().leadRows().find((r) => r.lead.id === leadId);
+      if (!row2) { V61.Toast.error("Lead data unavailable"); return; }
+      V61.AI.generateOutreach(row2, { channel: chSel.value }).then((res) => V61.AI.present("outreach message", res, "AI Outreach Draft"));
+    });
     m.body.querySelector("[data-use-template]").addEventListener("click", refreshTemplates);
     m.body.querySelector("[data-copy]").addEventListener("click", async () => {
       const ok = await U().copyText(m.body.querySelector("#g-message").value);

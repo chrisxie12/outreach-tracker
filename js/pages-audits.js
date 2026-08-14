@@ -451,6 +451,7 @@ V61.Pages = V61.Pages || {};
       '<div class="ld-sub">' + U().escapeHtml([biz.category, biz.city, biz.address].filter(Boolean).join(" • ") || "No category") + "</div>" +
       '<div class="ld-actions" style="margin-top:12px">' +
       '<button class="btn btn-sm" data-cmd="openAudit:' + lead.id + '">' + (audit ? I.pencil + " Edit Audit" : I.plus + " Run Audit") + "</button>" +
+      '<button class="btn btn-sm" data-cmd="aiExplain:' + lead.id + '">' + I.lightbulb + " Explain with AI</button>" +
       '<a class="btn btn-sm btn-ghost" href="#/leads/' + lead.id + '">' + I.eye + " Open lead</a></div></div>" +
       '<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">' +
       UI.scoreRing(dScore, "Digital") +
@@ -591,5 +592,9 @@ V61.Pages = V61.Pages || {};
   V61.Pages.auditDetail = auditDetail;
   V61.Pages.batchAudit = runBatchAudit;
   V61.Cmd = V61.Cmd || {};
-  Object.assign(V61.Cmd, { batchAudit: runBatchAudit, highOpps: () => { state.high = !state.high; render(); } });
+  Object.assign(V61.Cmd, { batchAudit: runBatchAudit, highOpps: () => { state.high = !state.high; render(); }, aiExplain: (leadId) => {
+    const row = S().leadRows().find((r) => r.lead.id === leadId);
+    if (!row) return;
+    V61.AI.explainAudit(row).then((res) => V61.AI.present("audit explanation", res, "AI Audit Explanation — " + ((row.business && row.business.name) || "Business")));
+  } });
 })();

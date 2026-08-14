@@ -69,9 +69,10 @@ wrangler dev               # uses GROQ_API_KEY from your local env / .dev.vars
 ```
 
 The Worker URL looks like `https://vision61-ai-gateway.<your-subdomain>.workers.dev`.
-Put that URL into CRM **Settings → AI Assistant → Gateway URL** (or set the
-`V61_AI_GATEWAY_URL` placeholder in the source — the UI makes it user-editable,
-so no private URL is hardcoded).
+Put that URL into CRM **Settings → Outreach engine → AI Assistant → AI gateway URL**
+(or define the `V61_AI_GATEWAY_URL` placeholder in the frontend source as the default).
+The URL is a frontend setting only — no private URL is hardcoded in the bundle,
+and the API key is never present client-side.
 
 ## Cost control
 
