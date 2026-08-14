@@ -933,6 +933,7 @@
     get db() { return db; }, get loaded() { return !!db; },
     KEY,
     STAGES, stageOf, CONTACT_STATUS, contactStatusOf, CHANNELS, TEMPERATURES, tempOf,
+    ACTIVITY_TYPES, MEETING_TYPES, DEFAULT_OUTCOMES, DEFAULT_LOST_REASONS, DEFAULT_TEMPLATES,
     scoreBand, buildMessage,
     AUDIT_WEIGHTS, AUDIT_CHECKS, SOCIAL_PLATFORMS,
     auditCategoryScore, auditSocialScore, digitalScore, auditBreakdown,
@@ -954,6 +955,13 @@
     leadRows, clientRows, clientById,
     PROJECT_STATUS, projectStatusOf, TASK_STATUS, taskStatusOf, TASK_PRIORITY, INVOICE_STATUS, invoiceStatusOf, DEFAULT_PROJECT_TEMPLATES,
     exportLeadsCSV, exportClientsCSV, importCSV,
+    /* Phase 3 helpers used by pages and services (were defined but not exported) */
+    lifecycleStatus, contactNameFor, recommendedServicesFor, lastInteractionFor,
+    timeToFirstResponse, daysContactToMeeting, daysProposalToWin,
+    markLost, markWon, reactivateLead,
+    tagsFor, addTag, removeTag,
+    outreachDraftsFor, saveOutreachDraft, activeTemplates,
+    followupState, cancelFollowup, meetingsFor, upcomingMeetings, addMeeting,
     load, save, on, persist,
   };
 })();
