@@ -1,0 +1,16 @@
+# Vision 61 CRM — Groq AI Gateway (Cloudflare Worker)
+#
+# Deploy:   cd worker && npx wrangler deploy
+# Secrets:  npx wrangler secret put GROQ_API_KEY
+# Local:    npx wrangler dev
+#
+# Environment variables:
+#   GROQ_API_KEY  (secret — set via `wrangler secret put`, NEVER committed)
+#   GROQ_MODEL    (optional, defaults to openai/gpt-oss-20b)
+name = "vision61-ai-gateway"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# GROQ_MODEL is not secret; the API key is stored only as a Worker secret.
+[vars]
+GROQ_MODEL = "openai/gpt-oss-20b"
