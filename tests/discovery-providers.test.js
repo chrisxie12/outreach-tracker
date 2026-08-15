@@ -290,6 +290,59 @@ suite("Discovery providers — OpenStreetMap", () => {
     eq(el2.querySelector("#discovery-loc").value, "Kumasi");
   });
 
+  test("Google discovery cards show a live photo thumbnail and lead view reuses it", async () => {
+    const app = freshApp();
+    await settle(app);
+    app.V61.Store.db.settings.discoveryProvider = "google";
+    app.V61.Store.db.settings.googleMapsApiKey = "AIzaTEST000000000000000000000000";
+    app.V61.Store.save();
+    const gp = app.V61.GooglePlaces;
+    gp.discoverySearch = async () => [{ placeId: "ChIJPHOTO1", name: "Photo Salon", category: "Salon", address: "Osu, Accra", photo: "https://maps.example/p1" }];
+    gp.placeDetails = async () => ({ phone: "0241000888", photo: "https://maps.example/p1" });
+    app.V61.Pages.discovery();
+    const el = app.window.document.getElementById("content");
+    const cat = el.querySelector("#discovery-cat"); cat.value = "salons";
+    const loc = el.querySelector("#discovery-loc"); loc.value = "Accra";
+    clickEl(app.window, el.querySelector("#discovery-go"));
+    await new Promise((r) => setTimeout(r, 10));
+    const img = el.querySelector(".disc-photo");
+    notNull(img, "result card has a photo thumbnail");
+    eq(img.getAttribute("src"), "https://maps.example/p1");
+    clickEl(app.window, el.querySelector('[data-add="0"]'));
+    await new Promise((r) => setTimeout(r, 20));
+    eq(gp.photoFor("ChIJPHOTO1"), "https://maps.example/p1", "photo cached by placeId when added");
+    const lead = app.V61.Store.db.leads[0];
+    app.V61.Pages.leads.openLead(lead.id);
+    const head = app.window.document.getElementById("content").querySelector(".ld-head .disc-photo");
+    notNull(head, "lead header shows the cached photo");
+    eq(head.getAttribute("src"), "https://maps.example/p1");
+  });
+
+  test("capturePhoto extracts a live photo URL and caches it by placeId", () => {
+    const app = freshApp();
+    const gp = app.V61.GooglePlaces;
+    const fakePlace = { place_id: "ChIJREAL1", photos: [{ getUrl: (opts) => "https://maps.example/real" + (opts && opts.maxWidth) }] };
+    eq(gp.capturePhoto(fakePlace), "https://maps.example/real200", "getUrl called with 200px maxWidth");
+    eq(gp.photoFor("ChIJREAL1"), "https://maps.example/real200", "photo cached by placeId");
+    isNull(gp.capturePhoto({ place_id: "ChIJEMPTY" }), "no photo object yields null");
+  });
+
+  test("OSM discovery cards fall back to initials (no photos in OpenStreetMap)", async () => {
+    const app = freshApp();
+    await settle(app);
+    app.V61.Store.db.settings.discoveryProvider = "osm";
+    app.V61.Store.save();
+    app.V61.OpenStreetMap.discoverySearch = async () => [{ osmId: "node/999", name: "Plain Shop", category: "Store", city: "Accra", address: "Accra" }];
+    app.V61.Pages.discovery();
+    const el = app.window.document.getElementById("content");
+    const cat = el.querySelector("#discovery-cat"); cat.value = "stores";
+    const loc = el.querySelector("#discovery-loc"); loc.value = "Accra";
+    clickEl(app.window, el.querySelector("#discovery-go"));
+    await new Promise((r) => setTimeout(r, 10));
+    isNull(el.querySelector(".disc-photo"), "no photo on OSM cards");
+    notNull(el.querySelector(".disc-main"), "initials avatar fallback still renders");
+  });
+
   test("audit modal auto-fill uses OpenStreetMap for OSM businesses", async () => {
     const app = freshApp();
     await settle(app);

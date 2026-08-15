@@ -40,5 +40,5 @@ if (results.fail) {
   console.log("");
 }
 console.log("RESULT: " + (results.fail ? "FAIL" : "ALL PASS"));
-process.exit(results.fail ? 1 : 0);
-}).catch((e) => { console.error("QA runner crashed:", e); process.exit(1); });
+process.exitCode = results.fail ? 1 : 0;
+}).catch((e) => { console.error("QA runner crashed:", e); process.exitCode = 1; });

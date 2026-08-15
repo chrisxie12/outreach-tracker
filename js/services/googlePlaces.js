@@ -6,6 +6,27 @@ window.V61 = window.V61 || {};
 
   function discoveryKey() { return (S().db.settings.googleMapsApiKey || "").trim(); }
 
+  /* Session-only photo cache keyed by placeId. Photos are shown live on discovery
+     cards and lead views while the browser tab is open, but are never written to
+     localStorage (image data would blow past the ~5MB storage budget). */
+  const photoCache = {};
+
+  function photoUrl(p) {
+    if (!p || !p.photos || !p.photos.length) return null;
+    try { return p.photos[0].getUrl({ maxWidth: 200, maxHeight: 200 }); }
+    catch (e) { return null; }
+  }
+
+  function cachePhoto(placeId, url) { if (placeId && url) photoCache[placeId] = url; }
+
+  function photoFor(placeId) { return (placeId && photoCache[placeId]) || null; }
+
+  function capturePhoto(p) {
+    const url = photoUrl(p);
+    if (p && p.place_id) cachePhoto(p.place_id, url);
+    return url;
+  }
+
   /* Load Google Places API once. Resolves immediately if already present (allows stubbing). */
   function placesReady() {
     return new Promise((resolve, reject) => {
@@ -59,14 +80,18 @@ window.V61 = window.V61 || {};
       const svc = placesService();
       svc.textSearch({ query: (query + " in " + location).trim(), language: "en" }, (results, status) => {
         if (status === "OK" || status === "ZERO_RESULTS") {
-          resolve((results || []).map((p) => ({
-            placeId: p.place_id, name: p.name || "", address: p.formatted_address || p.vicinity || "",
-            city: extractCity(p), category: normalizeType(p.types),
-            rating: p.rating || null, reviews: p.user_ratings_total || 0,
-            openNow: p.opening_hours ? p.opening_hours.open_now : null,
-            lat: p.geometry && p.geometry.location ? p.geometry.location.lat() : null,
-            lng: p.geometry && p.geometry.location ? p.geometry.location.lng() : null,
-          })));
+          resolve((results || []).map((p) => {
+            const photo = capturePhoto(p);
+            return {
+              placeId: p.place_id, name: p.name || "", address: p.formatted_address || p.vicinity || "",
+              city: extractCity(p), category: normalizeType(p.types),
+              rating: p.rating || null, reviews: p.user_ratings_total || 0,
+              openNow: p.opening_hours ? p.opening_hours.open_now : null,
+              lat: p.geometry && p.geometry.location ? p.geometry.location.lat() : null,
+              lng: p.geometry && p.geometry.location ? p.geometry.location.lng() : null,
+              photo: photo,
+            };
+          }));
         } else reject(new Error("Places API error: " + status));
       });
     }));
@@ -77,7 +102,9 @@ window.V61 = window.V61 || {};
     return placesReady().then(() => new Promise((resolve, reject) => {
       const svc = placesService();
       svc.getDetails({ placeId, fields: ["name", "formatted_address", "formatted_phone_number", "international_phone_number", "website", "rating", "user_ratings_total", "opening_hours", "url", "types", "photos", "address_components", "geometry"] }, (p, status) => {
-        if (status === "OK" && p) resolve({
+        if (status === "OK" && p) {
+          const photo = capturePhoto(p);
+          resolve({
           name: p.name || "", address: p.formatted_address || "",
           phone: p.formatted_phone_number || p.international_phone_number || "",
           website: p.website || "",
@@ -87,7 +114,9 @@ window.V61 = window.V61 || {};
           url: p.url || "", types: p.types || [], category: normalizeType(p.types),
           lat: p.geometry && p.geometry.location ? p.geometry.location.lat() : null,
           lng: p.geometry && p.geometry.location ? p.geometry.location.lng() : null,
+          photo: photo,
         });
+        }
         else reject(new Error("Place details error: " + status));
       });
     }));
@@ -118,6 +147,6 @@ window.V61 = window.V61 || {};
     search: discoverySearchAny, details: discoveryDetails, catMetaOptions,
   };
 
-  V61.GooglePlaces = { discoveryKey, placesReady, placesService, normalizeType, extractCity, discoverySearch, placeDetails, catMetaOptions };
+  V61.GooglePlaces = { discoveryKey, placesReady, placesService, normalizeType, extractCity, discoverySearch, placeDetails, catMetaOptions, photoFor, cachePhoto, capturePhoto };
   V61.Discovery = Discovery;
 })();

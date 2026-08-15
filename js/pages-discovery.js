@@ -108,7 +108,9 @@ V61.Pages = V61.Pages || {};
     const lead = existing ? S().leadOf(existing.id) : null;
     const stars = r.rating != null ? '<span style="color:#e0a53e;display:inline-flex;align-items:center;gap:2px;font-weight:700">' + I.star + " " + r.rating + "</span><span style='color:var(--text-3);font-size:12px'> (" + r.reviews + ")</span>" : "";
     return '<div class="disc-result" data-result="' + i + '">' +
-      '<div class="disc-main"><div style="width:38px;height:38px;border-radius:10px;background:' + UI.hexA(U().avatarColor(r.name), .15) + ';color:' + U().avatarColor(r.name) + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0">' + U().initials(r.name) + "</div>" +
+      '<div class="disc-main">' + (r.photo ?
+        '<img class="disc-photo" src="' + U().escapeHtml(r.photo) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' :
+        '<div style="width:38px;height:38px;border-radius:10px;background:' + UI.hexA(U().avatarColor(r.name), .15) + ';color:' + U().avatarColor(r.name) + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0">' + U().initials(r.name) + "</div>") + '</div>' +
       '<div style="flex:1;min-width:0"><div class="disc-name">' + U().escapeHtml(r.name) + "</div>" +
       '<div class="disc-sub">' + (r.category ? U().escapeHtml(r.category) + " · " : "") + U().escapeHtml(r.address) + "</div>" +
       '<div class="disc-meta">' + stars + (r.openNow != null ? '<span class="' + (r.openNow ? "open" : "closed") + '">' + (r.openNow ? "Open now" : "Closed now") + "</span>" : "") +
@@ -130,6 +132,7 @@ V61.Pages = V61.Pages || {};
       (r.osmId ? D().details(r.osmId) : r.placeId ? D().details(r.placeId) : Promise.resolve({})).then((d) => {
         const prov = D().provider();
         const place = Object.assign({}, r, d, { source: prov === "osm" ? "osm-discovery" : "google-discovery", query: (document.getElementById("discovery-cat") ? document.getElementById("discovery-cat").value : "") + " in " + (document.getElementById("discovery-loc") ? document.getElementById("discovery-loc").value : "") });
+        if (prov !== "osm" && V61.GooglePlaces && V61.GooglePlaces.cachePhoto && r.placeId && r.photo) V61.GooglePlaces.cachePhoto(r.placeId, r.photo);
         const res = S().addDiscoveredBusiness(place);
         S().save();
         if (res.created) { S().addActivity(res.lead.id, "note", "Business discovered via " + (prov === "osm" ? "OpenStreetMap." : "Google Places.")); }

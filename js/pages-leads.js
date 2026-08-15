@@ -501,7 +501,9 @@ UI.bind(el);
     el.innerHTML =
       '<a href="#/leads" class="btn btn-ghost" style="margin-bottom:14px">' + I.chevronL + " Back to leads</a>" +
       '<div class="panel" style="padding:22px"><div class="ld-head">' +
-      '<div class="avatar big" style="background:' + UI.hexA(U().avatarColor(biz.name), .15) + ';color:' + U().avatarColor(biz.name) + '">' + U().initials(biz.name) + "</div>" +
+      ((V61.GooglePlaces && V61.GooglePlaces.photoFor(biz.googlePlaceId)) ?
+        '<img class="disc-photo big" src="' + U().escapeHtml(V61.GooglePlaces.photoFor(biz.googlePlaceId)) + '" alt="" referrerpolicy="no-referrer">' :
+        '<div class="avatar big" style="background:' + UI.hexA(U().avatarColor(biz.name), .15) + ';color:' + U().avatarColor(biz.name) + '">' + U().initials(biz.name) + "</div>") +
       '<div style="flex:1;min-width:220px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1 class="ld-title">' + U().escapeHtml(biz.name) + "</h1>" + UI.stageBadge(lead.stage) + UI.tempBadge(temp) + "</div>" +
       '<div class="ld-sub">' + U().escapeHtml([biz.category, biz.city, biz.region].filter(Boolean).join(" • ") || "No category") + "</div>" +
       '<div class="ld-actions" style="margin-top:12px">' +
