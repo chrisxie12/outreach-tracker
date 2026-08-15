@@ -378,7 +378,7 @@ suite("Discovery providers — OpenStreetMap", () => {
     const el = app.window.document;
     const btn = el.querySelector("#audit-autofill");
     notNull(btn, "auto-fill shown for OSM business");
-    ok(btn.textContent.indexOf("OpenStreetMap") >= 0, "labels the source");
+    ok(btn.textContent.indexOf("Auto-fill") >= 0, "labels the action");
     clickEl(app.window, btn);
     await new Promise((r) => setTimeout(r, 20));
     const audit = S.auditOf(business.id);
@@ -404,5 +404,39 @@ suite("Discovery providers — OpenStreetMap", () => {
     const audit = S.auditOf(business.id);
     eq(audit.website.exists, true, "website exists filled from Overpass tags");
     eq(audit.website.contact, true, "contact filled from Overpass phone");
+  });
+
+  test("auto-fill also runs the website analyzer and saves the analysis", async () => {
+    const app = freshApp();
+    await settle(app);
+    const S = app.V61.Store;
+    const { business, lead } = S.addDiscoveredBusiness({ osmId: "node/777", name: "Fresh Bakery", website: "https://fresh.example", phone: "0241000777", source: "osm-discovery" });
+    const html = "<html><head><title>Fresh Bakery - Delicious Bread</title><meta name='viewport' content='width=device-width'><link rel='canonical' href='https://fresh.example/'></head><body><h1>Fresh Bakery</h1><p>" + Array(60).join("words ") + "</p><a href='tel:+233241000777'>Call</a><a href='mailto:hi@fresh.example'>Email</a><a href='https://instagram.com/freshbakery'>Instagram</a></body></html>";
+    app.window.fetch = async (url) => {
+      const u = String(url);
+      if (u.indexOf("/interpreter") >= 0) return { ok: true, status: 200, json: async () => ({ elements: [{ type: "node", id: 777, tags: { name: "Fresh Bakery", phone: "0241000777", website: "https://fresh.example" } }] }) };
+      return { ok: true, status: 200, text: async () => html };
+    };
+    app.V61.Pages.audit.openAudit(lead.id);
+    const btn = app.window.document.querySelector("#audit-autofill");
+    notNull(btn, "auto-fill shown when the business has a website");
+    clickEl(app.window, btn);
+    await new Promise((r) => setTimeout(r, 40));
+    const wa = S.latestWebsiteAudit(business.id);
+    notNull(wa, "website analysis saved");
+    eq(wa.status, "ok");
+    ok(wa.score > 0, "website score computed (" + wa.score + ")");
+  });
+
+  test("auto-fill shows for manual leads with only a website (no osm/google id)", async () => {
+    const app = freshApp();
+    await settle(app);
+    const S = app.V61.Store;
+    const biz = S.addBusiness({ name: "Manual Shop", website: "https://manual.example" });
+    const lead = S.addLead(biz.id);
+    app.V61.WebsiteAnalyzer.analyze = async () => ({ status: "ok", score: 70, url: "https://manual.example", signals: { https: true, viewport: true } });
+    app.V61.Pages.audit.openAudit(lead.id);
+    const btn = app.window.document.querySelector("#audit-autofill");
+    notNull(btn, "auto-fill button present for website-only lead");
   });
 });

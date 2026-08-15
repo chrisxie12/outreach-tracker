@@ -186,8 +186,8 @@ V61.Pages = V61.Pages || {};
       '<div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap">' +
       '<div><div style="font-weight:700;font-size:14px">Tap each item that is true for this business.</div>' +
       '<div style="font-size:12.5px;color:var(--text-3)">The Digital Presence Score updates as you go.</div></div>' +
-      (biz && ((biz.googlePlaceId && D().key()) || biz.osmId) ?
-        '<button class="btn" id="audit-autofill" style="margin-left:auto">' + I.scan + " Auto-fill from " + (detailsSourceFor(biz) === "osm" ? "OpenStreetMap" : "Google") + "</button>" : "") +
+      (biz && (biz.website || ((biz.googlePlaceId && D().key()) || biz.osmId)) ?
+        '<button class="btn" id="audit-autofill" style="margin-left:auto">' + I.scan + " Auto-fill audit</button>" : "") +
       "</div>" +
       sectionHtml("website") + sectionHtml("google") + sectionHtml("social") + sectionHtml("branding") + sectionHtml("conversion") + sectionHtml("seo")
     );
@@ -209,12 +209,12 @@ V61.Pages = V61.Pages || {};
     m.body.querySelectorAll(".check-item").forEach((it) => {
       it.addEventListener("click", () => {
         const [cat, key] = it.dataset.check.split(":");
-        const target = cat === "social" ? audit.social[key.split(":")[0]] : audit[cat];
-        const k = cat === "social" ? key.split(":")[1] : key;
-        const val = !target[k];
-        if (cat === "social") { const pl = key.split(":")[0]; audit.social[pl] = audit.social[pl] || {}; audit.social[pl][k] = val; if (!val && k === "exists") { ["active", "quality", "consistency"].forEach((x) => { audit.social[pl][x] = false; }); } }
-        else { audit[cat] = audit[cat] || {}; audit[cat][k] = val; if (!val && k === "exists" && cat === "website") { ["mobile", "https", "modern", "speed", "cta", "contact", "seo"].forEach((x) => { audit[cat][x] = false; }); } }
-        it.classList.toggle("on", !!target[k]);
+        const isSocial = !!(audit.social && audit.social[cat]);
+        const target = isSocial ? audit.social[cat] : audit[cat];
+        const val = !target[key];
+        if (isSocial) { audit.social[cat] = audit.social[cat] || {}; audit.social[cat][key] = val; if (!val && key === "exists") { ["active", "quality", "consistency"].forEach((x) => { audit.social[cat][x] = false; }); } }
+        else { audit[cat] = audit[cat] || {}; audit[cat][key] = val; if (!val && key === "exists" && cat === "website") { ["mobile", "https", "modern", "speed", "cta", "contact", "seo"].forEach((x) => { audit[cat][x] = false; }); } }
+        it.classList.toggle("on", !!target[key]);
         const catChecks = m.body.querySelectorAll('[data-check^="' + cat + '"]');
         const on = m.body.querySelectorAll('[data-check^="' + cat + '"].on').length;
         const chip = m.body.querySelector('[data-scorechip="' + cat + '"]');
@@ -234,27 +234,36 @@ V61.Pages = V61.Pages || {};
     const autofill = m.body.querySelector("#audit-autofill");
     if (autofill) autofill.addEventListener("click", () => {
       const src = detailsSourceFor(biz);
-      const label = src === "osm" ? "Auto-fill from OpenStreetMap" : "Auto-fill from Google";
-      autofill.disabled = true; autofill.textContent = "Fetching…";
-      D().details(src === "osm" ? biz.osmId : biz.googlePlaceId).then((d) => {
-        const filled = applyDetails(audit, d, src);
+      const label = "Auto-fill audit";
+      autofill.disabled = true; autofill.textContent = "Analyzing…";
+      let webMsg = "";
+      const srcPromise = (biz.osmId || (biz.googlePlaceId && D().key()))
+        ? D().details(src === "osm" ? biz.osmId : biz.googlePlaceId)
+            .then((d) => { applyDetails(audit, d, src); })
+            .catch(() => {})
+        : Promise.resolve();
+      const webPromise = biz.website
+        ? V61.WebsiteAnalyzer.analyze(biz, { timeout: 12000 })
+            .then((wa) => {
+              S().saveWebsiteAudit(biz.id, wa);
+              audit.website = audit.website || {};
+              audit.website.exists = wa.status !== "not_available";
+              webMsg = wa.status === "ok" ? "website analyzed (" + (wa.score != null ? wa.score + "/100" : "no score") + ")" : (wa.summary || "website analysis incomplete");
+            })
+            .catch(() => {})
+        : Promise.resolve();
+      Promise.all([srcPromise, webPromise]).then(() => {
         audit.updatedAt = U().now();
         recalc();
         m.body.querySelectorAll(".check-item").forEach((it) => {
           const [cat, key] = it.dataset.check.split(":");
-          const target = cat === "social" ? audit.social[key.split(":")[0]] : audit[cat];
-          const k = cat === "social" ? key.split(":")[1] : key;
-          it.classList.toggle("on", !!target[k]);
+          const target = (audit.social && audit.social[cat]) ? audit.social[cat] : audit[cat];
+          it.classList.toggle("on", !!(target && target[key]));
           const chip = m.body.querySelector('[data-scorechip="' + cat + '"]');
           if (chip) chip.textContent = m.body.querySelectorAll('[data-check^="' + cat + '"].on').length + "/" + m.body.querySelectorAll('[data-check^="' + cat + '"]').length;
         });
         autofill.disabled = false; autofill.textContent = label;
-        V61.Toast.success(src === "osm"
-          ? (filled ? "Filled from real OpenStreetMap data — review the rest manually" : "OpenStreetMap had no website or phone mapped here — review manually")
-          : "Filled from real Google data — review the rest manually");
-      }).catch((e) => {
-        autofill.disabled = false; autofill.textContent = label;
-        V61.Toast.error(e.message || "Could not fetch source data");
+        V61.Toast.success(webMsg ? "Auto-fill done — " + webMsg + ". Review the rest manually." : "Audit auto-filled — review the rest manually.");
       });
     });
   }
