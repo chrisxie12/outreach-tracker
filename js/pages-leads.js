@@ -60,6 +60,18 @@ V61.Pages = V61.Pages || {};
     return state.query || state.cat !== "all" || state.loc !== "all" || state.stage !== "all" || state.temp !== "all" || state.contact !== "all" || state.dmin || state.lmin || state.omin || state.prior !== "all" || state.website !== "all" || state.google !== "all" || state.audited !== "all" || state.high;
   }
 
+  function copyNumbers() {
+    const rows = filteredRows();
+    const nums = [];
+    rows.forEach((r) => {
+      const b = r.business || {};
+      const wa = U().phoneDigits(b.whatsapp || b.phone);
+      if (wa) nums.push(wa);
+    });
+    if (!nums.length) { V61.Toast.warn("No phone numbers on the visible leads"); return; }
+    U().copyText(nums.join("\n")).then(() => V61.Toast.success("Copied " + nums.length + " number" + (nums.length === 1 ? "" : "s") + " to clipboard"));
+  }
+
   /* ── Lead form modal ── */
   function openLeadForm(existing) {
     const b = existing ? S().byId("businesses", existing.businessId) : null;
@@ -133,6 +145,7 @@ V61.Pages = V61.Pages || {};
       '<div class="page-actions">' +
       (sel ? '<button class="btn" data-cmd="bulkStatus">' + I.filter + " Set stage</button><button class='btn btn-danger' data-cmd='bulkDelete'>" + I.trash + " Delete (" + sel + ")</button>" : "") +
       '<button class="btn" data-cmd="exportLeads">' + I.download + " Export</button>" +
+      '<button class="btn" data-cmd="copyNumbers" title="Copy WhatsApp numbers of the visible leads">' + I.copy + " Copy numbers</button>" +
       '<button class="btn btn-primary" data-cmd="addLead">' + I.plus + ' Add Lead</button></div></div>' +
       '<div class="panel" style="margin-bottom:16px"><div class="filterbar">' +
       '<div class="search-wrap" style="position:relative;flex:1;min-width:180px">' +
@@ -913,6 +926,7 @@ UI.bind(el);
     editLead,
     deleteLead,
     exportLeads: () => S().exportLeadsCSV(),
+    copyNumbers: () => copyNumbers(),
     bulkStatus: () => bulkStatusModal(),
     bulkDelete: () => bulkDelete(),
     bulkAddTag: () => bulkAddTag(),

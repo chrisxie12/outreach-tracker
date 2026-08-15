@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Verify test script manifest matches index.html
+        run: node tests/gen-scripts.js && git diff --exit-code -- tests/scripts.json
+      - name: Run QA suite
+        run: node tests/qa.js

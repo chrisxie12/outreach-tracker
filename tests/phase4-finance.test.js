@@ -336,3 +336,28 @@ suite("Phase 4 — Retention", () => {
     eq(U.relativeDue(d30), "in 30d");
   });
 });
+
+suite("Phase 4 — Analytics lead sources", () => {
+  test("analytics panel breaks down leads by source", () => {
+    const app = freshApp();
+    const S = app.V61.Store;
+    const biz1 = S.addBusiness({ name: "ManualBiz", phone: "0241000001" });
+    S.addLead(biz1.id);
+    const biz2 = S.addBusiness({ name: "OsmBiz", phone: "0241000002" });
+    S.addLead(biz2.id);
+    S.db.leads[1].source = "osm-discovery";
+    const biz3 = S.addBusiness({ name: "CsvBiz", phone: "0241000003" });
+    S.addLead(biz3.id);
+    S.db.leads[2].source = "csv";
+    S.save();
+    app.V61.Pages.analytics();
+    const el = app.window.document.getElementById("content");
+    const panel = el.querySelector(".panel-title");
+    const titles = Array.prototype.map.call(el.querySelectorAll(".panel-title"), (t) => t.textContent);
+    ok(titles.some((t) => t.indexOf("Lead sources") !== -1), "Lead sources panel rendered");
+    const body = el.innerHTML;
+    ok(body.indexOf("Discovery — OpenStreetMap") !== -1, "OSM discovery source labeled");
+    ok(body.indexOf("CSV import") !== -1, "CSV import source labeled");
+    ok(body.indexOf("Manual entry") !== -1, "manual source labeled");
+  });
+});

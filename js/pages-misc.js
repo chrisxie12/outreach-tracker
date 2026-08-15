@@ -88,12 +88,30 @@ V61.Pages = V61.Pages || {};
         const n = S().db.leads.filter((l) => l.stage === s.key).length;
         const max = Math.max(1, S().db.leads.length);
         return '<div><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span style="display:inline-flex;align-items:center;gap:6px"><span class="badge-dot" style="background:' + s.color + '"></span>' + s.label + '</span><b>' + n + "</b></div><div class='progress'><i style='width:" + Math.round(n / max * 100) + "%;background:" + s.color + "'></i></div></div>";
-      }).join("") + "</div></div></div>";
+      }).join("") + "</div></div></div>" +
+
+      '<div class="panel" style="margin-top:18px"><div class="panel-head"><div class="panel-title">' + I.plus + ' Lead sources</div></div><div class="panel-body"><div class="stack">' + sourceBreakdown() + "</div></div></div>";
     UI.bind(el);
   }
 
   function metric(label, value, sub, acc) {
     return '<div class="metric' + (acc ? " acc" : "") + '"><div class="m-label">' + U().escapeHtml(label) + '</div><div class="m-value">' + value + '</div><div class="m-sub">' + U().escapeHtml(sub || "") + "</div></div>";
+  }
+
+  function sourceBreakdown() {
+    const labels = {
+      manual: "Manual entry", csv: "CSV import", legacy: "Legacy import",
+      "osm-discovery": "Discovery — OpenStreetMap", "google-discovery": "Discovery — Google",
+    };
+    const bySource = {};
+    S().db.leads.forEach((l) => { const k = l.source || "manual"; bySource[k] = (bySource[k] || 0) + 1; });
+    const total = Math.max(1, S().db.leads.length);
+    const entries = Object.entries(bySource).sort((a, b) => b[1] - a[1]);
+    if (!entries.length) return '<div style="font-size:12.5px;color:var(--text-3)">No leads yet.</div>';
+    return entries.map(([k, n]) => {
+      const pct = Math.round(n / total * 100);
+      return '<div><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>' + U().escapeHtml(labels[k] || k) + '</span><b>' + n + " (" + pct + "%)</b></div><div class='progress'><i style='width:" + pct + "%'></i></div></div>";
+    }).join("");
   }
 
   /* ═══ REPORTS ═══ */
@@ -395,7 +413,7 @@ V61.Pages = V61.Pages || {};
   V61.Cmd = V61.Cmd || {};
   Object.assign(V61.Cmd, {
     exportClients: () => S().exportClientsCSV(),
-    exportBackup: () => U().download("vision61-crm-backup-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(S().db, null, 2), "application/json"),
+    exportBackup: () => { S().db.settings.lastBackupAt = U().now(); S().save(); U().download("vision61-crm-backup-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(S().db, null, 2), "application/json"); },
     outreachTplToggle: (id) => {
       const t = (S().db.outreachTemplates || []).find((x) => x.id === id);
       if (t) { t.active = t.active === false; S().save(); V61.Toast.success(t.active ? "Template enabled" : "Template paused"); renderSettings(); }

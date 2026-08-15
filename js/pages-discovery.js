@@ -10,6 +10,12 @@ V61.Pages = V61.Pages || {};
   const GP = () => V61.GooglePlaces;
   const D = () => V61.Discovery;
 
+  const PAGE = 15;
+  let state = { results: [], shown: 0 };
+
+  function lastQuery() { const q = S().db.settings.lastDiscovery || {}; return q; }
+  function saveQuery(cat, loc) { S().db.settings.lastDiscovery = { cat: cat, loc: loc, at: U().now() }; S().save(); }
+
   function render() {
     const el = document.getElementById("content");
     const ready = D().ready();
@@ -30,9 +36,9 @@ V61.Pages = V61.Pages || {};
       '<div class="panel-body">' +
       (ready ?
         '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px">' +
-        '<input class="input" id="discovery-cat" style="flex:1;min-width:150px" placeholder="Category — e.g. restaurants, salons, clinics" list="disc-cat-list">' +
+        '<input class="input" id="discovery-cat" style="flex:1;min-width:150px" placeholder="Category — e.g. restaurants, salons, clinics" list="disc-cat-list" value="' + U().escapeHtml(lastQuery().cat || "") + '">' +
         '<datalist id="disc-cat-list">' + GP().catMetaOptions() + "</datalist>" +
-        '<input class="input" id="discovery-loc" style="width:190px" placeholder="Location — e.g. Osu, Accra">' +
+        '<input class="input" id="discovery-loc" style="width:190px" placeholder="Location — e.g. Osu, Accra" value="' + U().escapeHtml(lastQuery().loc || "") + '">' +
         '<button class="btn btn-primary" id="discovery-go">' + I.search + " Search</button></div>" +
         '<div id="discovery-results"></div>' :
         '<div class="empty" style="padding:22px"><div style="font-size:13px;color:var(--text-3);margin-bottom:10px">Discovery searches real businesses from a data source. No source is configured yet — so no results are shown and nothing is fabricated. Use the free OpenStreetMap source (no key needed) or add a Google Places key.</div>' +
@@ -73,14 +79,28 @@ V61.Pages = V61.Pages || {};
     const loc = (el.querySelector("#discovery-loc").value || "").trim();
     const out = el.querySelector("#discovery-results");
     if (!cat && !loc) { V61.Toast.warn("Enter a category or location to search"); return; }
+    saveQuery(cat, loc);
     out.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3)">Searching ' + D().label() + '…</div>';
     D().search(cat, loc).then((results) => {
       if (!results.length) { out.innerHTML = '<div class="empty" style="padding:24px">' + I.search + '<h3>No businesses found</h3><p>Try a different category or location.</p></div>'; return; }
-      out.innerHTML = results.map((r, i) => resultCard(r, i)).join("");
-      bindResultActions(out, results);
+      state = { results: results, shown: 0 };
+      renderResults(out, true);
     }).catch((e) => {
       out.innerHTML = '<div class="empty" style="padding:24px">' + I.alert + '<h3>Search failed</h3><p>' + U().escapeHtml(e.message || "Check your API key") + "</p></div>";
     });
+  }
+
+  function renderResults(out, advance) {
+    const all = state.results;
+    if (advance) state.shown = Math.min(all.length, state.shown + PAGE);
+    else state.shown = Math.min(all.length, state.shown || PAGE);
+    const slice = all.slice(0, state.shown);
+    const more = all.length - state.shown;
+    out.innerHTML = slice.map((r, i) => resultCard(r, i)).join("") +
+      (more > 0 ? '<button class="btn block" id="disc-more">' + I.download + " Show more (" + more + " more)</button>" : "");
+    bindResultActions(out, all);
+    const moreBtn = out.querySelector("#disc-more");
+    if (moreBtn) moreBtn.addEventListener("click", () => renderResults(out, true));
   }
 
   function resultCard(r, i) {
@@ -114,9 +134,7 @@ V61.Pages = V61.Pages || {};
         S().save();
         if (res.created) { S().addActivity(res.lead.id, "note", "Business discovered via " + (prov === "osm" ? "OpenStreetMap." : "Google Places.")); }
         V61.Toast.success(res.created ? "Added " + place.name + " to your CRM" : place.name + " was already in your CRM");
-        const refreshed = results.map((x, i) => resultCard(x, i));
-        out.innerHTML = refreshed.join("");
-        bindResultActions(out, results);
+        renderResults(out, false);
       }).catch((e) => { b.disabled = false; b.textContent = "Add to CRM"; V61.Toast.error(e.message || "Could not add business"); });
     }));
     out.querySelectorAll("[data-audit]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.audit) V61.Pages.audit.openAudit(b.dataset.audit); }));

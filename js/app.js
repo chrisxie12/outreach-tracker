@@ -376,6 +376,31 @@
     S().on(() => { renderShell(); });
     shortcuts();
     V61.Toast.show("Vision 61 CRM ready");
+    maybeBackupReminder();
+  }
+
+  /* Remind the user to download a backup JSON at most once a week. The CRM
+     is browser-only, so a cleared browser means lost data. Only nudges when
+     there is data worth backing up. */
+  function maybeBackupReminder() {
+    const s = S().db.settings;
+    const last = s.lastBackupAt || 0;
+    if (last && U().now() - last < 7 * 86400000) return;
+    if (!S().db.leads.length && !S().db.clients.length) return;
+    setTimeout(() => {
+      const m = V61.UI.openModal({ title: "Back up your data", icon: I.download });
+      m.setBody('<div style="font-size:13px;color:var(--text-2);line-height:1.7">Your CRM data is stored in <b style="color:var(--text)">this browser only</b>. A backup is a single JSON file you can keep anywhere and restore later if your browser data is cleared or lost.<br><br><b style="color:var(--warn)">No backup was downloaded in the last 7 days.</b></div>');
+      m.setFoot('<button class="btn" data-skip>Not now</button><button class="btn btn-primary" data-backup>' + I.download + " Back up now</button>");
+      m.q("[data-backup]").addEventListener("click", () => {
+        const st = S().db.settings;
+        st.lastBackupAt = U().now();
+        S().save();
+        U().download("vision61-crm-backup-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(S().db, null, 2), "application/json");
+        V61.Toast.success("Backup downloaded");
+        m.close();
+      });
+      m.q("[data-skip]").addEventListener("click", () => m.close());
+    }, 1500);
   }
 
   document.addEventListener("DOMContentLoaded", init);

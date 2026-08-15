@@ -249,6 +249,47 @@ suite("Discovery providers — OpenStreetMap", () => {
     eq(S.db.leads.length, 1);
   });
 
+  test("discovery pages results with a Show more button", async () => {
+    const app = freshApp();
+    await settle(app);
+    app.V61.Store.db.settings.discoveryProvider = "osm";
+    app.V61.Store.save();
+    app.V61.OpenStreetMap.discoverySearch = async () => Array.from({ length: 20 }, (_, i) => ({ osmId: "node/" + (1000 + i), name: "Biz " + i, category: "Salon", city: "Kumasi", address: "Adum, Kumasi" }));
+    app.V61.Pages.discovery();
+    const el = app.window.document.getElementById("content");
+    const cat = el.querySelector("#discovery-cat"); cat.value = "salons";
+    const loc = el.querySelector("#discovery-loc"); loc.value = "Kumasi";
+    clickEl(app.window, el.querySelector("#discovery-go"));
+    await new Promise((r) => setTimeout(r, 10));
+    ok(el.querySelectorAll(".disc-result").length === 15, "first page shows 15 results");
+    const more = el.querySelector("#disc-more");
+    notNull(more, "Show more button present");
+    clickEl(app.window, more);
+    await new Promise((r) => setTimeout(r, 10));
+    ok(el.querySelectorAll(".disc-result").length === 20, "second page shows all 20");
+    isNull(el.querySelector("#disc-more"), "Show more hidden once everything is revealed");
+  });
+
+  test("discovery remembers and pre-fills the last search", async () => {
+    const app = freshApp();
+    await settle(app);
+    app.V61.Store.db.settings.discoveryProvider = "osm";
+    app.V61.Store.save();
+    app.V61.OpenStreetMap.discoverySearch = async () => [];
+    app.V61.Pages.discovery();
+    const el = app.window.document.getElementById("content");
+    const cat = el.querySelector("#discovery-cat"); cat.value = "salons";
+    const loc = el.querySelector("#discovery-loc"); loc.value = "Kumasi";
+    clickEl(app.window, el.querySelector("#discovery-go"));
+    await new Promise((r) => setTimeout(r, 10));
+    eq(app.V61.Store.db.settings.lastDiscovery.cat, "salons");
+    eq(app.V61.Store.db.settings.lastDiscovery.loc, "Kumasi");
+    app.V61.Pages.discovery();
+    const el2 = app.window.document.getElementById("content");
+    eq(el2.querySelector("#discovery-cat").value, "salons");
+    eq(el2.querySelector("#discovery-loc").value, "Kumasi");
+  });
+
   test("audit modal auto-fill uses OpenStreetMap for OSM businesses", async () => {
     const app = freshApp();
     await settle(app);

@@ -175,7 +175,7 @@ window.V61 = window.V61 || {};
     return geocodeLocation(location).then((bb) => {
       const bbox = bb.minlat + "," + bb.minlon + "," + bb.maxlat + "," + bb.maxlon;
       const body = filters.map((f) => "node[" + f + "](" + bbox + ");way[" + f + "](" + bbox + ");").join("");
-      const data = "[out:json][timeout:25];(" + body + ");out center tags;";
+      const data = "[out:json][timeout:25];(" + body + ");out 60 center tags;";
       const url = OVERPASS + "?data=" + encodeURIComponent(data);
       return window.fetch(url, { headers: { "Accept": "application/json" } }).then((res) => {
         if (!res.ok) throw new Error("OpenStreetMap search failed (" + res.status + ")");
@@ -188,7 +188,7 @@ window.V61 = window.V61 || {};
           seen[r.osmId] = true;
           out.push(r);
         });
-        return out.slice(0, 30);
+        return out.slice(0, 60);
       });
     }).catch(() => nominatimSearch(query, location));
   }

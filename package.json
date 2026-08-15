@@ -1,0 +1,14 @@
+{
+  "name": "vision61-outreach-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vision 61 Studios CRM — lead discovery, digital audits, outreach, and sales tracking",
+  "scripts": {
+    "test": "node tests/qa.js",
+    "test:gen-scripts": "node tests/gen-scripts.js",
+    "verify": "node tests/gen-scripts.js && node tests/qa.js"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.1"
+  }
+}
