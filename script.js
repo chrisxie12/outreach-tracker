@@ -113,3 +113,258 @@
     });
   }
 })();
+
+/* ── Instant website check ───────────────────────────────
+   Lightweight, self-contained version of the CRM's Website Analyzer.
+   Honesty rules (same as the CRM): never fabricate results. A site that
+   blocks browser inspection is reported as "can't inspect", never guessed. */
+(function () {
+  "use strict";
+  var form = document.getElementById("ia-form");
+  if (!form) return;
+
+  var input = document.getElementById("ia-url");
+  var btn = document.getElementById("ia-btn");
+  var statusEl = document.getElementById("ia-status");
+  var resultEl = document.getElementById("ia-result");
+  var scoreRing = document.getElementById("ia-score-ring");
+  var scoreNum = document.getElementById("ia-score-num");
+  var gradeEl = document.getElementById("ia-grade");
+  var urlLine = document.getElementById("ia-url-line");
+  var factsEl = document.getElementById("ia-facts");
+
+  var WEIGHTS = {
+    https: 4, reachable: 4, viewport: 4, mobile: 4, titleOk: 4,
+    metaDesc: 4, h1: 4, canonical: 4, robots: 4, sitemap: 4,
+    phone: 4, email: 4, whatsapp: 4, cta: 4, booking: 3, ordering: 3, form: 3,
+    businessInfo: 5, servicesListed: 5, contactDetails: 5,
+    address: 4, businessIdentity: 4, consistentContact: 2
+  };
+
+  var FACTS = [
+    ["https", "Secure connection (HTTPS)"],
+    ["viewport", "Mobile-friendly design"],
+    ["titleOk", "Page title"],
+    ["metaDesc", "Meta description"],
+    ["h1", "Main heading (H1)"],
+    ["canonical", "Canonical URL"],
+    ["phone", "Phone number"],
+    ["email", "Email address"],
+    ["whatsapp", "WhatsApp link"],
+    ["booking", "Online booking"],
+    ["ordering", "Online ordering"],
+    ["form", "Contact form"],
+    ["address", "Address shown"],
+    ["businessInfo", "Real content"],
+    ["robots", "robots.txt"],
+    ["sitemap", "sitemap.xml"]
+  ];
+
+  function normalizeUrl(raw) {
+    var u = String(raw || "").trim();
+    if (!u) return null;
+    if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+    try {
+      var url = new URL(u);
+      if (!url.hostname || url.hostname.indexOf(".") < 0) return null;
+      return { url: url.href, host: url.host, https: url.protocol === "https:", path: url.pathname + url.search };
+    } catch (e) { return null; }
+  }
+
+  function fetchWithTimeout(url, ms) {
+    var ctrl = ("AbortController" in window) ? new AbortController() : null;
+    var t = setTimeout(function () { if (ctrl) ctrl.abort(); }, ms || 8000);
+    var opts = { mode: "cors", credentials: "omit", redirect: "follow" };
+    if (ctrl) opts.signal = ctrl.signal;
+    var p;
+    try { p = Promise.resolve(fetch(url, opts)); }
+    catch (e) { p = Promise.reject(e); }
+    return p.finally(function () { clearTimeout(t); });
+  }
+
+  function probe(url) {
+    var p;
+    try { p = Promise.resolve(fetch(url, { method: "GET", mode: "no-cors", credentials: "omit", redirect: "follow" })); }
+    catch (e) { p = Promise.reject(e); }
+    return p.then(function () { return true; }).catch(function () { return false; });
+  }
+
+  function probeFile(host, path) {
+    return fetchWithTimeout("https://" + host + path, 5000)
+      .then(function (r) { return r.ok; })
+      .catch(function () { return false; });
+  }
+
+  function extract(text, usedHttps) {
+    var s = { https: !!usedHttps, reachable: true };
+    var doc = null;
+    try { doc = new DOMParser().parseFromString(text, "text/html"); } catch (e) {}
+    if (!doc) return s;
+    var title = (doc.querySelector("title") || { textContent: "" }).textContent || "";
+    var t = title.trim();
+    s.titleOk = t.length >= 10 && t.length <= 75;
+    var metaDesc = doc.querySelector('meta[name="description"]');
+    s.metaDesc = !!(metaDesc && (metaDesc.getAttribute("content") || "").trim());
+    s.h1 = !!doc.querySelector("h1");
+    s.canonical = !!doc.querySelector('link[rel="canonical"]');
+    s.viewport = !!doc.querySelector('meta[name="viewport"]');
+    var body = doc.body ? (doc.body.innerText || "") : "";
+    var words = (body.match(/\S+/g) || []).length;
+    s.businessInfo = words >= 80;
+    var lower = body.toLowerCase();
+    var els = Array.prototype.slice.call(doc.querySelectorAll("a,button"));
+    var hasTel = !!doc.querySelector('a[href^="tel:"]');
+    s.phone = hasTel || /(\+?\d[\d\s().-]{7,}\d)/.test(body);
+    s.email = !!doc.querySelector('a[href^="mailto:"]') || /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(body);
+    s.whatsapp = !!doc.querySelector('a[href*="wa.me"], a[href*="whatsapp.com"]');
+    s.form = !!doc.querySelector("form") || !!doc.querySelector("input[type=email], textarea");
+    var bookingKws = /book|booking|appointment|schedule|reserve|calendly/i;
+    s.booking = els.some(function (el) { return bookingKws.test(el.textContent || ""); });
+    var orderKws = /order|menu|delivery|takeaway|take away|online order/i;
+    s.ordering = els.some(function (el) { return orderKws.test(el.textContent || ""); });
+    s.cta = !!(s.whatsapp || s.phone || s.email || s.booking || s.ordering || s.form);
+    s.servicesListed = /services|products|menu|about|pricing|what we do|our services/i.test(lower);
+    s.contactDetails = !!(s.phone || s.email);
+    s.address = !!doc.querySelector('[itemprop="address"], address') || /street|road|avenue|lane|drive|close|boulevard|\baccra\b|\bkumasi\b|\btema\b/i.test(lower);
+    s.consistentContact = !!(s.phone && s.email) || (s.phone && s.address);
+    var socials = { instagram: /instagram\.com/i, facebook: /facebook\.com|fb\.com/i, tiktok: /tiktok\.com/i, linkedin: /linkedin\.com/i, youtube: /youtube\.com|youtu\.be/i };
+    s.social = {};
+    var hrefs = Array.prototype.slice.call(doc.querySelectorAll("a[href]"));
+    for (var k in socials) s.social[k] = hrefs.some(function (a) { return socials[k].test(a.href || ""); });
+    return s;
+  }
+
+  function websiteScore(s) {
+    var total = 0;
+    for (var k in WEIGHTS) { if (s[k]) total += WEIGHTS[k]; }
+    var platforms = ["instagram", "facebook", "tiktok", "linkedin", "youtube"];
+    var n = 0;
+    for (var i = 0; i < platforms.length; i++) { if (s.social && s.social[platforms[i]]) n++; }
+    if (n > 0) total += 5;
+    if (n >= 2) total += 5;
+    return Math.round(total);
+  }
+
+  function gradeFor(n) {
+    if (n >= 85) return { label: "Strong", color: "var(--ok)" };
+    if (n >= 70) return { label: "Good", color: "var(--ok)" };
+    if (n >= 50) return { label: "Needs work", color: "var(--warn)" };
+    return { label: "Weak", color: "var(--warn)" };
+  }
+
+  function setStatus(msg, isErr) {
+    statusEl.textContent = msg || "";
+    statusEl.classList.toggle("err", !!isErr);
+  }
+
+  function showFacts(signals) {
+    factsEl.textContent = "";
+    FACTS.forEach(function (f) {
+      var li = document.createElement("li");
+      var label = document.createElement("span");
+      label.textContent = f[1];
+      var val = document.createElement("b");
+      if (signals[f[0]]) { val.textContent = "Yes"; val.className = "on"; }
+      else if (f[0] === "robots" || f[0] === "sitemap") { val.textContent = "Couldn't verify"; val.className = "n-a"; }
+      else { val.textContent = "Not detected"; val.className = "off"; }
+      li.appendChild(label);
+      li.appendChild(val);
+      factsEl.appendChild(li);
+    });
+  }
+
+  function showMessage(text) {
+    factsEl.textContent = "";
+    var li = document.createElement("li");
+    li.className = "full";
+    li.textContent = text;
+    factsEl.appendChild(li);
+  }
+
+  function render(r) {
+    resultEl.hidden = false;
+    urlLine.textContent = r.url || "";
+    if (scoreRing) scoreRing.style.setProperty("--p", (r.status === "ok" && r.score != null) ? r.score : 0);
+    if (scoreNum) scoreNum.textContent = (r.status === "ok" && r.score != null) ? String(r.score) : "–";
+    if (r.status === "ok" && r.score != null && r.signals) {
+      var g = gradeFor(r.score);
+      gradeEl.textContent = "Website score: " + r.score + "/100 — " + g.label;
+      gradeEl.style.color = g.color;
+      showFacts(r.signals);
+    } else if (r.status === "blocked") {
+      gradeEl.textContent = "Can't inspect from the browser";
+      gradeEl.style.color = "var(--warn)";
+      showMessage(r.message);
+    } else if (r.status === "unreachable") {
+      gradeEl.textContent = "Couldn't reach the site";
+      gradeEl.style.color = "var(--warn)";
+      showMessage(r.message);
+    } else {
+      gradeEl.textContent = r.summary || "Check couldn't be completed";
+      gradeEl.style.color = "var(--warn)";
+      factsEl.textContent = "";
+    }
+  }
+
+  function finalize() {
+    if (btn) { btn.disabled = false; btn.textContent = "Check my website"; }
+  }
+
+  function analyze(norm) {
+    var usedHttps = norm.https;
+    var parse = function (resp) {
+      if (resp.status >= 400) {
+        return { status: "http_error", score: null, url: norm.url, httpStatus: resp.status, summary: "HTTP " + resp.status, message: "The website responded with HTTP " + resp.status + "." };
+      }
+      return resp.text().catch(function () { return ""; }).then(function (text) {
+        var signals = extract(text, usedHttps);
+        return probeFile(norm.host, "/robots.txt").then(function (robots) {
+          if (robots) signals.robots = true;
+          return probeFile(norm.host, "/sitemap.xml").then(function (sitemap) {
+            if (sitemap) signals.sitemap = true;
+            return { status: "ok", score: websiteScore(signals), url: norm.url, signals: signals, summary: "Analyzed " + norm.host };
+          });
+        });
+      });
+    };
+    return fetchWithTimeout(norm.url, 8000).then(parse).catch(function () {
+      return probe(norm.url).then(function (reachable) {
+        if (reachable) {
+          return { status: "blocked", score: null, url: norm.url, signals: null, summary: "Can't inspect from the browser", message: "Your site is online, but it blocks browser inspection, so we can't read its content from here. We won't guess — the full audit covers this with a deeper check." };
+        }
+        if (usedHttps) {
+          var httpUrl = "http://" + norm.host + norm.path;
+          return probe(httpUrl).then(function (httpReach) {
+            if (!httpReach) {
+              return { status: "unreachable", score: null, url: norm.url, signals: null, summary: "Couldn't reach the site", message: "Could not reach " + norm.url + ". Check the URL or whether the site is online." };
+            }
+            return fetchWithTimeout(httpUrl, 8000).then(function (resp) {
+              usedHttps = false;
+              return parse(resp);
+            }).catch(function () {
+              return { status: "blocked", score: null, url: norm.url, signals: null, summary: "Can't inspect from the browser", message: "Your site is online, but it blocks browser inspection, so we can't read its content from here. We won't guess — the full audit covers this with a deeper check." };
+            });
+          });
+        }
+        return { status: "unreachable", score: null, url: norm.url, signals: null, summary: "Couldn't reach the site", message: "Could not reach " + norm.url + "." };
+      });
+    });
+  }
+
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (resultEl) resultEl.hidden = true;
+    var norm = normalizeUrl(input.value);
+    if (!norm) { setStatus("Please enter a valid website address, like www.yourbusiness.com", true); return; }
+    setStatus("Checking " + norm.host + "…");
+    if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
+    analyze(norm).then(function (r) {
+      finalize();
+      setStatus("");
+      render(r);
+    }).catch(function () {
+      finalize();
+      setStatus("Something went wrong — please try again.", true);
+    });
+  });
+})();

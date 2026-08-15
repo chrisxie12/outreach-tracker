@@ -92,6 +92,40 @@ suite("website landing page", () => {
     ok(fs.existsSync(path.join(siteDir, "images", "bg-cta.jpg")), "final CTA background image exists");
   });
 
+  test("instant website check form is present", () => {
+    notNull(d.getElementById("ia-form"), "audit form exists");
+    notNull(d.getElementById("ia-url"), "url input exists");
+    notNull(d.getElementById("ia-btn"), "check button exists");
+    ok(d.querySelector(".ia-caveat"), "honesty caveat present");
+  });
+
+  test("instant website check analyzes a live site honestly", async () => {
+    const fakeHtml = '<html><head><title>Test Restaurant Accra Ghana</title><meta name="description" content="desc"><meta name="viewport" content="width=device-width"><link rel="canonical" href="https://t.example/"><h1>Test Restaurant</h1></head><body><p>We are a restaurant in Accra.</p><a href="https://wa.me/233201599949">WhatsApp</a><a href="tel:+233201599949">Call</a><form><input type="email"></form><address>Accra</address></body></html>';
+    dom.window.fetch = (url) => {
+      if (/robots\.txt|sitemap\.xml/.test(url)) return Promise.reject(new Error("cors"));
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(fakeHtml) });
+    };
+    d.getElementById("ia-url").value = "t.example";
+    d.getElementById("ia-form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 60));
+    const num = d.getElementById("ia-score-num").textContent;
+    ok(/^\d+$/.test(num), "score number rendered: " + num);
+    const facts = Array.from(d.querySelectorAll("#ia-facts li")).map((li) => li.textContent);
+    ok(facts.some((t) => /WhatsApp link/.test(t) && /Yes/.test(t)), "WhatsApp detected as Yes");
+    ok(facts.some((t) => /Secure connection/.test(t) && /Yes/.test(t)), "HTTPS detected as Yes");
+    ok(!/NaN|undefined|Infinity/.test(d.getElementById("ia-result").textContent), "no garbage in results");
+  });
+
+  test("instant website check reports honestly when a site is unreachable", async () => {
+    dom.window.fetch = () => Promise.reject(new Error("network down"));
+    d.getElementById("ia-url").value = "nowhere.example";
+    d.getElementById("ia-form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 60));
+    const txt = d.getElementById("ia-result").textContent;
+    ok(/Couldn't reach the site/.test(txt), "shows unreachable message, no fabricated score");
+    eq(d.getElementById("ia-score-num").textContent, "–", "no score fabricated");
+  });
+
   test("contact CTAs link out to WhatsApp and email", () => {
     const wa = d.querySelector('a[href^="https://wa.me/233201599949"]');
     const mail = d.querySelector('a[href^="mailto:hello@vision61studios.com"]');
