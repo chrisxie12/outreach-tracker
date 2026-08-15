@@ -72,6 +72,26 @@ suite("website landing page", () => {
     ok(!/30\+ businesses audited/.test(html), "no fabricated stat");
   });
 
+  test("who-we-help uses real, honest image cards", () => {
+    const cards = Array.from(d.querySelectorAll(".who-card"));
+    eq(cards.length, 8, "eight who cards");
+    cards.forEach((c) => {
+      const img = c.querySelector("img");
+      notNull(img, "card has an image");
+      ok(/^Illustrative photo/.test(img.getAttribute("alt")), "alt text is honestly illustrative");
+      const src = img.getAttribute("src");
+      ok(src.startsWith("images/") && fs.existsSync(path.join(siteDir, src)), "image file exists: " + src);
+    });
+    const note = d.querySelector(".who-note");
+    notNull(note, "who note present");
+    ok(/not client work/.test(note.textContent), "who note says photos are not client work");
+  });
+
+  test("decorative background images exist", () => {
+    ok(fs.existsSync(path.join(siteDir, "images", "bg-hero.jpg")), "hero background image exists");
+    ok(fs.existsSync(path.join(siteDir, "images", "bg-cta.jpg")), "final CTA background image exists");
+  });
+
   test("contact CTAs link out to WhatsApp and email", () => {
     const wa = d.querySelector('a[href^="https://wa.me/233201599949"]');
     const mail = d.querySelector('a[href^="mailto:hello@vision61studios.com"]');

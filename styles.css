@@ -90,12 +90,17 @@ a:hover { color: var(--accent-strong); }
 
 /* ── Hero ────────────────────────────────────────────────── */
 .hero { position: relative; padding: 88px 0 72px; overflow: hidden; }
+.hero-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(180deg, rgba(13, 13, 15, .72) 0%, rgba(13, 13, 15, .94) 100%), url("images/bg-hero.jpg") center / cover no-repeat;
+  pointer-events: none;
+}
 .hero-glow {
-  position: absolute; inset: -20% -30% auto auto; width: 720px; height: 720px;
+  position: absolute; inset: -20% -30% auto auto; width: 720px; height: 720px; z-index: 1;
   background: radial-gradient(circle at 70% 20%, rgba(237, 66, 23, .16), transparent 62%);
   pointer-events: none;
 }
-.hero-inner { position: relative; display: grid; grid-template-columns: 1.05fr .95fr; gap: 56px; align-items: center; }
+.hero-inner { position: relative; z-index: 1; display: grid; grid-template-columns: 1.05fr .95fr; gap: 56px; align-items: center; }
 
 .eyebrow { font-size: 11.5px; font-weight: 800; color: var(--accent); text-transform: uppercase; letter-spacing: .18em; margin-bottom: 18px; }
 
@@ -246,9 +251,19 @@ h1 em { font-style: normal; color: var(--accent); }
 
 /* ── who we help ─────────────────────────────────────────── */
 .who-sec { background: radial-gradient(900px 420px at 50% 0%, var(--accent-soft), transparent 60%); border-top: 1px solid var(--border); }
-.who-grid { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
-.who-grid span { font-size: 13.5px; font-weight: 600; color: var(--text-2); background: var(--surface); border: 1px solid var(--border); padding: 9px 18px; border-radius: 24px; transition: border-color var(--t), color var(--t); }
-.who-grid span:hover { border-color: var(--accent-border); color: var(--text); }
+.who-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.who-card {
+  position: relative; border-radius: var(--radius); overflow: hidden;
+  border: 1px solid var(--border); background: var(--surface);
+  aspect-ratio: 4 / 3;
+}
+.who-card img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s var(--ease); }
+.who-card:hover img { transform: scale(1.05); }
+.who-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, rgba(13, 13, 15, .88) 100%); pointer-events: none; }
+.who-card figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 30px 16px 14px; }
+.who-card figcaption b { display: block; font-size: 14.5px; font-weight: 800; color: var(--text); }
+.who-card figcaption span { font-size: 12px; color: var(--text-2); }
+.who-note { margin-top: 20px; text-align: center; font-size: 12.5px; color: var(--text-3); }
 
 /* ── example audit ───────────────────────────────────────── */
 .example-sec { border-bottom: 1px solid var(--border); }
@@ -280,7 +295,12 @@ h1 em { font-style: normal; color: var(--accent); }
 
 /* ── final CTA ───────────────────────────────────────────── */
 .final-cta { position: relative; padding: 96px 0; text-align: center; background: radial-gradient(1000px 500px at 50% 110%, var(--accent-soft), transparent 60%), var(--bg-2); border-top: 1px solid var(--border); overflow: hidden; }
-.final-inner { position: relative; }
+.final-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(180deg, rgba(13, 13, 15, .86) 0%, rgba(13, 13, 15, .93) 100%), url("images/bg-cta.jpg") center / cover no-repeat;
+  pointer-events: none;
+}
+.final-inner { position: relative; z-index: 1; }
 .final-cta h2 { font-size: clamp(28px, 3.8vw, 42px); font-weight: 900; letter-spacing: -.02em; line-height: 1.12; }
 .final-cta p { margin: 16px auto 0; max-width: 520px; font-size: 15.5px; color: var(--text-2); }
 .final-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
@@ -343,6 +363,7 @@ h1 em { font-style: normal; color: var(--accent); }
   .pkg-grid { grid-template-columns: 1fr; max-width: 460px; margin: 0 auto; }
   .pkg-card.featured { order: -1; }
   .example-grid { grid-template-columns: 1fr; }
+  .who-grid { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 640px) {
@@ -367,5 +388,6 @@ h1 em { font-style: normal; color: var(--accent); }
   .form-row { grid-template-columns: 1fr; }
   .example-opps { grid-template-columns: 1fr; }
   .value-grid { justify-content: flex-start; }
+  .who-grid { grid-template-columns: 1fr; }
   .footer-inner { flex-direction: column; align-items: flex-start; }
 }
