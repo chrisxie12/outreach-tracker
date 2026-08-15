@@ -663,14 +663,14 @@ suite("AI — frontend service", () => {
 suite("AI — security", () => {
   test("no secret VALUE or provider endpoint in the frontend source", () => {
     const files = [];
-    files.push(path.join(ROOT, "index.html"));
+    files.push(path.join(ROOT, "crm", "index.html"));
     (function walk(dir) {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
         const p = path.join(dir, e.name);
         if (e.isDirectory()) walk(p);
         else if (e.name.endsWith(".js")) files.push(p);
       }
-    })(path.join(ROOT, "js"));
+    })(path.join(ROOT, "crm", "js"));
     const forbidden = ["GROQ_API_KEY", "sk-", "V61_SHARED_SECRET", "api.groq.com"];
     for (const f of files) {
       const text = fs.readFileSync(f, "utf8");

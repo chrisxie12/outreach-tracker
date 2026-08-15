@@ -9,7 +9,7 @@ const SCRIPTS = require("./scripts.json");
 const KEY = "v61crm_v1";
 
 function loadIndex() {
-  return fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  return fs.readFileSync(path.join(ROOT, "crm", "index.html"), "utf8");
 }
 
 /* Build a fresh app window. seed: optional object to store under the DB key

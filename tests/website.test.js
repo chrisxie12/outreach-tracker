@@ -8,7 +8,7 @@ const { JSDOM } = require("jsdom");
 
 const { suite, test, ok, eq, notNull, assertCleanHTML } = require("./framework");
 
-const siteDir = path.join(__dirname, "..", "website");
+const siteDir = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(siteDir, "index.html"), "utf8");
 const css = fs.readFileSync(path.join(siteDir, "styles.css"), "utf8");
 const js = fs.readFileSync(path.join(siteDir, "script.js"), "utf8");

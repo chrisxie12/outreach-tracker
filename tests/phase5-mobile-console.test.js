@@ -11,12 +11,12 @@ const path = require("path");
 
 suite("Mobile responsiveness", () => {
   test("index.html declares a responsive viewport meta", () => {
-    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    const html = fs.readFileSync(path.join(__dirname, "..", "crm", "index.html"), "utf8");
     ok(/<meta\s+name=["']viewport["']\s+content=["']width=device-width\s*,\s*initial-scale=1\.0["']/.test(html), "missing viewport meta");
   });
 
   test("CSS collapses multi-column grids to single column on small screens", () => {
-    const css = fs.readFileSync(path.join(__dirname, "..", "styles", "app.css"), "utf8");
+    const css = fs.readFileSync(path.join(__dirname, "..", "crm", "styles", "app.css"), "utf8");
     const media = css.match(/@media\s*\(max-width:\s*(\d+)px\)\s*\{([\s\S]*?)\}/g) || [];
     assert(media.length >= 4, "expected several media queries, found " + media.length);
     const singles = media.filter((m) => /grid-template-columns\s*:\s*1fr/.test(m));
