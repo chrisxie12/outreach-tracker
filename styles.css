@@ -212,6 +212,12 @@ h1 em { font-style: normal; color: var(--accent); }
 }
 .work-top b { display: block; font-size: 14.5px; }
 .work-top span { font-size: 12px; color: var(--text-3); }
+.work-top .example-tag {
+  display: inline-block; margin-top: 2px;
+  font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent);
+  padding: 2px 8px; border-radius: 20px;
+}
 .work-bars { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
 .work-card p { font-size: 13px; color: var(--text-2); font-style: italic; }
 

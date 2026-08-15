@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://chrisxie12.github.io/outreach-tracker/sitemap.xml
