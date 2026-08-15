@@ -14,6 +14,7 @@ require("./phase5-mobile-console.test.js");
 require("./discovery-providers.test.js");
 require("./ai.test.js");
 require("./ui-ux.test.js");
+require("./website.test.js");
 
 runAll().then((results) => {
 
