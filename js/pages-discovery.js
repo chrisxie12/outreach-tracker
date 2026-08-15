@@ -91,7 +91,10 @@ V61.Pages = V61.Pages || {};
       '<div class="disc-main"><div style="width:38px;height:38px;border-radius:10px;background:' + UI.hexA(U().avatarColor(r.name), .15) + ';color:' + U().avatarColor(r.name) + ';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0">' + U().initials(r.name) + "</div>" +
       '<div style="flex:1;min-width:0"><div class="disc-name">' + U().escapeHtml(r.name) + "</div>" +
       '<div class="disc-sub">' + (r.category ? U().escapeHtml(r.category) + " · " : "") + U().escapeHtml(r.address) + "</div>" +
-      '<div class="disc-meta">' + stars + (r.openNow != null ? '<span class="' + (r.openNow ? "open" : "closed") + '">' + (r.openNow ? "Open now" : "Closed now") + "</span>" : "") + "</div></div></div>" +
+      '<div class="disc-meta">' + stars + (r.openNow != null ? '<span class="' + (r.openNow ? "open" : "closed") + '">' + (r.openNow ? "Open now" : "Closed now") + "</span>" : "") +
+      (r.website ? '<a class="disc-link" href="' + U().escapeHtml(r.website) + '" target="_blank" rel="noopener">' + I.globe + " Website</a>" : "") +
+      (r.phone ? '<span class="disc-link">' + I.phone + " " + U().escapeHtml(r.phone) + "</span>" : "") +
+      (r.hours ? '<span class="disc-link">' + I.clock + " Hours mapped</span>" : "") + "</div></div></div>" +
       '<div class="disc-actions">' +
       (existing ?
         '<button class="btn btn-sm" data-audit="' + (lead ? lead.id : "") + '">' + I.scan + " Audit</button>" +

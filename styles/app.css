@@ -820,6 +820,8 @@ table.data .biz-cell .b-cat { font-size: 11.5px; color: var(--text-3); }
 .disc-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; margin-top: 3px; flex-wrap: wrap; }
 .disc-meta .open { color: var(--ok); font-weight: 600; }
 .disc-meta .closed { color: var(--text-3); }
+.disc-link { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); text-decoration: none; }
+.disc-link svg { width: 12px; height: 12px; }
 .disc-actions { display: flex; gap: 7px; flex-wrap: wrap; }
 @media (max-width: 560px) {
   .disc-result { flex-direction: column; align-items: flex-start; }

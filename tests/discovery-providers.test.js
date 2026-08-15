@@ -24,25 +24,59 @@ const NOM = [
   },
 ];
 
+const NOM_GEO = [{
+  place_id: 1, lat: "5.60", lon: "-0.20", display_name: "Osu, Accra, Greater Accra, Ghana",
+  boundingbox: ["5.55", "5.62", "-0.21", "-0.18"],
+}];
+
+const OVERPASS_RES = {
+  elements: [
+    { type: "node", id: 111, lat: 5.60, lon: -0.20, tags: { name: "Kwame's Kitchen", amenity: "restaurant", phone: "+233 24 100 0001", website: "https://kwames.example", email: "hello@kwames.example", opening_hours: "Mo-Sa 09:00-21:00", "addr:street": "Osu High Street", "addr:city": "Accra" } },
+    { type: "way", id: 222, center: { lat: 5.55, lon: -0.19 }, tags: { name: "Sole Bakery", shop: "bakery", "addr:suburb": "East Legon", "addr:city": "Accra" } },
+    { type: "node", id: 333, lat: 5.60, lon: -0.19, tags: { amenity: "restaurant" } },
+  ],
+};
+
 suite("Discovery providers — OpenStreetMap", () => {
-  test("search parses Nominatim results into the discovery shape", async () => {
+  test("search geocodes the location and parses Overpass results with contact tags", async () => {
     const app = freshApp();
-    app.window.fetch = async () => ({ ok: true, status: 200, json: async () => NOM });
+    app.window.fetch = async (url) => {
+      if (String(url).indexOf("overpass-api.de") >= 0) return { ok: true, status: 200, json: async () => OVERPASS_RES };
+      ok(String(url).indexOf("nominatim.openstreetmap.org") >= 0, "uses Nominatim to geocode the location");
+      return { ok: true, status: 200, json: async () => NOM_GEO };
+    };
     const res = await app.V61.OpenStreetMap.discoverySearch("restaurants", "Osu, Accra");
     eq(res.length, 2);
     eq(res[0].osmId, "node/111");
     eq(res[0].name, "Kwame's Kitchen");
     eq(res[0].city, "Accra");
     eq(res[0].category, "Restaurant");
+    eq(res[0].phone, "+233 24 100 0001");
+    eq(res[0].website, "https://kwames.example");
+    eq(res[0].email, "hello@kwames.example");
+    eq(res[0].hours, true);
     eq(res[0].rating, null);
     eq(res[0].reviews, null);
     eq(res[0].openNow, null);
     eq(res[1].osmId, "way/222");
     eq(res[1].category, "Bakery");
     eq(res[1].lat, 5.55);
+    eq(res[1].website, "", "no website claimed when not mapped");
   });
 
-  test("search rejects when Nominatim fails", async () => {
+  test("unmapped categories fall back to Nominatim text search", async () => {
+    const app = freshApp();
+    app.window.fetch = async () => ({ ok: true, status: 200, json: async () => NOM });
+    const res = await app.V61.OpenStreetMap.discoverySearch("zumba classes", "Kumasi");
+    eq(res.length, 2);
+    eq(res[0].osmId, "node/111");
+    eq(res[0].name, "Kwame's Kitchen");
+    eq(res[0].category, "Restaurant");
+    eq(res[0].phone, "", "text search carries no contact tags");
+    eq(res[0].lat, 5.6);
+  });
+
+  test("search rejects when the fallback Nominatim call fails", async () => {
     const app = freshApp();
     app.window.fetch = async () => ({ ok: false, status: 429, json: async () => ({}) });
     let threw = false;
