@@ -386,4 +386,23 @@ suite("Discovery providers — OpenStreetMap", () => {
     eq(audit.website.exists, true);
     eq(audit.website.contact, true);
   });
+
+  test("audit auto-fill works end-to-end through the real Overpass fetch (network mocked only)", async () => {
+    const app = freshApp();
+    await settle(app);
+    const S = app.V61.Store;
+    const { business, lead } = S.addDiscoveredBusiness({ osmId: "way/888", name: "Golden Café", source: "osm-discovery" });
+    app.window.fetch = async (url) => {
+      ok(String(url).indexOf("/interpreter") >= 0, "queries an Overpass interpreter");
+      return { ok: true, status: 200, json: async () => ({ elements: [{ type: "way", id: 888, tags: { name: "Golden Café", phone: "0241888888", website: "https://golden.example", "opening_hours": "Mo-Su 08:00-22:00" } }] }) };
+    };
+    app.V61.Pages.audit.openAudit(lead.id);
+    const btn = app.window.document.querySelector("#audit-autofill");
+    notNull(btn, "auto-fill button present");
+    clickEl(app.window, btn);
+    await new Promise((r) => setTimeout(r, 30));
+    const audit = S.auditOf(business.id);
+    eq(audit.website.exists, true, "website exists filled from Overpass tags");
+    eq(audit.website.contact, true, "contact filled from Overpass phone");
+  });
 });
