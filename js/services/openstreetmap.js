@@ -19,7 +19,36 @@ window.V61 = window.V61 || {};
 
 (function () {
   const NOMINATIM = "https://nominatim.openstreetmap.org/search";
-  const OVERPASS = "https://overpass-api.de/api/interpreter";
+  /* Overpass public servers. The main overpass-api.de endpoint is frequently
+     overloaded (AI traffic) and returns 406/504, so reliable mirrors are tried
+     first and the primary is kept as the last resort. */
+  const OVERPASS_MIRRORS = [
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://z.overpass-api.de/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
+  ];
+
+  /* Query Overpass, trying each mirror with a timeout until one answers with
+     valid JSON. Rejects with a human-readable message when all are down. */
+  function overpassFetch(data, timeoutMs) {
+    const ms = timeoutMs || 10000;
+    let attempt = 0;
+    const tryNext = () => {
+      if (attempt >= OVERPASS_MIRRORS.length) {
+        return Promise.reject(new Error("All OpenStreetMap servers are busy right now — please try again in a minute."));
+      }
+      const url = OVERPASS_MIRRORS[attempt++] + "?data=" + encodeURIComponent(data);
+      const useAbort = typeof AbortController !== "undefined";
+      const ctrl = useAbort ? new AbortController() : null;
+      const timer = useAbort ? setTimeout(() => ctrl.abort(), ms) : null;
+      const done = () => { if (timer) clearTimeout(timer); };
+      return window.fetch(url, { headers: { "Accept": "application/json" }, signal: ctrl ? ctrl.signal : undefined })
+        .then((res) => { done(); if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
+        .catch((e) => { done(); return tryNext(); });
+    };
+    return tryNext();
+  }
 
   function norm(q, loc) { return (q + " in " + loc).trim(); }
 
@@ -176,11 +205,7 @@ window.V61 = window.V61 || {};
       const bbox = bb.minlat + "," + bb.minlon + "," + bb.maxlat + "," + bb.maxlon;
       const body = filters.map((f) => "node[" + f + "](" + bbox + ");way[" + f + "](" + bbox + ");").join("");
       const data = "[out:json][timeout:25];(" + body + ");out 60 center tags;";
-      const url = OVERPASS + "?data=" + encodeURIComponent(data);
-      return window.fetch(url, { headers: { "Accept": "application/json" } }).then((res) => {
-        if (!res.ok) throw new Error("OpenStreetMap search failed (" + res.status + ")");
-        return res.json();
-      }).then((d) => {
+      return overpassFetch(data).then((d) => {
         const seen = {}, out = [];
         (d.elements || []).forEach((el) => {
           const r = parseElement(el);
@@ -228,11 +253,8 @@ window.V61 = window.V61 || {};
     const m = /^(node|way|relation)\/(\d+)$/.exec(osmId || "");
     if (!m) return Promise.reject(new Error("Invalid OpenStreetMap reference."));
     const type = m[1], id = m[2];
-    const url = OVERPASS + "?data=" + encodeURIComponent("[out:json];" + type + "(" + id + ");out tags;");
-    return window.fetch(url, { headers: { "Accept": "application/json" } }).then((res) => {
-      if (!res.ok) throw new Error("OpenStreetMap details failed (" + res.status + ")");
-      return res.json();
-    }).then((data) => {
+    const data = "[out:json];" + type + "(" + id + ");out tags;";
+    return overpassFetch(data).then((data) => {
       const el = data && data.elements && data.elements[0];
       if (!el || !el.tags) return {};
       const t = el.tags;

@@ -41,7 +41,7 @@ suite("Discovery providers — OpenStreetMap", () => {
   test("search geocodes the location and parses Overpass results with contact tags", async () => {
     const app = freshApp();
     app.window.fetch = async (url) => {
-      if (String(url).indexOf("overpass-api.de") >= 0) return { ok: true, status: 200, json: async () => OVERPASS_RES };
+      if (String(url).indexOf("/interpreter") >= 0) return { ok: true, status: 200, json: async () => OVERPASS_RES };
       ok(String(url).indexOf("nominatim.openstreetmap.org") >= 0, "uses Nominatim to geocode the location");
       return { ok: true, status: 200, json: async () => NOM_GEO };
     };
@@ -87,7 +87,7 @@ suite("Discovery providers — OpenStreetMap", () => {
   test("details parses Overpass tags (phone, website, hours)", async () => {
     const app = freshApp();
     app.window.fetch = async (url) => {
-      ok(String(url).indexOf("overpass-api.de") >= 0, "uses Overpass");
+      ok(String(url).indexOf("/interpreter") >= 0, "uses an Overpass mirror");
       return { ok: true, status: 200, json: async () => ({
         elements: [{ type: "node", id: 111, tags: { name: "Kwame's Kitchen", phone: "+233 24 100 0001", website: "https://kwames.example", "opening_hours": "Mo-Sa 09:00-21:00" } }],
       }) };
@@ -106,6 +106,31 @@ suite("Discovery providers — OpenStreetMap", () => {
     eq(d.phone, "");
     eq(d.hours, false);
     ok(!("rating" in d) || d.rating === null);
+  });
+
+  test("details falls over to the next Overpass mirror when the first is busy", async () => {
+    const app = freshApp();
+    const hosts = [];
+    app.window.fetch = async (url) => {
+      hosts.push(String(url));
+      const host = String(url).split("/")[2];
+      if (host === "overpass.kumi.systems") return { ok: false, status: 504, json: async () => ({}) };
+      ok(host !== "overpass-api.de" || hosts.length >= 4, "primary only tried after mirrors");
+      return { ok: true, status: 200, json: async () => ({ elements: [{ type: "node", id: 1, tags: { name: "X", phone: "+233 20 000 0001" } }] }) };
+    };
+    const d = await app.V61.OpenStreetMap.placeDetails("node/1");
+    eq(d.phone, "+233 20 000 0001");
+    ok(hosts.length >= 2, "tried at least two mirrors (" + hosts.length + ")");
+    eq(hosts[0].indexOf("overpass-api.de"), -1, "primary not first — mirrors first");
+  });
+
+  test("details rejects with a friendly message when every Overpass mirror fails", async () => {
+    const app = freshApp();
+    app.window.fetch = async () => ({ ok: false, status: 504, json: async () => ({}) });
+    let msg = "";
+    try { await app.V61.OpenStreetMap.placeDetails("node/1"); }
+    catch (e) { msg = e.message; }
+    ok(msg.indexOf("busy") >= 0, "human-readable error: " + msg);
   });
 
   test("details rejects malformed osmId", async () => {

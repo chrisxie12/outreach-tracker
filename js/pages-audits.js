@@ -21,6 +21,7 @@ V61.Pages = V61.Pages || {};
     audit.website = audit.website || {};
     audit.website.exists = !!d.website;
     audit.website.contact = !!d.phone;
+    let applied = audit.website.exists + audit.website.contact;
     if (source === "google") {
       audit.google = audit.google || {};
       audit.google.exists = true;
@@ -33,7 +34,9 @@ V61.Pages = V61.Pages || {};
       audit.seo = audit.seo || {};
       audit.seo.maps = true;
       audit.seo.reviews = (d.reviews || 0) >= 15;
+      applied += audit.google.exists + audit.google.photos + audit.google.reviews + audit.google.rating + audit.google.hours + audit.google.phone + audit.google.website_linked + audit.seo.maps + audit.seo.reviews;
     }
+    return applied;
   }
 
   const catMeta = {
@@ -234,7 +237,7 @@ V61.Pages = V61.Pages || {};
       const label = src === "osm" ? "Auto-fill from OpenStreetMap" : "Auto-fill from Google";
       autofill.disabled = true; autofill.textContent = "Fetching…";
       D().details(src === "osm" ? biz.osmId : biz.googlePlaceId).then((d) => {
-        applyDetails(audit, d, src);
+        const filled = applyDetails(audit, d, src);
         audit.updatedAt = U().now();
         recalc();
         m.body.querySelectorAll(".check-item").forEach((it) => {
@@ -246,7 +249,9 @@ V61.Pages = V61.Pages || {};
           if (chip) chip.textContent = m.body.querySelectorAll('[data-check^="' + cat + '"].on').length + "/" + m.body.querySelectorAll('[data-check^="' + cat + '"]').length;
         });
         autofill.disabled = false; autofill.textContent = label;
-        V61.Toast.success(src === "osm" ? "Filled from real OpenStreetMap data — review the rest manually" : "Filled from real Google data — review the rest manually");
+        V61.Toast.success(src === "osm"
+          ? (filled ? "Filled from real OpenStreetMap data — review the rest manually" : "OpenStreetMap had no website or phone mapped here — review manually")
+          : "Filled from real Google data — review the rest manually");
       }).catch((e) => {
         autofill.disabled = false; autofill.textContent = label;
         V61.Toast.error(e.message || "Could not fetch source data");
