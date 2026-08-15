@@ -781,7 +781,17 @@ UI.bind(el);
       S().save(); m.close(); V61.Toast.success("Follow-up rescheduled"); refreshCurrent();
     });
   }
-  function completeTask(tid) { const t = S().byId("tasks", tid); if (t) { t.status = "done"; S().save(); V61.Toast.success("Task completed"); refreshCurrent(); } }
+  function completeTask(tid) {
+    const t = S().byId("tasks", tid) || S().projectTaskOf(tid);
+    if (t) {
+      t.status = "done";
+      t.completedAt = U().now();
+      if (S().projectTaskOf(tid)) { const proj = S().projectOf(t.projectId); if (proj) { proj.progress = S().projectProgress(proj.id); proj.updatedAt = U().now(); } }
+      S().save();
+      V61.Toast.success("Task completed");
+      refreshCurrent();
+    }
+  }
   function reopenTask(tid) { const t = S().byId("tasks", tid); if (t) { t.status = "todo"; S().save(); refreshCurrent(); } }
   function delTask(tid) { const t = S().byId("tasks", tid); if (t) { S().db.tasks = S().db.tasks.filter((x) => x.id !== tid); S().save(); V61.Toast.success("Task deleted"); refreshCurrent(); } }
   function delFollowup(fid) { const f = S().byId("followups", fid); if (f) { S().db.followups = S().db.followups.filter((x) => x.id !== fid); S().save(); V61.Toast.success("Follow-up deleted"); refreshCurrent(); } }

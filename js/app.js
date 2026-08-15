@@ -167,7 +167,7 @@
     if (route === "invoices") { P.invoices(); return; }
     if (route === "reports") { P.reports(); return; }
     if (routes[route]) { routes[route](); return; }
-    V61.App.nav("#/dashboard");
+    V61.V61.App.nav("#/dashboard");
   }
 
   function nav(hash) {
@@ -175,8 +175,8 @@
   }
 
   V61.Cmd = V61.Cmd || {};
-  V61.Cmd.go = (route) => App.nav(route);
-  V61.Cmd.goLead = (id) => App.nav("#/leads/" + id);
+  V61.Cmd.go = (route) => V61.App.nav(route);
+  V61.Cmd.goLead = (id) => V61.App.nav("#/leads/" + id);
 
   /* ═══ Global search / palette ═══ */
   function openPalette() {
@@ -198,32 +198,32 @@
       const push = (group, icon, title, sub, action) => items.push({ group, icon, title, sub, action });
       if (!q) {
         push("Actions", "plus", "Add lead", "Open the new lead form", () => V61.Cmd.addLead());
-        push("Actions", "scan", "Lead Discovery", "Import or find businesses", () => App.nav("#/discovery"));
-        push("Actions", "clipboard", "Run a digital audit", "Score a lead's online presence", () => App.nav("#/audits"));
-        push("Actions", "calendar", "Follow-ups", S().db.followups.filter((f) => f.status === "pending").length + " pending", () => App.nav("#/followups"));
-        push("Actions", "columns", "Pipeline", "Drag leads through stages", () => App.nav("#/pipeline"));
+        push("Actions", "scan", "Lead Discovery", "Import or find businesses", () => V61.App.nav("#/discovery"));
+        push("Actions", "clipboard", "Run a digital audit", "Score a lead's online presence", () => V61.App.nav("#/audits"));
+        push("Actions", "calendar", "Follow-ups", S().db.followups.filter((f) => f.status === "pending").length + " pending", () => V61.App.nav("#/followups"));
+        push("Actions", "columns", "Pipeline", "Drag leads through stages", () => V61.App.nav("#/pipeline"));
       } else {
         const ql = q.toLowerCase();
         s.leadRows().filter((r) => {
           const b = r.business || {};
           return [b.name, b.category, b.city, b.phone, b.email].filter(Boolean).some((f) => String(f).toLowerCase().includes(ql));
-        }).slice(0, 6).forEach((r) => push("Businesses", "briefcase", r.business.name, r.business.category + " · " + (r.business.city || ""), () => App.nav("#/leads/" + r.lead.id)));
+        }).slice(0, 6).forEach((r) => push("Businesses", "briefcase", r.business.name, r.business.category + " · " + (r.business.city || ""), () => V61.App.nav("#/leads/" + r.lead.id)));
         s.db.contacts.filter((c) => [c.name, c.role, c.phone, c.email].filter(Boolean).some((f) => String(f).toLowerCase().includes(ql))).slice(0, 4).forEach((c) => {
           const lead = s.leadOf(c.businessId);
-          push("Contacts", "users", c.name, c.role || "Contact", () => lead && App.nav("#/leads/" + lead.id));
+          push("Contacts", "users", c.name, c.role || "Contact", () => lead && V61.App.nav("#/leads/" + lead.id));
         });
         s.db.notes.filter((n) => n.content.toLowerCase().includes(ql)).slice(0, 4).forEach((n) => {
           const lead = s.byId("leads", n.leadId); const biz = lead ? s.businessOf(lead) : null;
-          push("Notes", "pencil", n.content.slice(0, 60), biz ? biz.name : "", () => lead && App.nav("#/leads/" + lead.id));
+          push("Notes", "pencil", n.content.slice(0, 60), biz ? biz.name : "", () => lead && V61.App.nav("#/leads/" + lead.id));
         });
         s.db.tasks.filter((t) => t.title.toLowerCase().includes(ql) && t.status !== "done").slice(0, 4).forEach((t) => {
           const lead = s.byId("leads", t.leadId);
-          push("Tasks", "checkSquare", t.title, lead ? s.businessOf(lead).name : "", () => lead && App.nav("#/leads/" + lead.id));
+          push("Tasks", "checkSquare", t.title, lead ? s.businessOf(lead).name : "", () => lead && V61.App.nav("#/leads/" + lead.id));
         });
-        s.db.proposals.filter((p) => (p.title || "").toLowerCase().includes(ql)).slice(0, 3).forEach((p) => push("Proposals", "fileText", p.title, U().formatMoney(p.total), () => App.nav("#/proposals/" + p.id)));
+        s.db.proposals.filter((p) => (p.title || "").toLowerCase().includes(ql)).slice(0, 3).forEach((p) => push("Proposals", "fileText", p.title, U().formatMoney(p.total), () => V61.App.nav("#/proposals/" + p.id)));
         s.db.clients.filter((cl) => { const b = s.businessOf({ businessId: cl.businessId }); return b && b.name.toLowerCase().includes(ql); }).slice(0, 3).forEach((cl) => {
           const b = s.businessOf({ businessId: cl.businessId });
-          push("Clients", "briefcase", b.name, "Client since " + U().formatDate(cl.createdAt), () => App.nav("#/clients/" + cl.id));
+          push("Clients", "briefcase", b.name, "Client since " + U().formatDate(cl.createdAt), () => V61.App.nav("#/clients/" + cl.id));
         });
       }
       if (!items.length) results.innerHTML = '<div class="palette-empty">No results for "' + U().escapeHtml(q) + '"</div>';
@@ -273,14 +273,14 @@
       { text: "Create proposal", icon: I.fileText, action: () => { V61.Toast.warn("Open a lead first to create a proposal"); } },
       { sep: true },
       { text: "Export leads CSV", icon: I.download, action: () => S().exportLeadsCSV() },
-      { text: "Settings", icon: I.settings, action: () => App.nav("#/settings") },
+      { text: "Settings", icon: I.settings, action: () => V61.App.nav("#/settings") },
     ]);
   }
 
   function openUserMenu(anchor) {
     V61.UI.menuPop(anchor, [
       { label: S().db.settings.profileName || "User" },
-      { text: "Settings", icon: I.settings, action: () => App.nav("#/settings") },
+      { text: "Settings", icon: I.settings, action: () => V61.App.nav("#/settings") },
       { text: "Export leads", icon: I.download, action: () => S().exportLeadsCSV() },
       { sep: true },
       { text: "Toggle theme", icon: App.theme === "dark" ? I.moon : I.sun, action: () => setTheme(App.theme === "dark" ? "light" : "dark") },
@@ -295,28 +295,28 @@
     s.db.followups.filter((f) => f.status === "pending").forEach((f) => {
       const lead = s.byId("leads", f.leadId); const biz = lead ? s.businessOf(lead) : null;
       const name = biz ? biz.name : "A lead";
-      if (f.dueDate < today) list.push({ icon: "calendar", title: "Follow-up overdue: " + f.title, sub: name + " · " + U().relativeDue(f.dueDate), danger: true, action: () => lead && App.nav("#/leads/" + lead.id) });
-      else if (U().dayStart(f.dueDate) === today) list.push({ icon: "calendar", title: "Follow-up due today: " + f.title, sub: name, action: () => lead && App.nav("#/leads/" + lead.id) });
+      if (f.dueDate < today) list.push({ icon: "calendar", title: "Follow-up overdue: " + f.title, sub: name + " · " + U().relativeDue(f.dueDate), danger: true, action: () => lead && V61.App.nav("#/leads/" + lead.id) });
+      else if (U().dayStart(f.dueDate) === today) list.push({ icon: "calendar", title: "Follow-up due today: " + f.title, sub: name, action: () => lead && V61.App.nav("#/leads/" + lead.id) });
     });
     s.db.projectTasks.filter((t) => t.status !== "done" && t.dueDate && t.dueDate < today).forEach((t) => {
       const p = s.projectOf(t.projectId);
       const cl = p ? s.clientById(p.clientId) : null;
       const biz = cl ? s.businessOf({ businessId: cl.businessId }) : null;
-      list.push({ icon: "checkSquare", title: "Overdue task: " + t.title, sub: (biz ? biz.name : "No project"), danger: true, action: () => p && App.nav("#/projects/" + p.id) });
+      list.push({ icon: "checkSquare", title: "Overdue task: " + t.title, sub: (biz ? biz.name : "No project"), danger: true, action: () => p && V61.App.nav("#/projects/" + p.id) });
     });
     s.db.invoices.filter(i => i.status === 'overdue').forEach(i => {
       const cl = s.clientById(i.clientId);
       const biz = cl ? s.businessOf({ businessId: cl.businessId }) : null;
-      list.push({ icon: "credit", title: "Overdue invoice: #" + i.invoiceNumber, sub: (biz ? biz.name : ""), danger: true, action: () => App.nav("#/invoices") });
+      list.push({ icon: "credit", title: "Overdue invoice: #" + i.invoiceNumber, sub: (biz ? biz.name : ""), danger: true, action: () => V61.App.nav("#/invoices") });
     });
     s.db.proposals.filter((p) => p.status === "accepted" && p.notifiedAccepted !== true).slice(0, 5).forEach((p) => {
       const lead = s.byId("leads", p.leadId); const biz = lead ? s.businessOf(lead) : null;
-      list.push({ icon: "trophy", title: "Proposal accepted: " + (p.title || "Proposal"), sub: (biz ? biz.name + " · " : "") + U().formatMoney(p.total), action: () => App.nav("#/proposals/" + p.id) });
+      list.push({ icon: "trophy", title: "Proposal accepted: " + (p.title || "Proposal"), sub: (biz ? biz.name + " · " : "") + U().formatMoney(p.total), action: () => V61.App.nav("#/proposals/" + p.id) });
       p.notifiedAccepted = true;
     });
     s.db.clients.slice(0, 2).forEach((c) => {
       const b = s.businessOf({ businessId: c.businessId });
-      if (c.createdAt > now - 2 * 86400000) list.push({ icon: "trophy", title: "Deal won: " + (b ? b.name : ""), sub: "Converted to client", action: () => App.nav("#/clients/" + c.id) });
+      if (c.createdAt > now - 2 * 86400000) list.push({ icon: "trophy", title: "Deal won: " + (b ? b.name : ""), sub: "Converted to client", action: () => V61.App.nav("#/clients/" + c.id) });
     });
     if (list.length) s.persist();
     return list;

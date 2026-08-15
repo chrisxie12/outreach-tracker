@@ -195,6 +195,33 @@ V61.Pages = V61.Pages || {};
     m.q("[data-cancel]").addEventListener("click", () => m.close());
   }
 
+  function editTaskModal(id) {
+    const t = S().projectTaskOf(id);
+    if (!t) return;
+    const m = UI.openModal({ title: "Edit Task", icon: I.pencil });
+    m.setBody(
+      '<div class="field"><label>Task Title *</label><input class="input" id="t-title" value="' + U().escapeHtml(t.title || "") + '"></div>' +
+      '<div class="field-row"><div class="field"><label>Priority</label><select class="select" id="t-prio">' +
+      S().TASK_PRIORITY.map((p) => '<option value="' + p.key + '"' + (t.priority === p.key ? " selected" : "") + '>' + p.label + "</option>").join("") +
+      '</select></div><div class="field"><label>Due Date</label><input class="input" type="date" id="t-due" value="' + (t.dueDate ? new Date(t.dueDate).toISOString().slice(0, 10) : "") + '"></div></div>' +
+      '<div class="field"><label>Notes</label><textarea class="textarea" id="t-notes" rows="2">' + U().escapeHtml(t.notes || "") + "</textarea></div>"
+    );
+    m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-save>Save Task</button>');
+    m.q("[data-save]").addEventListener("click", () => {
+      const title = m.body.querySelector("#t-title").value.trim();
+      if (!title) return;
+      t.title = title;
+      t.priority = m.body.querySelector("#t-prio").value;
+      t.dueDate = m.body.querySelector("#t-due").value ? new Date(m.body.querySelector("#t-due").value + "T09:00:00").getTime() : null;
+      t.notes = m.body.querySelector("#t-notes").value.trim();
+      t.updatedAt = U().now();
+      updateProjectProgress(t.projectId);
+      m.close();
+      V61.App.renderRoute();
+    });
+    m.q("[data-cancel]").addEventListener("click", () => m.close());
+  }
+
   function updateProjectProgress(projectId) {
     const p = S().projectOf(projectId);
     if (!p) return;
@@ -210,6 +237,7 @@ V61.Pages = V61.Pages || {};
   Object.assign(V61.Cmd, {
     addProjectModal,
     addTaskModal,
+    editTask: editTaskModal,
     toggleTask: (id) => {
       const t = S().projectTaskOf(id);
       if (t) {

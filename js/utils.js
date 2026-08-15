@@ -253,5 +253,5 @@ window.V61 = window.V61 || {};
       setTimeout(() => el.remove(), 350);
     }, 2600);
   }
-  V61.Toast = { show, success: (m) => show(m, "success"), error: (m) => show(m, "error"), warn: (m) => show(m, "warn") };
+  V61.Toast = { show, success: (m) => show(m, "success"), error: (m) => show(m, "error"), warn: (m) => show(m, "warn"), info: (m) => show(m, "info") };
 })();

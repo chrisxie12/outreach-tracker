@@ -49,6 +49,9 @@ function createApp(seed) {
       window.matchMedia = () => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });
       window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
       window.cancelAnimationFrame = (id) => clearTimeout(id);
+      /* jsdom does not implement createObjectURL (CSV export / downloads). */
+      window.URL.createObjectURL = () => "blob:mock";
+      window.URL.revokeObjectURL = () => {};
     },
   });
 

@@ -706,6 +706,7 @@ suite("AI — security", () => {
 
   test("Google Places config stays a separate settings field with no AI coupling", () => {
     const app = freshApp();
+    app.V61.Store.db.settings.discoveryProvider = "google";
     app.V61.Pages.settings();
     const el = app.window.document.getElementById("content");
     notNull(el.querySelector("#set-gkey"), "Google Maps/Places key field missing");

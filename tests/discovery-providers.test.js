@@ -81,15 +81,15 @@ suite("Discovery providers — OpenStreetMap", () => {
     ok(threw, "must reject invalid references");
   });
 
-  test("dispatcher defaults to Google; OSM selection is ready without a key", () => {
+  test("dispatcher defaults to OpenStreetMap (free, no key needed)", () => {
     const app = freshApp();
     const D = app.V61.Discovery;
-    eq(D.provider(), "google");
-    eq(D.ready(), false, "Google with no key is not ready");
-    app.V61.Store.db.settings.discoveryProvider = "osm";
     eq(D.provider(), "osm");
     eq(D.ready(), true, "OSM never needs a key");
     eq(D.label(), "OpenStreetMap");
+    app.V61.Store.db.settings.discoveryProvider = "google";
+    eq(D.provider(), "google");
+    eq(D.ready(), false, "Google with no key is not ready");
   });
 
   test("dispatcher Google is ready when a key is present", () => {
