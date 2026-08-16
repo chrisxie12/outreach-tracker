@@ -416,7 +416,14 @@
   function persist() {
     try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
   }
-  function save() { persist(); emit(); }
+  function save() {
+    persist(); emit();
+    /* Best-effort cloud sync (fire-and-forget). Guarded — sync is only live
+       when the user unlocked it this session, so this is a no-op otherwise. */
+    if (window.V61 && V61.Sync && typeof V61.Sync.flush === "function") {
+      setTimeout(() => { try { V61.Sync.flush(); } catch (e) {} }, 0);
+    }
+  }
 
   function emit() { listeners.change.forEach((fn) => { try { fn(db); } catch (e) {} }); }
   function on(fn) { listeners.change.push(fn); }

@@ -22,77 +22,14 @@ window.V61 = window.V61 || {};
   const S = () => V61.Store;
   const I = V61.Icons;
   const UI = V61.UI;
+  const Sess = V61.Session;
 
   const DEFAULT_MODEL = "openai/gpt-oss-20b";
   const TIMEOUT_MS = 25000;
-  /* Short-lived session tokens issued by the gateway. Held in memory only —
-     never localStorage/sessionStorage/IndexedDB/HTML. Expiry matches the
-     worker's 15-minute session TTL. */
-  const SESSION_TTL_MS = 15 * 60 * 1000;
-  let _token = null;
-  let _tokenExp = 0;
-
-  function clearSession() { _token = null; _tokenExp = 0; }
-
-  /* ── Config (from settings; gateway URL is user-editable, not the key) ── */
-  function aiConfig() {
-    const c = (S().db.settings && S().db.settings.aiConfig) || {};
-    const envUrl = (typeof window !== "undefined" && window.V61_AI_GATEWAY_URL) || "";
-    return {
-      provider: c.provider || "groq",
-      enabled: !!c.enabled,
-      gatewayUrl: (c.gatewayUrl || envUrl || "").trim(),
-      model: c.model || DEFAULT_MODEL,
-    };
-  }
 
   function isConfigured() {
-    const c = aiConfig();
+    const c = Sess.aiConfig();
     return !!(c.enabled && c.provider && c.gatewayUrl);
-  }
-
-  function gatewayBase() {
-    const c = aiConfig();
-    return c.gatewayUrl.replace(/\/+$/, "");
-  }
-
-  /* The browser's own origin. The gateway only accepts the approved CRM origin,
-     so this must always be the real page origin — never a stored value. */
-  function requestOrigin() {
-    try {
-      if (typeof window !== "undefined" && window.location && window.location.origin) return window.location.origin;
-    } catch (e) {}
-    return "";
-  }
-
-  /* Obtain a session token (reusing the in-memory copy while still fresh).
-     Returns { token } or { token: null, code } — never throws. The token is
-     only ever kept in this closure, never persisted. */
-  async function acquireSession() {
-    const c = aiConfig();
-    if (!isConfigured()) return { token: null, code: "not_configured" };
-    const now = Date.now();
-    if (_token && _tokenExp - now > 30000) return { token: _token, code: "ok" };
-    let res;
-    try {
-      res = await fetch(gatewayBase() + "/v1/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ origin: requestOrigin() }),
-      });
-    } catch (e) {
-      clearSession();
-      return { token: null, code: "network" };
-    }
-    let data = null;
-    try { data = await res.json(); } catch (e) { data = null; }
-    if (res.ok && data && data.ok && typeof data.token === "string" && data.token) {
-      _token = data.token;
-      _tokenExp = (typeof data.expiresAt === "number" && data.expiresAt) || (now + SESSION_TTL_MS);
-      return { token: _token, code: "ok" };
-    }
-    clearSession();
-    return { token: null, code: (res.status === 401 || res.status === 403) ? "unauthorized" : "gateway_error", status: res.status };
   }
 
   /* ── Small verified context builders (only fields actually present) ── */
@@ -174,11 +111,11 @@ window.V61 = window.V61 || {};
 
   /* ── Fetch with timeout + bearer token; returns structured result, never throws ── */
   async function callGateway(kind, context, retried) {
-    const c = aiConfig();
+    const c = Sess.aiConfig();
     if (!isConfigured()) {
       return { ok: false, error: "not_configured", message: "AI unavailable — deterministic outreach remains active.", provider: c.provider };
     }
-    const s = await acquireSession();
+    const s = await Sess.acquireSession();
     if (!s.token) {
       if (s.code === "network") return { ok: false, error: "network", message: "AI is temporarily unavailable. Deterministic outreach tools remain available.", provider: c.provider };
       if (s.code === "not_configured") return { ok: false, error: "not_configured", message: "AI unavailable — deterministic outreach remains active.", provider: c.provider };
@@ -188,7 +125,7 @@ window.V61 = window.V61 || {};
     const timer = ctrl ? setTimeout(() => ctrl.abort(), TIMEOUT_MS) : null;
     let res;
     try {
-      res = await fetch(gatewayBase() + "/v1/" + kind, {
+      res = await fetch(Sess.gatewayBase() + "/v1/" + kind, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + s.token },
         body: JSON.stringify({ context }),
@@ -200,7 +137,7 @@ window.V61 = window.V61 || {};
     }
     if (timer) clearTimeout(timer);
     if (res.status === 401 && !retried) {
-      clearSession();
+      Sess.clearSession();
       return callGateway(kind, context, true);
     }
     let data = null;
@@ -220,11 +157,11 @@ window.V61 = window.V61 || {};
 
   /* Gateway connection status (explicit user action only). */
   async function status() {
-    const c = aiConfig();
+    const c = Sess.aiConfig();
     if (!isConfigured()) {
       return { status: "not_configured", provider: c.provider, model: c.model, detail: "Enable AI assistance and set a gateway URL in Settings." };
     }
-    const s = await acquireSession();
+    const s = await Sess.acquireSession();
     if (!s.token) {
       if (s.code === "network") return { status: "error", provider: c.provider, model: c.model, detail: "Could not reach the gateway — check your connection or ad blocker." };
       if (s.code === "unauthorized") return { status: "unauthorized", provider: c.provider, model: c.model, detail: "The gateway rejected this origin — open the CRM from https://chrisxie12.github.io." };
@@ -234,12 +171,12 @@ window.V61 = window.V61 || {};
     const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
     try {
-      const res = await fetch(gatewayBase() + "/v1/status", {
+      const res = await fetch(Sess.gatewayBase() + "/v1/status", {
         headers: { "Authorization": "Bearer " + s.token },
         signal: ctrl ? ctrl.signal : undefined,
       });
       if (timer) clearTimeout(timer);
-      if (res.status === 401) { clearSession(); return { status: "unauthorized", provider: c.provider, model: c.model, detail: "Session was rejected — press Check connection again." }; }
+      if (res.status === 401) { Sess.clearSession(); return { status: "unauthorized", provider: c.provider, model: c.model, detail: "Session was rejected — press Check connection again." }; }
       if (res.status === 429) return { status: "rate_limited", provider: c.provider, model: c.model, detail: "The gateway is rate-limited — try again in a moment." };
       if (res.status === 403) return { status: "unauthorized", provider: c.provider, model: c.model, detail: "The gateway rejected this origin — open the CRM from https://chrisxie12.github.io." };
       if (!res.ok) return { status: "error", provider: c.provider, model: c.model, detail: "Gateway returned status " + res.status + "." };
@@ -490,7 +427,7 @@ window.V61 = window.V61 || {};
   }
 
   V61.AI = {
-    aiConfig, isConfigured, status, DEFAULT_MODEL, TIMEOUT_MS,
+    aiConfig: Sess.aiConfig, isConfigured, status, DEFAULT_MODEL, TIMEOUT_MS,
     analyzeLead, generateOutreach, generateFollowup, explainAudit,
     extractWebsiteInfo, extractModal,
     draftModal, present,

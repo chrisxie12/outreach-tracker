@@ -52,6 +52,8 @@ const EXTRACT_TIMEOUT_MS = 10000;        // hard fetch timeout
 const MAX_EXTRACT_BYTES = 250 * 1024;    // cap on downloaded page bytes
 const MAX_EXTRACT_TEXT = 6000;           // chars of cleaned text sent to Groq
 const MAX_EXTRACT_TOKENS = 900;          // room for a structured JSON answer
+/* /v1/sync (cloud sync via a Durable Object). */
+const MAX_SYNC_BODY_BYTES = 2 * 1024 * 1024;   // the whole CRM database as JSON
 
 const PROMPTS = {
   analyze: `You are an analytical assistant for Vision 61 Studios (a digital marketing agency in Ghana).
@@ -117,8 +119,8 @@ function allowedOrigin(env) {
 function corsHeaders(allowed) {
   return {
     "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Sync-Pass",
     "Access-Control-Allow-Credentials": "false",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
@@ -382,7 +384,90 @@ async function handleExtract(ctx, env, allowed, model) {
   return json({ ok: true, kind: "extract", source: "detected", url: target.toString(), title: cleaned.title || "", content, fields, model }, 200, allowed);
 }
 
+/* ── /v1/sync — cloud sync (Durable Object, strong consistency) ─────────── */
+
+const SYNC_KEY = "db";
+
+/* The sync passcode is a Worker secret (V61_SYNC_SECRET). The browser sends it
+   per-request on the X-Sync-Pass header; it is compared in constant time and
+   is never returned to the client. */
+async function checkSyncPass(request, env, allowed) {
+  const secret = (env.V61_SYNC_SECRET || "").trim();
+  if (!secret) {
+    return { ok: false, res: json({ ok: false, error: "not_configured", message: "Cloud sync is not configured on this gateway." }, 503, allowed) };
+  }
+  const given = request.headers.get("X-Sync-Pass") || "";
+  if (!given || !timingSafeEqual(given, secret)) {
+    return { ok: false, res: json({ ok: false, error: "unauthorized", code: "invalid_passcode", message: "Invalid sync passcode." }, 401, allowed) };
+  }
+  return { ok: true };
+}
+
+/* Body reader for the (potentially large) CRM database payload. */
+async function readLargeJson(request, allowed) {
+  const raw = await request.arrayBuffer();
+  if (!raw || raw.byteLength > MAX_SYNC_BODY_BYTES) {
+    return { error: badRequest("Request body too large.", allowed) };
+  }
+  let parsed = null;
+  try { parsed = JSON.parse(new TextDecoder().decode(raw)); } catch (e) {
+    return { error: badRequest("Malformed JSON body.", allowed) };
+  }
+  return { parsed };
+}
+
+/* One Durable Object holds the canonical CRM database as a single JSON
+   document with an incrementing revision. PUT uses optimistic concurrency:
+   it only succeeds when `expectedRev` matches, so two devices editing at once
+   are detected (409) instead of silently overwriting each other. */
+export class SyncObject {
+  constructor(state, env) { this.state = state; this.env = env; }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    const allowed = allowedOrigin(this.env);
+    const origin = (request.headers.get("Origin") || "").trim();
+    if (origin !== allowed) {
+      return json({ ok: false, error: "forbidden_origin", message: "Requests must come from the approved CRM origin." }, 403, allowed);
+    }
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(allowed) });
+
+    const auth = await authenticate(request, this.env, origin, allowed);
+    if (!auth.ok) return auth.res;
+    const pass = await checkSyncPass(request, this.env, allowed);
+    if (!pass.ok) return pass.res;
+
+    if (request.method === "GET" && url.pathname === "/v1/sync") {
+      const current = await this.state.storage.get(SYNC_KEY);
+      return json({ ok: true, rev: (current && current.rev) || 0, data: (current && current.data) || null, updatedAt: (current && current.updatedAt) || 0 }, 200, allowed);
+    }
+
+    if (request.method === "PUT" && url.pathname === "/v1/sync") {
+      const ctype = (request.headers.get("Content-Type") || "").toLowerCase();
+      if (!ctype.includes("application/json")) return badRequest("Content-Type must be application/json.", allowed);
+      const { parsed, error } = await readLargeJson(request, allowed);
+      if (error) return error;
+      const expectedRev = typeof parsed.expectedRev === "number" ? parsed.expectedRev : null;
+      const data = parsed.data;
+      if (!data || typeof data !== "object" || Array.isArray(data)) return badRequest("data must be an object.", allowed);
+      const current = await this.state.storage.get(SYNC_KEY);
+      const currentRev = (current && current.rev) || 0;
+      if (expectedRev === null || expectedRev !== currentRev) {
+        return json({ ok: false, error: "conflict", currentRev, message: "Your data changed on another device — reload to merge." }, 409, allowed);
+      }
+      const next = { rev: currentRev + 1, data, updatedAt: Date.now() };
+      await this.state.storage.put(SYNC_KEY, next);
+      return json({ ok: true, rev: next.rev }, 200, allowed);
+    }
+
+    return json({ ok: false, error: "not_found", message: "Unknown sync endpoint." }, 404, allowed);
+  }
+}
+
 export default {
+  /* Also exposed for the test harness (which transforms `export class` into a
+     property assignment that a later `module.exports =` would otherwise wipe). */
+  SyncObject,
   async fetch(request, env) {
     const url = new URL(request.url);
     const allowed = allowedOrigin(env);
@@ -415,6 +500,15 @@ export default {
     const origin = (request.headers.get("Origin") || "").trim();
     if (origin !== allowed) {
       return json({ ok: false, error: "forbidden_origin", message: "Requests must come from the approved CRM origin." }, 403, allowed);
+    }
+
+    /* Cloud sync: forward to the Durable Object (single source of truth). */
+    if (url.pathname === "/v1/sync") {
+      if (!env.SYNC_SERVICE) {
+        return json({ ok: false, error: "not_configured", message: "Cloud sync is not configured on this gateway." }, 503, allowed);
+      }
+      const id = env.SYNC_SERVICE.idFromName("crm-main");
+      return env.SYNC_SERVICE.get(id).fetch(request);
     }
 
     if (request.method === "GET" && url.pathname === "/v1/status") {

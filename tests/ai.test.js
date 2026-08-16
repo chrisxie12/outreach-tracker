@@ -78,6 +78,7 @@ function loadWorker() {
   const tmp = path.join(os.tmpdir(), "v61-ai-worker-" + process.pid + ".cjs");
   let src = fs.readFileSync(WORKER_SRC, "utf8");
   src = src.replace(/export\s+default/, "module.exports =");
+  src = src.replace(/export\s+class\s+(\w+)/, "class $1");
   fs.writeFileSync(tmp, src);
   workerCache = require(tmp);
   return workerCache;
@@ -236,7 +237,7 @@ suite("AI — Cloudflare Worker gateway", () => {
     const res = await callWorker(null, { method: "OPTIONS", origin: PROD_ORIGIN });
     eq(res.status, 204);
     eq(res.headers.get("Access-Control-Allow-Origin"), PROD_ORIGIN);
-    eq(res.headers.get("Access-Control-Allow-Methods"), "GET, POST, OPTIONS");
+    eq(res.headers.get("Access-Control-Allow-Methods"), "GET, POST, PUT, OPTIONS");
     ok((res.headers.get("Access-Control-Allow-Headers") || "").includes("Authorization"), "CORS must permit the Authorization header");
     ok((res.headers.get("Access-Control-Allow-Headers") || "").includes("Content-Type"), "CORS must permit Content-Type");
   });

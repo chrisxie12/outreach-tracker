@@ -210,6 +210,13 @@ V61.Pages = V61.Pages || {};
       ? '<span class="badge" style="background:rgba(63,157,95,.13);color:#3f9d5f">Configured — press Check connection</span>'
       : '<span class="badge" style="background:rgba(138,138,144,.13);color:var(--text-3)">Not configured</span>';
     const aiCaps = ["Lead analysis", "AI outreach drafts", "AI follow-up drafts", "Audit explanations", "Website detail extraction"].map(function (c) { return "\u2713 " + c; }).join(" &middot; ");
+    const syncCfg = s.sync || {};
+    const syncStatus = V61.Sync.status();
+    const syncStatusHtml = !syncStatus.enabled
+      ? '<b style="color:var(--text-3)">Off — data stays in this browser only.</b>'
+      : (syncStatus.unlocked
+          ? '<b style="color:var(--ok)">On and unlocked — last synced ' + (syncCfg.lastSyncAt ? U().escapeHtml(new Date(syncCfg.lastSyncAt).toLocaleString()) : "never") + ' (rev ' + (syncStatus.lastRev || 0) + ').</b>'
+          : '<b style="color:var(--warn)">Enabled — enter your passcode to unlock sync for this session.</b>');
     const prov = (s.discoveryProvider === "osm") ? "osm" : "google";
     el.innerHTML =
       '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">System</div>' +
@@ -229,6 +236,19 @@ V61.Pages = V61.Pages || {};
       '<div style="font-weight:700;margin-bottom:6px">Clear all data</div>' +
       '<p style="font-size:12.5px;color:var(--text-3);margin-bottom:12px">Remove all ' + leadCount + ' leads, clients, proposals and activity, and start with a clean database.</p>' +
       '<div style="display:flex;gap:8px"><button class="btn btn-danger" id="clear-data">' + I.trash + " Clear all data</button></div></div></div></div>" +
+
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.layers + ' Cloud Sync <span class="tag" style="margin-left:auto">Optional</span></div></div><div class="panel-body">' +
+      '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:12px">Keep one copy of your CRM data in the cloud so all your devices stay in sync. Data lives in this browser as before; Cloud Sync mirrors it to the same Vision 61 gateway. Nothing syncs until you enter your passcode below.</div>' +
+      '<div class="field"><label>Gateway URL</label><input class="input" id="set-sync-url" placeholder="https://vision61-ai-gateway.&lt;your-subdomain&gt;.workers.dev" value="' + U().escapeHtml(syncCfg.gatewayUrl || aiCfg.gatewayUrl || "") + '">' +
+      '<div class="hint">Reuse the AI gateway URL above — the gateway serves both AI and cloud sync.</div></div>' +
+      '<div class="field"><label>Sync passcode</label><input class="input" id="set-sync-pass" type="password" autocomplete="off" placeholder="Enter your sync passcode to unlock">' +
+      '<div class="hint">Kept in memory only — never saved. You re-enter it after every reload to unlock sync. It is checked against a secret on the gateway.</div></div>' +
+      '<div class="field"><label style="display:flex;align-items:center;gap:8px;font-weight:600"><input type="checkbox" id="set-sync-enable"' + (syncCfg.enabled ? " checked" : "") + '> Enable cloud sync</label></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+      '<button class="btn btn-primary" id="save-sync">' + I.check + ' Save &amp; unlock sync</button>' +
+      '<button class="btn" id="sync-now">' + I.refresh + ' Sync now</button></div>' +
+      '<div id="sync-status" style="font-size:12px;color:var(--text-3);margin-top:12px;line-height:1.8">' + syncStatusHtml + "<br>" +
+      '<b style="color:var(--text-2)">Security:</b> synced data lives in your gateway&#39;s Durable Object. The passcode never touches disk in this browser, and sync only ever happens when you unlock it.</div></div></div>' +
 
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.search + ' Data sources</div></div><div class="panel-body">' +
       '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7;margin-bottom:12px">Lead Discovery finds real businesses by location and category. The CRM never invents businesses or reviews — it only shows what the selected source returns.</div>' +
@@ -398,6 +418,60 @@ V61.Pages = V61.Pages || {};
         S().db.outreachTemplates = S().DEFAULT_TEMPLATES.map((t) => Object.assign({}, t));
         S().save(); V61.Toast.success("Default templates restored"); renderSettings();
       });
+    });
+    const syncSaveBtn = el.querySelector("#save-sync");
+    if (syncSaveBtn) syncSaveBtn.addEventListener("click", async () => {
+      const url = (el.querySelector("#set-sync-url").value || "").trim();
+      const pc = el.querySelector("#set-sync-pass").value || "";
+      const wantOn = el.querySelector("#set-sync-enable").checked;
+      const sc = V61.Sync.config();
+      sc.gatewayUrl = url;
+      if (!wantOn) {
+        sc.enabled = false;
+        V61.Sync.setPasscode("");
+        S().save();
+        V61.Toast.warn("Cloud sync disabled — data stays in this browser only");
+        renderSettings();
+        return;
+      }
+      if (!pc) {
+        sc.enabled = false;
+        V61.Toast.error("Enter your sync passcode to unlock cloud sync");
+        renderSettings();
+        return;
+      }
+      sc.enabled = true;
+      V61.Sync.setPasscode(pc);
+      S().save();
+      const statusEl = el.querySelector("#sync-status");
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--text-2)">Connecting to the cloud…</span>';
+      const r = await V61.Sync.pullOnLoad(() => renderSettings());
+      if (r.ok) {
+        V61.Toast.success(r.adopted ? "Cloud sync unlocked — merged with the cloud copy" : "Cloud sync unlocked and connected");
+        renderSettings();
+      } else {
+        V61.Sync.setPasscode("");
+        sc.enabled = false;
+        S().save();
+        V61.Toast.error(r.message || "Could not reach the cloud — check the gateway URL and passcode");
+        renderSettings();
+      }
+    });
+    const syncNowBtn = el.querySelector("#sync-now");
+    if (syncNowBtn) syncNowBtn.addEventListener("click", async () => {
+      const pc = el.querySelector("#set-sync-pass").value || "";
+      if (pc) V61.Sync.setPasscode(pc);
+      const statusEl = el.querySelector("#sync-status");
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--text-2)">Syncing…</span>';
+      const r = await V61.Sync.syncNow();
+      V61.Sync.setLastResult(r);
+      if (r.ok) {
+        V61.Toast.success(r.adopted ? "Cloud sync complete — merged with the cloud copy" : "Cloud sync complete");
+        renderSettings();
+      } else {
+        V61.Toast.error(r.message || "Sync failed");
+        renderSettings();
+      }
     });
     el.querySelectorAll("[data-theme-btn]").forEach((b) => b.addEventListener("click", () => { V61.App.setTheme(b.dataset.themeBtn); renderSettings(); }));
     const clear = el.querySelector("#clear-data");

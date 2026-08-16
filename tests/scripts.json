@@ -9,6 +9,8 @@
  "crm/js/services/scoring.js",
  "crm/js/services/opportunities.js",
  "crm/js/services/outreach.js",
+ "crm/js/services/session.js",
+ "crm/js/services/sync.js",
  "crm/js/services/ai.js",
  "crm/js/pages-discovery.js",
  "crm/js/pages-dashboard.js",
