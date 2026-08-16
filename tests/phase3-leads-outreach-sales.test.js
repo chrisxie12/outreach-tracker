@@ -89,6 +89,20 @@ suite("Phase 3 — Lead management", () => {
     const found = S.businessByName("leadco");
     eq(found.id, biz.id);
   });
+
+  test("leads table offers a one-click WhatsApp link with a pre-filled message", async () => {
+    const app = freshApp();
+    await app.V61.Store.load();
+    await new Promise((r) => setTimeout(r, 5));
+    setupLead(app);
+    app.V61.Pages.leads.render();
+    const w = app.window;
+    const wa = w.document.querySelector('a[title="Message on WhatsApp"]');
+    notNull(wa, "table row has a WhatsApp button");
+    ok(/^https:\/\/wa\.me\/0241111111/.test(wa.getAttribute("href")), "WhatsApp link targets the lead number");
+    ok(/\?text=/.test(wa.getAttribute("href")), "WhatsApp link pre-fills a message");
+    ok(/LeadCo/.test(decodeURIComponent(wa.getAttribute("href"))), "pre-filled message mentions the business");
+  });
 });
 
 suite("Phase 3 — Outreach", () => {

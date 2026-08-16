@@ -209,7 +209,8 @@ V61.Pages = V61.Pages || {};
           '<td><span class="cell-sub">' + (r.lead.lastContacted ? U().relativeTime(r.lead.lastContacted) : "—") + "</span></td>" +
           '<td>' + (fu ? '<span class="kb-due ' + (fu.dueDate < U().todayStart() ? "overdue" : "") + '">' + I.clock + U().relativeDue(fu.dueDate) + "</span>" : '<span class="cell-sub">—</span>') + "</td>" +
           '<td><span style="font-weight:700;font-variant-numeric:tabular-nums">' + U().formatMoney(r.lead.estimatedValue) + "</span></td>" +
-          '<td><button class="icon-btn" data-rowmenu="' + r.lead.id + '" title="Actions">' + I.moreH + "</button></td>" +
+          '<td style="white-space:nowrap">' + (bz.whatsapp || bz.phone ? '<a class="icon-btn" target="_blank" rel="noopener" title="Message on WhatsApp" href="' + U().waLink(bz.whatsapp || bz.phone, S().buildMessage(bz.name, bz.category)) + '">' + I.whatsapp + "</a>" : "") +
+          '<button class="icon-btn" data-rowmenu="' + r.lead.id + '" title="Actions">' + I.moreH + "</button></td>" +
           "</tr>";
       }).join("") + "</tbody></table></div>";
   }
@@ -230,7 +231,7 @@ V61.Pages = V61.Pages || {};
         '<span class="tag" style="margin-left:auto">Digital ' + r.digitalScore + "</span></div>" +
         '<div style="display:flex;gap:10px;margin-top:11px;font-size:12px;color:var(--text-2)"><span style="display:inline-flex;align-items:center;gap:4px">' + I.dollar + U().formatMoney(r.lead.estimatedValue) + "</span>" +
         (fu ? '<span style="display:inline-flex;align-items:center;gap:4px" class="' + (fu.dueDate < U().todayStart() ? "kb-due overdue" : "") + '">' + I.clock + U().relativeDue(fu.dueDate) + "</span>" : "") + "</div>" +
-        (wa ? '<div style="margin-top:11px"><a class="mini-btn" target="_blank" rel="noopener" href="' + U().waLink(wa) + '">' + I.whatsapp + " WhatsApp</a></div>" : "") +
+        (wa ? '<div style="margin-top:11px"><a class="mini-btn" target="_blank" rel="noopener" href="' + U().waLink(wa, S().buildMessage(b.name, b.category)) + '">' + I.whatsapp + " WhatsApp</a></div>" : "") +
         "</div>";
     }).join("") + "</div>";
   }
@@ -254,7 +255,7 @@ V61.Pages = V61.Pages || {};
             '<button class="icon-btn kb-move" data-move="' + r.lead.id + '" title="Move to stage">' + I.moreH + "</button></span></div>" +
             '<div class="kb-meta"><span class="kb-value">' + U().formatMoney(r.lead.estimatedValue) + "</span>" +
             (fu ? '<span class="kb-due ' + (fu.dueDate < U().todayStart() ? "overdue" : "") + '">' + I.clock + U().relativeDue(fu.dueDate) + "</span>" : "") +
-            (wa ? '<a class="mini-btn" style="padding:1px 7px;margin-left:auto" target="_blank" rel="noopener" href="' + U().waLink(wa) + '">' + I.whatsapp + "</a>" : "") +
+            (wa ? '<a class="mini-btn" style="padding:1px 7px;margin-left:auto" target="_blank" rel="noopener" title="Message on WhatsApp" href="' + U().waLink(wa, S().buildMessage(b.name, b.category)) + '">' + I.whatsapp + "</a>" : "") +
             "</div></div>";
         }).join("") : '<div class="kb-empty">Drop leads here</div>') + "</div>" +
         '<div class="kb-col-foot"><span>Total</span><b>' + U().formatMoney(sum) + "</b></div></div>";
