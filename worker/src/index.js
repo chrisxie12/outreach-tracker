@@ -25,6 +25,14 @@
      POST /v1/outreach          → { ok, content }   (auth, context.channel)
      POST /v1/followup          → { ok, content }   (auth)
      POST /v1/explain           → { ok, content }   (auth)
+     POST /v1/extract           → { ok, fields }    (auth, context.url)
+
+   /v1/extract fetches the business's real website SERVER-SIDE (no browser
+   CORS limits), strips it to readable text, and hands that text to Groq for
+   strict extraction. Only http(s) URLs are allowed; the fetch has a hard
+   timeout, a size cap, and never follows internal/loopback hosts. The page
+   text is the ONLY input the model sees — it may not invent facts that are
+   not present on the page.
 
    The worker only ever POSTs a concise prompt (system + context JSON) to
    Groq. It never receives or stores full CRM state.
@@ -37,8 +45,13 @@ const SESSION_TTL_MS = 15 * 60 * 1000;   // 15 minutes
 const TOKEN_VERSION = 1;
 const MAX_BODY_BYTES = 16 * 1024;        // 16 KB request cap
 const MAX_OUTPUT_TOKENS = 600;           // cost control for free tier
-const VALID_KINDS = new Set(["analyze", "outreach", "followup", "explain"]);
+const VALID_KINDS = new Set(["analyze", "outreach", "followup", "explain", "extract"]);
 const VALID_CHANNELS = new Set(["WhatsApp", "Email", "Instagram", "LinkedIn"]);
+/* /v1/extract resource guards — keep the outbound fetch bounded and safe. */
+const EXTRACT_TIMEOUT_MS = 10000;        // hard fetch timeout
+const MAX_EXTRACT_BYTES = 250 * 1024;    // cap on downloaded page bytes
+const MAX_EXTRACT_TEXT = 6000;           // chars of cleaned text sent to Groq
+const MAX_EXTRACT_TOKENS = 900;          // room for a structured JSON answer
 
 const PROMPTS = {
   analyze: `You are an analytical assistant for Vision 61 Studios (a digital marketing agency in Ghana).
@@ -73,11 +86,27 @@ CHANNEL: <suggested channel>
 MESSAGE:
 <message body>
 PERSONALIZATION: <one line noting which verified facts were used>`,
-  explain: `You are an assistant that translates a technical digital audit into clear business language for a business owner in Ghana.
+   explain: `You are an assistant that translates a technical digital audit into clear business language for a business owner in Ghana.
 You are given verified audit facts in JSON.
 Do NOT invent audit facts and do NOT change any score — scores shown are authoritative.
 Output: (1) What is working, (2) What needs attention, (3) Why it matters, (4) Recommended next steps.
 Keep it plain, encouraging, and concise.`,
+  extract: `You are a careful data-extraction assistant for a sales CRM.
+You are given the business name, its website URL, and the REAL text content of that website page (plus the page title).
+Extract ONLY facts that literally appear in the provided text. NEVER invent, infer, guess, or assume anything — if a detail is not present in the text, leave that field empty ("" or []). Do not make up phone numbers, emails, hours, prices, or links.
+Return STRICT JSON only — no markdown, no code fences, no commentary — with EXACTLY these keys:
+{"services":[""],"products":[""],"hours":"","phone":"","email":"","whatsapp":"","instagram":"","facebook":"","tiktok":"","booking":false,"ordering":false,"address":"","description":"","menu":[{"name":"","price":""}]}
+Rules:
+- services / products: short phrases copied from the text describing what the business offers.
+- hours: exactly as written in the text (e.g. "Mon-Fri 8am-5pm"). Empty if none.
+- phone / email / whatsapp: exact contact values present in the text. whatsapp only if an actual WhatsApp / wa.me link or number is present.
+- instagram / facebook / tiktok: full profile URLs only when a link to that platform appears in the text.
+- booking: true ONLY if the text mentions booking, appointment, reservation, or a book-now action.
+- ordering: true ONLY if the text mentions ordering, delivery, or order-online.
+- address: only if the physical address appears in the text.
+- description: one or two concise sentences summarizing the business, using only facts from the text.
+- menu: item names (with price if stated) when the page shows a menu or price list. Empty array if none.
+If the provided text is empty or is an error/placeholder page, return {"error":"no_text"}.`,
 };
 
 /* ── Origin / CORS ── */
@@ -197,6 +226,162 @@ function validateContext(kind, ctx) {
   return null;
 }
 
+/* ── /v1/extract helpers ───────────────────────────────────────────────── */
+
+/* Never fetch internal / loopback hosts (cheap SSRF guard for a personal,
+   origin-authenticated gateway). */
+function isBlockedHost(hostname) {
+  const h = String(hostname || "").toLowerCase().replace(/\.$/, "");
+  if (!h) return true;
+  if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal")) return true;
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(h)) {
+    const p = h.split(".").map(Number);
+    if (p[0] === 0 || p[0] === 10 || p[0] === 127 || (p[0] === 192 && p[1] === 168) ||
+        (p[0] === 172 && p[1] >= 16 && p[1] <= 31) || (p[0] === 169 && p[1] === 254)) return true;
+  }
+  return false;
+}
+
+/* Read a Response body up to a byte cap (truncates rather than fails on huge
+   pages — we only need the beginning of the HTML). */
+async function readBoundedText(res, cap) {
+  const reader = res.body && typeof res.body.getReader === "function" ? res.body.getReader() : null;
+  if (!reader) {
+    const t = await res.text().catch(() => "");
+    return t.slice(0, cap);
+  }
+  const decoder = new TextDecoder();
+  let text = "";
+  while (text.length < cap) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    text += decoder.decode(chunk.value || new Uint8Array(0), { stream: true });
+  }
+  if (typeof reader.cancel === "function") reader.cancel().catch(() => {});
+  return text.slice(0, cap);
+}
+
+function stripTags(s) {
+  return String(s || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/* Strip scripts/styles/markup from an HTML page and collapse it to readable
+   text. Returns { title, text }. Plain-text payloads pass through. */
+function cleanHtmlText(raw, ctype) {
+  let s = String(raw || "");
+  const htmlish = !ctype || /html|xhtml/.test(ctype) || /\<\/?[a-z][^>]*>/i.test(s);
+  if (!htmlish) return { title: "", text: s.replace(/\s+/g, " ").trim() };
+  let title = "";
+  const t = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(s);
+  if (t) title = stripTags(t[1]);
+  const meta = /<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([\s\S]*?)["']/i.exec(s);
+  const desc = meta ? stripTags(meta[1]) : "";
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, " ");
+  s = s.replace(/<style[\s\S]*?<\/style>/gi, " ");
+  s = s.replace(/<noscript[\s\S]*?<\/noscript>/gi, " ");
+  s = s.replace(/<svg[\s\S]*?<\/svg>/gi, " ");
+  s = s.replace(/<[^>]+>/g, " ");
+  s = s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+       .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'").replace(/&#x2F;/g, "/");
+  s = s.replace(/\s+/g, " ").trim();
+  return { title, text: (title ? title + ". " : "") + (desc ? desc + " " : "") + s };
+}
+
+/* Robustly pull a JSON object out of an LLM response (tolerates stray
+   prose / fences). Returns null when nothing parseable is present. */
+function extractJson(content) {
+  if (typeof content !== "string") return null;
+  let c = content.trim().replace(/^```(?:json)?/i, "").replace(/```$/g, "").trim();
+  const start = c.indexOf("{");
+  const end = c.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try { return JSON.parse(c.slice(start, end + 1)); } catch (e) { return null; }
+}
+
+/* The /v1/extract flow: fetch the real page, clean it, then extract facts
+   from the text via Groq. Never lets the model see anything but the page. */
+async function handleExtract(ctx, env, allowed, model) {
+  const rawUrl = typeof ctx.url === "string" ? ctx.url.trim() : "";
+  if (!rawUrl) return badRequest("A website URL is required.", allowed);
+  let target;
+  try { target = new URL(rawUrl); } catch (e) { return badRequest("Invalid website URL.", allowed); }
+  if (target.protocol !== "http:" && target.protocol !== "https:") {
+    return badRequest("Only http/https website URLs are supported.", allowed);
+  }
+  if (isBlockedHost(target.hostname)) {
+    return badRequest("This website address is not allowed.", allowed);
+  }
+
+  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), EXTRACT_TIMEOUT_MS) : null;
+  let res;
+  try {
+    res = await fetch(target.toString(), {
+      redirect: "follow",
+      signal: ctrl ? ctrl.signal : undefined,
+      headers: { "User-Agent": "Vision61CRM/1.0 (+https://chrisxie12.github.io/outreach-tracker/crm/)" },
+    });
+  } catch (e) {
+    if (timer) clearTimeout(timer);
+    return json({ ok: false, error: "fetch_failed", message: "Could not reach the website — it may be down or blocking automated requests." }, 502, allowed);
+  }
+  if (timer) clearTimeout(timer);
+
+  if (!res.ok) {
+    return json({ ok: false, error: "fetch_failed", message: "The website did not respond (HTTP " + res.status + ")." }, 502, allowed);
+  }
+  const ctype = (res.headers.get("Content-Type") || "").toLowerCase();
+  const page = await readBoundedText(res, MAX_EXTRACT_BYTES);
+  const cleaned = cleanHtmlText(page, ctype);
+  if (!cleaned.text || cleaned.text.length < 30) {
+    return json({ ok: false, error: "no_content", message: "No readable content found — this site may be a JavaScript app that a plain reader cannot parse." }, 422, allowed);
+  }
+
+  const user = JSON.stringify({ business: ctx.business, url: target.toString(), title: cleaned.title || "", pageText: cleaned.text.slice(0, MAX_EXTRACT_TEXT) });
+  const groqPayload = {
+    model,
+    messages: [
+      { role: "system", content: PROMPTS.extract },
+      { role: "user", content: user },
+    ],
+    temperature: 0.2,
+    max_tokens: MAX_EXTRACT_TOKENS,
+  };
+
+  let gres;
+  try {
+    gres = await fetch(GROQ_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + env.GROQ_API_KEY },
+      body: JSON.stringify(groqPayload),
+    });
+  } catch (e) {
+    return json({ ok: false, error: "upstream_unreachable", message: "AI is temporarily unavailable. Deterministic tools remain available." }, 502, allowed);
+  }
+
+  if (gres.status === 401 || gres.status === 403) {
+    return json({ ok: false, error: "auth_failed", message: "AI provider rejected the gateway credentials. Deterministic tools remain available." }, 502, allowed);
+  }
+  if (gres.status === 429) {
+    return json({ ok: false, error: "rate_limited", message: "AI is rate-limited right now. Deterministic tools remain available." }, 429, allowed);
+  }
+  if (gres.status >= 500) {
+    return json({ ok: false, error: "provider_error", message: "AI provider is having issues. Deterministic tools remain available." }, 502, allowed);
+  }
+
+  let gdata = null;
+  try { gdata = await gres.json(); } catch (e) {
+    return json({ ok: false, error: "malformed_response", message: "AI returned an unreadable response. Deterministic tools remain available." }, 502, allowed);
+  }
+  const content = gdata && gdata.choices && gdata.choices[0] && gdata.choices[0].message && gdata.choices[0].message.content;
+  if (!content || typeof content !== "string") {
+    return json({ ok: false, error: "empty_response", message: "AI returned an empty response. Deterministic tools remain available." }, 502, allowed);
+  }
+
+  const fields = extractJson(content);
+  return json({ ok: true, kind: "extract", source: "detected", url: target.toString(), title: cleaned.title || "", content, fields, model }, 200, allowed);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -264,6 +449,9 @@ export default {
     if (validationErr) return badRequest(validationErr, allowed);
     if (kind === "outreach" && ctx.channel && !VALID_CHANNELS.has(ctx.channel)) {
       return badRequest("Unsupported outreach channel.", allowed);
+    }
+    if (kind === "extract") {
+      return handleExtract(ctx, env, allowed, env.GROQ_MODEL || DEFAULT_MODEL);
     }
 
     let system = PROMPTS[kind];

@@ -513,6 +513,7 @@ UI.bind(el);
       (["new", "researching"].includes(lead.stage) ? '<button class="btn btn-sm btn-primary" data-cmd="markContacted:' + lead.id + '">' + I.send + " Mark contacted</button>" : "") +
       '<button class="btn btn-sm" data-cmd="generateOutreach:' + lead.id + '">' + I.rocket + " Generate outreach</button>" +
       '<button class="btn btn-sm" data-cmd="aiAnalyze:' + lead.id + '">' + I.lightbulb + " AI Analyze</button>" +
+      '<button class="btn btn-sm" data-cmd="aiExtract:' + lead.id + '">' + I.globe + " AI Extract website</button>" +
       '<button class="btn btn-sm" data-cmd="addActivityLog:' + lead.id + '">' + I.send + " Log activity</button>" +
       '<button class="btn btn-sm" data-cmd="quickFollowup:' + lead.id + '">' + I.calendar + " Follow-up</button>" +
       '<button class="btn btn-sm" data-cmd="logMeeting:' + lead.id + '">' + I.video + " Log meeting</button>" +
@@ -546,6 +547,11 @@ UI.bind(el);
       infoItem("LinkedIn", biz.linkedinUrl ? '<a target="_blank" rel="noopener" href="' + biz.linkedinUrl + '">View profile</a>' : "") +
       "</div>" + (biz.notes ? '<div style="margin-top:12px;padding:11px 13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--text-2)"><b style="color:var(--text)">Notes:</b> ' + U().escapeHtml(biz.notes) + "</div>" : "") +
       "</div></div>" +
+
+      /* website intelligence (AI extraction of the real site) */
+      '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.globe + " Website Intelligence" + (biz.enrich && biz.enrich.fields ? '<span class="sub">Detected from website</span>' : "") + "</div>" +
+      '<button class="btn btn-sm" data-cmd="aiExtract:' + lead.id + '">' + (biz.enrich && biz.enrich.fields ? I.refresh + " Re-run" : I.scan + " AI Extract website") + "</button></div>" +
+      '<div class="panel-body">' + enrichHtml(biz) + "</div></div>" +
 
       /* digital score */
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.scan + " Digital Presence Audit" + (audit ? '<span class="sub">Updated ' + U().relativeTime(audit.updatedAt || audit.createdAt) + "</span>" : "") + "</div>" +
@@ -651,6 +657,49 @@ UI.bind(el);
 
   function infoItem(label, valueHtml) {
     return '<div class="info-item"><div class="i-label">' + U().escapeHtml(label) + '</div><div class="i-value">' + (valueHtml || '<span style="color:var(--text-3)">—</span>') + "</div></div>";
+  }
+
+  /* Render a saved AI website extraction (biz.enrich). All values are facts
+     detected from the real site — shown as-is with a source note. */
+  function enrichHtml(biz) {
+    const f = biz.enrich && biz.enrich.fields && typeof biz.enrich.fields === "object" ? biz.enrich.fields : null;
+    if (!f) {
+      return '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7">' + I.globe +
+        ' Run "AI Extract website" to read the business website and pull out services, hours, contact details, social links and menu — grounded only in what the site actually shows.</div>';
+    }
+    const esc = (v) => U().escapeHtml(String(v));
+    const rows = [];
+    const add = (label, value) => { if (value) rows.push({ label: label, value: value }); };
+    if (f.description) add("About", esc(f.description));
+    const svcs = (Array.isArray(f.services) ? f.services : []).map(esc).join(", ");
+    if (svcs) add("Services", svcs);
+    const prods = (Array.isArray(f.products) ? f.products : []).map(esc).join(", ");
+    if (prods) add("Products", prods);
+    if (f.hours) add("Hours", esc(f.hours));
+    if (f.phone) add("Phone", esc(f.phone));
+    if (f.email) add("Email", esc(f.email));
+    if (f.whatsapp) add("WhatsApp", esc(f.whatsapp));
+    if (f.instagram) add("Instagram", esc(f.instagram));
+    if (f.facebook) add("Facebook", esc(f.facebook));
+    if (f.tiktok) add("TikTok", esc(f.tiktok));
+    if (f.address) add("Address", esc(f.address));
+    const flags = [];
+    if (f.booking) flags.push("Booking / appointments");
+    if (f.ordering) flags.push("Online ordering");
+    if (flags.length) add("Capabilities", flags.join(", "));
+    const menu = (Array.isArray(f.menu) ? f.menu : []).map((mn) => esc(mn.name) + (mn.price ? " — " + esc(mn.price) : "")).join(", ");
+    if (menu) add("Menu", menu);
+    const body = rows.length
+      ? '<div style="display:flex;flex-direction:column;gap:7px">' +
+        rows.map((r) =>
+          '<div style="display:flex;gap:10px;font-size:13px"><div style="flex:0 0 110px;color:var(--text-3);font-weight:600">' + r.label + "</div><div style='flex:1;color:var(--text-2)'>" + r.value + "</div></div>"
+        ).join("") + "</div>"
+      : '<div style="font-size:12.5px;color:var(--text-3)">The site was read but no new details beyond the basics were found.</div>';
+    const meta = biz.enrich.url
+      ? '<div style="margin-top:10px;font-size:11.5px;color:var(--text-3)">Source: <a target="_blank" rel="noopener" href="' + esc(biz.enrich.url) + '">' + esc(biz.enrich.url) + "</a>" +
+        (biz.enrich.at ? " · Detected " + U().relativeTime(biz.enrich.at) : "") + " · AI extraction — verify before using.</div>"
+      : "";
+    return body + meta;
   }
 
   function nextStepCallout(lead, followups, tasks, wa, biz) {
@@ -945,6 +994,11 @@ UI.bind(el);
       const row = S().leadRows().find((r) => r.lead.id === leadId);
       if (!row) return;
       V61.AI.analyzeLead(row).then((res) => V61.AI.present("lead analysis", res, "AI Lead Analysis — " + ((row.business && row.business.name) || "Lead")));
+    },
+    aiExtract: (leadId) => {
+      const row = S().leadRows().find((r) => r.lead.id === leadId);
+      if (!row || !row.business) return;
+      V61.AI.extractModal(row.business, leadId);
     },
     aiFollowup: (leadId) => {
       V61.AI.generateFollowup(leadId).then((res) => V61.AI.present("follow-up", res, "AI Follow-up Draft"));

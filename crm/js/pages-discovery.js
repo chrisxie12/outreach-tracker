@@ -118,6 +118,7 @@ V61.Pages = V61.Pages || {};
       (r.phone ? '<span class="disc-link">' + I.phone + " " + U().escapeHtml(r.phone) + "</span>" : "") +
       (r.hours ? '<span class="disc-link">' + I.clock + " Hours mapped</span>" : "") + "</div></div></div>" +
       '<div class="disc-actions">' +
+      '<button class="btn btn-sm" data-extract="' + i + '" title="Read the business website and extract the important details with AI">' + I.globe + " AI Extract</button>" +
       (existing ?
         '<button class="btn btn-sm" data-audit="' + (lead ? lead.id : "") + '">' + I.scan + " Audit</button>" +
         '<a class="btn btn-sm btn-ghost" href="#/leads/' + (lead ? lead.id : "") + '">' + I.eye + " Open</a>" :
@@ -141,6 +142,11 @@ V61.Pages = V61.Pages || {};
       }).catch((e) => { b.disabled = false; b.textContent = "Add to CRM"; V61.Toast.error(e.message || "Could not add business"); });
     }));
     out.querySelectorAll("[data-audit]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.audit) V61.Pages.audit.openAudit(b.dataset.audit); }));
+    out.querySelectorAll("[data-extract]").forEach((b) => b.addEventListener("click", () => {
+      const r = results[Number(b.dataset.extract)];
+      if (!r) return;
+      if (V61.AI && V61.AI.extractModal) V61.AI.extractModal({ name: r.name, category: r.category, website: r.website }, null);
+    }));
   }
 
   V61.Pages.discovery = render;

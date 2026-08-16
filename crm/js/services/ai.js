@@ -206,7 +206,12 @@ window.V61 = window.V61 || {};
     let data = null;
     try { data = await res.json(); } catch (e) { data = null; }
     if (res.ok && data && data.ok && typeof data.content === "string" && data.content.trim()) {
-      return { ok: true, content: data.content.trim(), model: data.model || c.model };
+      const out = { ok: true, content: data.content.trim(), model: data.model || c.model };
+      if (data.fields !== undefined && data.fields !== null) out.fields = data.fields;
+      if (data.source) out.source = data.source;
+      if (data.url) out.url = data.url;
+      if (data.title) out.title = data.title;
+      return out;
     }
     const status = res.status;
     const safeMessage = (data && data.message) || "AI is temporarily unavailable. Deterministic outreach tools remain available.";
@@ -296,6 +301,16 @@ window.V61 = window.V61 || {};
     });
   }
 
+  /* Read the business's real website (fetched server-side by the gateway) and
+     extract structured facts. Grounded: only what the page actually shows. */
+  function extractWebsiteInfo(biz, url) {
+    const target = (url && String(url).trim()) || (biz && biz.website) || "";
+    if (!target) {
+      return Promise.resolve({ ok: false, error: "no_url", message: "Enter the business website address first." });
+    }
+    return callGateway("extract", { business: businessFacts(biz), url: target });
+  }
+
   /* ── Shared AI draft modal: preview → edit → copy. Never "Sent". ── */
   function draftModal(title, content, extra) {
     const m = UI.openModal({ title: title, icon: I.lightbulb, size: "lg" });
@@ -329,9 +344,155 @@ window.V61 = window.V61 || {};
     return null;
   }
 
+  /* ── AI Website Extract modal ──
+     Reads the business website via the gateway and shows the extracted facts.
+     Everything shown is sourced from the real page; nothing is invented.
+     From a saved lead (leadId provided) the result can be saved to the
+     business record, clearly labelled "Detected from website". */
+  function arr(v) { return Array.isArray(v) ? v : []; }
+
+  function fieldsHtml(f) {
+    const esc = (v) => U().escapeHtml(String(v));
+    const rows = [];
+    const add = (label, value) => { if (value) rows.push({ label: label, value: value }); };
+    if (f.description) add("About", esc(f.description));
+    const svcs = arr(f.services).map(esc).join(", ");
+    if (svcs) add("Services", svcs);
+    const prods = arr(f.products).map(esc).join(", ");
+    if (prods) add("Products", prods);
+    if (f.hours) add("Hours", esc(f.hours));
+    if (f.phone) add("Phone", esc(f.phone));
+    if (f.email) add("Email", esc(f.email));
+    if (f.whatsapp) add("WhatsApp", esc(f.whatsapp));
+    if (f.instagram) add("Instagram", esc(f.instagram));
+    if (f.facebook) add("Facebook", esc(f.facebook));
+    if (f.tiktok) add("TikTok", esc(f.tiktok));
+    if (f.address) add("Address", esc(f.address));
+    const flags = [];
+    if (f.booking) flags.push("Booking / appointments");
+    if (f.ordering) flags.push("Online ordering");
+    if (flags.length) add("Capabilities", flags.join(", "));
+    const menu = arr(f.menu).map((m) => esc(m.name) + (m.price ? " — " + esc(m.price) : "")).join(", ");
+    if (menu) add("Menu", menu);
+    if (!rows.length) {
+      return '<div style="margin-top:14px;padding:14px;border:1px solid var(--border);border-radius:10px;color:var(--text-3);font-size:13px">Nothing new was found on the page beyond the basics already known.</div>';
+    }
+    return '<div style="margin-top:14px;display:flex;flex-direction:column;gap:7px">' +
+      rows.map((r) =>
+        '<div style="display:flex;gap:10px;font-size:13px"><div style="flex:0 0 110px;color:var(--text-3);font-weight:600">' + r.label + "</div><div style='flex:1;color:var(--text-2)'>" + r.value + "</div></div>"
+      ).join("") + "</div>";
+  }
+
+  function summaryText(f, url) {
+    const lines = [];
+    if (f.description) lines.push(f.description);
+    const svcs = arr(f.services); if (svcs.length) lines.push("Services: " + svcs.join(", "));
+    const prods = arr(f.products); if (prods.length) lines.push("Products: " + prods.join(", "));
+    if (f.hours) lines.push("Hours: " + f.hours);
+    if (f.phone) lines.push("Phone: " + f.phone);
+    if (f.email) lines.push("Email: " + f.email);
+    if (f.whatsapp) lines.push("WhatsApp: " + f.whatsapp);
+    if (f.instagram) lines.push("Instagram: " + f.instagram);
+    if (f.facebook) lines.push("Facebook: " + f.facebook);
+    if (f.tiktok) lines.push("TikTok: " + f.tiktok);
+    if (f.address) lines.push("Address: " + f.address);
+    const flags = [];
+    if (f.booking) flags.push("booking/appointments");
+    if (f.ordering) flags.push("online ordering");
+    if (flags.length) lines.push("Capabilities: " + flags.join(", "));
+    const menu = arr(f.menu).map((m) => m.name + (m.price ? " — " + m.price : "")).join(", ");
+    if (menu) lines.push("Menu: " + menu);
+    return (url ? "From " + url + "\n" : "") + lines.join("\n");
+  }
+
+  function extractModal(biz, leadId) {
+    const m = UI.openModal({ title: "AI Website Extract", icon: I.globe, size: "lg" });
+    m.setBody(
+      '<div class="ai-draft"><div class="ai-draft-head"><span class="badge" style="background:rgba(224,165,62,.16);color:#e0a53e">' + I.lightbulb + ' AI Extract</span>' +
+      '<span style="font-size:11.5px;color:var(--text-3)">Reads the business website and pulls out the important details. Only facts found on the real page are extracted — nothing is invented.</span></div>' +
+      '<div class="field" style="margin-top:12px"><label>Business</label><input class="input" id="x-biz" value="' + U().escapeHtml((biz && biz.name) || "") + '" readonly></div>' +
+      '<div class="field"><label>Website URL</label><input class="input" id="x-url" placeholder="https://example.com" value="' + U().escapeHtml((biz && biz.website) || "") + '"></div>' +
+      '<div id="x-status" style="font-size:12.5px;color:var(--text-3);margin-top:10px;min-height:18px"></div>' +
+      '<div id="x-result"></div></div>'
+    );
+    m.setFoot('<button class="btn" data-cancel>' + I.x + " Close</button>" +
+      '<button class="btn btn-primary" data-extract>' + I.scan + " Extract</button>");
+    const cancel = () => m.close();
+    m.q("[data-cancel]").addEventListener("click", cancel);
+    m.q("[data-extract]").addEventListener("click", () => runExtract(m, biz, leadId));
+    return m;
+  }
+
+  function runExtract(m, biz, leadId) {
+    const url = m.q("#x-url").value.trim();
+    const statusEl = m.q("#x-status");
+    const resultEl = m.q("#x-result");
+    const btn = m.q("[data-extract]");
+    if (!url) { statusEl.innerHTML = '<span style="color:var(--danger,#e5484d)">Enter the business website address first.</span>'; return; }
+    btn.disabled = true;
+    btn.textContent = "Extracting…";
+    statusEl.innerHTML = '<span style="color:var(--text-2)">Reading ' + U().escapeHtml(url) + "…</span>";
+    resultEl.innerHTML = "";
+    extractWebsiteInfo(biz, url).then((res) => {
+      btn.disabled = false;
+      btn.textContent = "Extract again";
+      if (!res.ok) {
+        const hint = res.error === "no_url" ? "" : " Make sure the address is correct, or try a different page (e.g. the services or contact page).";
+        statusEl.innerHTML = '<span style="color:var(--danger,#e5484d)">' + U().escapeHtml(res.message || "Could not extract this website.") + U().escapeHtml(hint) + "</span>";
+        return;
+      }
+      const fields = res.fields && typeof res.fields === "object" && !res.fields.error ? res.fields : null;
+      statusEl.innerHTML = '<span style="color:var(--success,#2d9e57)">Detected from ' + U().escapeHtml(res.url || url) + " — review before using.</span>";
+      if (fields) {
+        resultEl.innerHTML = fieldsHtml(fields);
+        m.setFoot(
+          '<button class="btn" data-cancel>' + I.x + " Close</button>" +
+          '<button class="btn" data-xcopy>' + I.copy + " Copy summary</button>" +
+          (leadId ? '<button class="btn btn-primary" data-xsave>' + I.check + " Save to business</button>" : "")
+        );
+        m.q("[data-cancel]").addEventListener("click", () => m.close());
+        m.q("[data-xcopy]").addEventListener("click", async () => {
+          const ok = await U().copyText(summaryText(fields, res.url || url));
+          V61.Toast.success(ok ? "Summary copied" : "Could not copy");
+        });
+        if (leadId) m.q("[data-xsave]").addEventListener("click", () => saveEnrich(leadId, res, url, m));
+      } else if (res.content) {
+        resultEl.innerHTML = '<div class="field" style="margin-top:12px"><label>Extracted text (could not be structured)</label><textarea class="textarea" id="x-raw" rows="10" readonly></textarea></div>';
+        m.q("#x-raw").value = res.content;
+        m.setFoot('<button class="btn" data-cancel>' + I.x + " Close</button>" +
+          '<button class="btn" data-xcopy>' + I.copy + " Copy</button>");
+        m.q("[data-cancel]").addEventListener("click", () => m.close());
+        m.q("[data-xcopy]").addEventListener("click", async () => {
+          const ok = await U().copyText(res.content);
+          V61.Toast.success(ok ? "Copied" : "Could not copy");
+        });
+      }
+    }).catch(() => {
+      btn.disabled = false;
+      btn.textContent = "Extract";
+      statusEl.innerHTML = '<span style="color:var(--danger,#e5484d)">Something went wrong. Try again.</span>';
+    });
+  }
+
+  /* Persist the extraction to the business record, clearly labelled as
+     detected from the website. Only ever a note — never auto-sent. */
+  function saveEnrich(leadId, res, url, m) {
+    const lead = S().byId("leads", leadId);
+    if (!lead) { V61.Toast.error("Lead not found"); return; }
+    const biz = S().businessOf(lead);
+    if (!biz) { V61.Toast.error("Business record not found"); return; }
+    biz.enrich = { at: U().now(), source: "detected", url: res.url || url, title: res.title || "", fields: res.fields || {} };
+    S().save();
+    S().addActivity(leadId, "note", "AI extracted business info from the website (" + (res.url || url) + ").");
+    m.close();
+    V61.Toast.success("Saved to business record");
+    if (V61.Pages && V61.Pages.leads && V61.Pages.leads.openLead) V61.Pages.leads.openLead(leadId);
+  }
+
   V61.AI = {
     aiConfig, isConfigured, status, DEFAULT_MODEL, TIMEOUT_MS,
     analyzeLead, generateOutreach, generateFollowup, explainAudit,
+    extractWebsiteInfo, extractModal,
     draftModal, present,
   };
 })();

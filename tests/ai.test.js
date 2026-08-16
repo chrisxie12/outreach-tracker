@@ -22,7 +22,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { suite, test, assert, eq, ok, isNull, notNull, assertCleanHTML } = require("./framework");
-const { freshApp, KEY, ROOT } = require("./harness");
+const { freshApp, settle, KEY, ROOT } = require("./harness");
 
 const GW = "https://vision61-gw.test";
 const PROD_ORIGIN = "https://chrisxie12.github.io";
@@ -371,7 +371,7 @@ suite("AI — frontend service", () => {
     const A = app.V61.AI;
     notNull(A);
     eq(A.DEFAULT_MODEL, "openai/gpt-oss-20b");
-    for (const fn of ["analyzeLead", "generateOutreach", "generateFollowup", "explainAudit", "status", "present"]) {
+    for (const fn of ["analyzeLead", "generateOutreach", "generateFollowup", "explainAudit", "extractWebsiteInfo", "extractModal", "status", "present"]) {
       ok(typeof A[fn] === "function", "V61.AI." + fn + " missing");
     }
   });
@@ -796,5 +796,244 @@ suite("AI — settings panel", () => {
     app.V61.Pages.outreach._internal.generateOutreach(row.lead.id);
     const root = app.window.document.getElementById("modalRoot").innerHTML;
     ok(root.includes("Generate with AI"), "missing Generate with AI button");
+  });
+});
+
+/* ─────────────────────── AI website extraction ─────────────────────── */
+suite("AI — website extract (worker)", () => {
+  const HTML = '<!doctype html><html><head><title>Ama&apos;s Kitchen</title><meta name="description" content="Restaurant in Osu, Accra"></head>' +
+    '<body><h1>Ama&apos;s Kitchen</h1><p>We serve jollof, banku and grilled tilapia. Open Mon-Fri 9am-8pm, Sat 10am-6pm.</p>' +
+    '<p>Call 0201599949 or email hello@amaskitchen.example. Book a table online.</p></body></html>';
+  const FIELDS = { services: ["Jollof", "Banku", "Grilled tilapia"], hours: "Mon-Fri 9am-8pm, Sat 10am-6pm", phone: "0201599949", email: "hello@amaskitchen.example", booking: true, description: "Restaurant in Osu, Accra serving local dishes." };
+  function extractEnv() { return { GROQ_API_KEY: "sk-x", V61_SHARED_SECRET: SHARED_SECRET }; }
+  function pageRes(html) {
+    return new Response(html || HTML, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
+  function groqExtractStub(capture) {
+    return async (url, opts) => {
+      if (String(url).includes("amaskitchen.example")) return pageRes();
+      if (String(url).includes("chat/completions")) {
+        if (capture) capture(JSON.parse(opts.body));
+        return groqRes(200, { choices: [{ message: { content: JSON.stringify(FIELDS) } }] });
+      }
+      throw new Error("unexpected fetch: " + url);
+    };
+  }
+
+  test("/v1/extract fetches the site server-side and returns structured fields", async () => {
+    let groqBody = null;
+    await withGroq(groqExtractStub((b) => { groqBody = b; }), async () => {
+      const res = await callWorker("extract", { env: extractEnv(), body: { business: { name: "Ama's Kitchen", category: "Restaurant" }, url: "https://www.amaskitchen.example" } });
+      eq(res.status, 200);
+      const d = await res.json();
+      eq(d.ok, true);
+      eq(d.kind, "extract");
+      eq(d.source, "detected");
+      eq(d.url, "https://www.amaskitchen.example/");
+      eq(d.fields.phone, "0201599949");
+      eq(d.fields.booking, true);
+      eq(d.fields.hours, "Mon-Fri 9am-8pm, Sat 10am-6pm");
+      ok(Array.isArray(d.fields.services) && d.fields.services.length === 3, "services array expected");
+    });
+    notNull(groqBody);
+    /* The model only ever sees the REAL page text + business context. */
+    const user = JSON.parse(groqBody.messages[1].content);
+    ok(user.pageText.includes("jollof"), "page text not sent to the model");
+    ok(user.pageText.includes("0201599949"), "page text truncated or missing");
+    eq(user.url, "https://www.amaskitchen.example/");
+    const sys = groqBody.messages[0].content;
+    ok(/STRICT JSON/i.test(sys), "extract prompt must demand strict JSON");
+    ok(/NEVER invent/i.test(sys), "extract prompt must forbid invention");
+    ok(groqBody.max_tokens <= 900, "extract must stay within the token budget");
+  });
+
+  test("/v1/extract requires a website URL", async () => {
+    const res = await callWorker("extract", { env: extractEnv(), body: { business: { name: "Ama's Kitchen" } } });
+    eq(res.status, 400);
+    eq((await res.json()).error, "invalid_request");
+  });
+
+  test("/v1/extract rejects non-http(s) URLs", async () => {
+    const res = await callWorker("extract", { env: extractEnv(), body: { business: { name: "Ama's Kitchen" }, url: "file:///etc/passwd" } });
+    eq(res.status, 400);
+    eq((await res.json()).error, "invalid_request");
+  });
+
+  test("/v1/extract rejects loopback / internal hosts", async () => {
+    for (const u of ["http://localhost:8080/admin", "http://127.0.0.1/secret", "http://10.0.0.8/x", "http://192.168.1.1/x"]) {
+      const res = await callWorker("extract", { env: extractEnv(), body: { business: { name: "X" }, url: u } });
+      eq(res.status, 400, "must reject " + u);
+      eq((await res.json()).error, "invalid_request");
+    }
+  });
+
+  test("/v1/extract fails honestly when the site is unreachable", async () => {
+    await withGroq(async () => { throw new TypeError("fetch failed"); }, async () => {
+      const res = await callWorker("extract", { env: extractEnv(), body: { business: { name: "Ama's Kitchen" }, url: "https://www.amaskitchen.example" } });
+      eq(res.status, 502);
+      eq((await res.json()).error, "fetch_failed");
+    });
+  });
+
+  test("/v1/extract reports the HTTP status when the site returns an error", async () => {
+    await withGroq(async (url) => {
+      if (String(url).includes("amaskitchen.example")) return new Response("gone", { status: 404 });
+      return groqRes(200, { choices: [{ message: { content: "{}" } }] });
+    }, async () => {
+      const res = await callWorker("extract", { env: extractEnv(), body: { business: { name: "Ama's Kitchen" }, url: "https://www.amaskitchen.example" } });
+      eq(res.status, 502);
+      ok(/404/.test((await res.json()).message), "message should include the HTTP status");
+    });
+  });
+
+  test("/v1/extract refuses to call Groq when the page has no readable content", async () => {
+    let groqCalls = 0;
+    await withGroq(async (url) => {
+      if (String(url).includes("amaskitchen.example")) return pageRes("<html><head></head><body><script>location.replace('/x')</script></body></html>");
+      groqCalls++;
+      return groqRes(200, { choices: [{ message: { content: "{}" } }] });
+    }, async () => {
+      const res = await callWorker("extract", { env: extractEnv(), body: { business: { name: "Ama's Kitchen" }, url: "https://www.amaskitchen.example" } });
+      eq(res.status, 422);
+      eq((await res.json()).error, "no_content");
+      eq(groqCalls, 0, "Groq must never be called without real page text");
+    });
+  });
+
+  test("/v1/extract still needs a valid session token", async () => {
+    const res = await callWorker("extract", { env: extractEnv(), token: null, body: { business: { name: "Ama's Kitchen" }, url: "https://www.amaskitchen.example" } });
+    eq(res.status, 401);
+    eq((await res.json()).code, "missing_token");
+  });
+});
+
+suite("AI — website extract (frontend)", () => {
+  const FIELDS = { services: ["Websites", "Branding"], hours: "Mon-Fri 9am-5pm", phone: "0201599949", booking: true, description: "Digital agency in Accra." };
+  function gwOk(url, opts) {
+    if (String(url).includes("/v1/session")) return sessionRes("tok-extract");
+    return { ok: true, status: 200, json: async () => ({ ok: true, content: JSON.stringify(FIELDS), fields: FIELDS, source: "detected", url: "https://www.example.com", model: "m" }) };
+  }
+
+  test("extractWebsiteInfo posts business + url to /v1/extract and returns fields", async () => {
+    const app = freshApp();
+    configureAI(app);
+    const calls = [];
+    app.window.fetch = gwFetch((url, opts) => { calls.push({ url, opts }); return gwOk(url, opts); });
+    const biz = { name: "Example Studio", category: "Digital agency", website: "https://www.example.com" };
+    const res = await app.V61.AI.extractWebsiteInfo(biz, null);
+    eq(res.ok, true);
+    eq(res.fields.phone, "0201599949");
+    eq(res.source, "detected");
+    eq(calls.length, 1);
+    eq(calls[0].url, GW + "/v1/extract");
+    const ctx = JSON.parse(calls[0].opts.body).context;
+    eq(ctx.business.name, "Example Studio");
+    eq(ctx.url, "https://www.example.com");
+  });
+
+  test("extractWebsiteInfo with no URL fails closed with zero network calls", async () => {
+    const app = freshApp();
+    configureAI(app);
+    let calls = 0;
+    app.window.fetch = async () => { calls++; throw new Error("should not fetch"); };
+    const res = await app.V61.AI.extractWebsiteInfo({ name: "No Site" }, "");
+    eq(res.ok, false);
+    eq(res.error, "no_url");
+    eq(calls, 0);
+  });
+
+  test("extractWebsiteInfo honours the not-configured fail-safe", async () => {
+    const app = freshApp();
+    const res = await app.V61.AI.extractWebsiteInfo({ name: "X", website: "https://x.example" }, null);
+    eq(res.ok, false);
+    eq(res.error, "not_configured");
+  });
+
+  test("discovery results expose an AI Extract button (no fetch on render)", async () => {
+    const app = freshApp();
+    await settle(app);
+    const S = app.V61.Store;
+    S.db.settings.discoveryProvider = "osm";
+    S.save();
+    const calls = [];
+    app.window.fetch = async () => { calls.push(1); return { ok: true, status: 200, json: async () => ({}) }; };
+    app.V61.Discovery.search = () => Promise.resolve([{ name: "Ama's Kitchen", category: "Restaurant", address: "Osu, Accra", website: "https://amaskitchen.example", osmId: "osm-1" }]);
+    app.V61.Pages.discovery();
+    const el = app.window.document.getElementById("content");
+    const cat = el.querySelector("#discovery-cat"); cat.value = "restaurants";
+    const loc = el.querySelector("#discovery-loc"); loc.value = "Osu";
+    el.querySelector("#discovery-go").dispatchEvent(new app.window.MouseEvent("click", { bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 10));
+    const h = el.querySelector("#discovery-results").innerHTML;
+    ok(h.includes("AI Extract"), "missing AI Extract button on discovery result");
+    ok(h.includes("Add to CRM"), "missing Add to CRM button");
+    assertCleanHTML(h, "discovery results");
+    eq(calls.length, 0, "rendering discovery must not trigger network calls");
+  });
+
+  test("lead detail shows AI Extract website button and Website Intelligence panel", () => {
+    const app = freshApp();
+    const row = makeLead(app);
+    app.V61.Pages.leads.openLead(row.lead.id);
+    const h = app.window.document.getElementById("content").innerHTML;
+    ok(h.includes("AI Extract website"), "missing AI Extract website button");
+    ok(h.includes("Website Intelligence"), "missing Website Intelligence panel");
+    ok(h.includes("grounded only in what the site actually shows"), "missing honesty copy");
+    assertCleanHTML(h, "lead detail with website intelligence");
+  });
+
+  test("AI Extract modal runs, shows extracted facts, and saves to the business", async () => {
+    const app = freshApp();
+    configureAI(app);
+    const S = app.V61.Store;
+    const biz = S.addBusiness({ name: "Example Studio", category: "Digital agency", website: "https://www.example.com" });
+    const lead = S.addLead(biz.id, { source: "manual" });
+    S.save();
+    app.window.fetch = gwOk;
+    app.V61.Cmd.aiExtract(lead.id);
+    const root = () => app.window.document.getElementById("modalRoot");
+    ok(root().innerHTML.includes("AI Website Extract"), "modal did not open");
+    eq(app.window.document.querySelector("#modalRoot #x-url").value, "https://www.example.com");
+    app.window.document.querySelector("#modalRoot [data-extract]").click();
+    await new Promise((r) => setTimeout(r, 10));
+    const html = root().innerHTML;
+    ok(html.includes("Digital agency in Accra."), "extracted description not shown");
+    ok(html.includes("Websites, Branding"), "extracted services not shown");
+    ok(html.includes("Save to business"), "Save button missing");
+    ok(/Detected from/.test(html), "missing source label");
+    app.window.document.querySelector("#modalRoot [data-xsave]").click();
+    await new Promise((r) => setTimeout(r, 10));
+    const saved = S.businessOf(lead);
+    ok(saved.enrich && saved.enrich.source === "detected", "enrich not saved to business record");
+    eq(saved.enrich.fields.phone, "0201599949");
+    const act = S.activityFor(lead.id);
+    ok(act.some((a) => /AI extracted business info/.test(a.text)), "activity log entry missing");
+    const h = app.window.document.getElementById("content").innerHTML;
+    ok(h.includes("Detected from website"), "enrich badge missing after re-render");
+    ok(h.includes("Websites, Branding"), "enrich panel not rendered on lead detail");
+    ok(h.includes("Re-run"), "re-run action missing");
+    assertCleanHTML(h, "lead detail after save");
+  });
+
+  test("AI Extract failure keeps the modal open with an honest error and no writes", async () => {
+    const app = freshApp();
+    configureAI(app);
+    const S = app.V61.Store;
+    const biz = S.addBusiness({ name: "Example Studio", website: "https://www.example.com" });
+    const lead = S.addLead(biz.id, {});
+    S.save();
+    const before = snapshotDb(S);
+    app.window.fetch = async (url) => {
+      if (String(url).includes("/v1/session")) return sessionRes("t");
+      return { ok: false, status: 502, json: async () => ({ ok: false, error: "fetch_failed", message: "The website did not respond (HTTP 404)." }) };
+    };
+    app.V61.Cmd.aiExtract(lead.id);
+    app.window.document.querySelector("#modalRoot [data-extract]").click();
+    await new Promise((r) => setTimeout(r, 10));
+    const html = app.window.document.getElementById("modalRoot").innerHTML;
+    ok(/HTTP 404/.test(html), "honest error not shown");
+    ok(html.includes("Extract again"), "modal should stay open for retry");
+    eq(snapshotDb(S), before, "failed extraction must not mutate CRM data");
+    ok(!S.businessOf(lead).enrich, "no enrich record on failure");
   });
 });

@@ -209,7 +209,7 @@ V61.Pages = V61.Pages || {};
     const aiStatusHtml = aiReady
       ? '<span class="badge" style="background:rgba(63,157,95,.13);color:#3f9d5f">Configured — press Check connection</span>'
       : '<span class="badge" style="background:rgba(138,138,144,.13);color:var(--text-3)">Not configured</span>';
-    const aiCaps = ["Lead analysis", "AI outreach drafts", "AI follow-up drafts", "Audit explanations"].map(function (c) { return "\u2713 " + c; }).join(" &middot; ");
+    const aiCaps = ["Lead analysis", "AI outreach drafts", "AI follow-up drafts", "Audit explanations", "Website detail extraction"].map(function (c) { return "\u2713 " + c; }).join(" &middot; ");
     const prov = (s.discoveryProvider === "osm") ? "osm" : "google";
     el.innerHTML =
       '<div class="page-head"><div><div style="font-size:12px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.14em">System</div>' +
