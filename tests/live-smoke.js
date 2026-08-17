@@ -12,7 +12,7 @@
 const https = require("https");
 const { JSDOM, VirtualConsole } = require("../node_modules/jsdom");
 
-const BASE = (process.env.LIVE_URL || "https://chrisxie12.github.io/outreach-tracker/").replace(/\/+$/, "") + "/";
+const BASE = (process.env.LIVE_URL || "https://chrisxie12.github.io/outreach-tracker/crm/").replace(/\/+$/, "") + "/";
 const KEY = "v61crm_v1";
 
 const get = (url) => new Promise((res, rej) => {

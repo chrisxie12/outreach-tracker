@@ -12,6 +12,7 @@ V61.Pages = V61.Pages || {};
 
   const PAGE = 15;
   let state = { results: [], shown: 0 };
+  let queueState = null; // { ctrl, total, done, counts, canceled }
 
   function lastQuery() { const q = S().db.settings.lastDiscovery || {}; return q; }
   function saveQuery(cat, loc) { S().db.settings.lastDiscovery = { cat: cat, loc: loc, at: U().now() }; S().save(); }
@@ -44,8 +45,14 @@ V61.Pages = V61.Pages || {};
         '<div class="empty" style="padding:22px"><div style="font-size:13px;color:var(--text-3);margin-bottom:10px">Discovery searches real businesses from a data source. No source is configured yet — so no results are shown and nothing is fabricated. Use the free OpenStreetMap source (no key needed) or add a Google Places key.</div>' +
         '<a class="btn btn-primary" href="#/settings">' + I.settings + " Configure data source</a></div>") +
       "</div></div>" +
-      "</div>";
+      "</div>" +
+      queuePanel();
     UI.bind(el);
+
+    const scanBtn = el.querySelector("#cd-scan");
+    if (scanBtn) scanBtn.addEventListener("click", startQueue);
+    const cancelBtn = el.querySelector("#cd-cancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", cancelQueue);
 
     const btn = el.querySelector("[data-open-file]");
     const input = el.querySelector("#csv-file");
@@ -72,6 +79,72 @@ V61.Pages = V61.Pages || {};
 
     const go = el.querySelector("#discovery-go");
     if (go) go.addEventListener("click", () => runSearch(el));
+  }
+
+  /* ── Phase 6: contact discovery queue (batch ≤10, progress, cancel) ── */
+  function queuePanel() {
+    const CD = V61.ContactDiscovery;
+    const ready = !!(CD && typeof CD.candidates === "function");
+    return '<div class="panel" style="margin-top:16px"><div class="panel-head"><div class="panel-title">' + I.users + " Contact Discovery" + '<span class="sub">Deterministic website scan — no AI</span></div>' +
+      '<button class="btn btn-primary" id="cd-scan">' + I.scan + " Scan leads</button>" +
+      '<button class="btn btn-ghost" id="cd-cancel" style="display:none">' + I.x + " Cancel</button></div>" +
+      '<div class="panel-body"><div id="cd-progress"></div><div id="cd-summary">' +
+      (ready ?
+        '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7">Scans the public websites of your leads in batches of up to 10, cancellable, and saves each result to its lead. Every channel keeps its source page URL and a confidence level. If a site blocks browser access we honestly report it as <b>Blocked</b> — never as "no contact". Manual and Google contact data is never overwritten; on a lead page, use <b>Apply</b> to copy a discovered channel into an empty field.</div>' :
+        '<div style="font-size:12.5px;color:var(--text-3)">Contact discovery is not available in this build.</div>') +
+      "</div></div></div>";
+  }
+
+  function startQueue() {
+    const CD = V61.ContactDiscovery;
+    if (!CD || !CD.runBatch) return;
+    if (queueState && queueState.ctrl && !queueState.ctrl.signal.aborted) { V61.Toast.warn("A scan is already running"); return; }
+    const list = CD.candidates();
+    if (!list.length) { V61.Toast.info("No leads with a website need scanning right now."); return; }
+    const ctrl = new AbortController();
+    queueState = { ctrl, total: list.length, done: 0, counts: {}, canceled: false };
+    const scanBtn = document.getElementById("cd-scan");
+    const cancelBtn = document.getElementById("cd-cancel");
+    if (scanBtn) { scanBtn.disabled = true; scanBtn.textContent = "Scanning…"; }
+    if (cancelBtn) cancelBtn.style.display = "";
+    renderProgress();
+    CD.runBatch(list, {
+      signal: ctrl.signal,
+      onProgress: (done) => { if (queueState) queueState.done = done; renderProgress(); },
+      onResult: (r) => { if (!queueState) return; const k = (r && r.status) || "error"; queueState.counts[k] = (queueState.counts[k] || 0) + 1; },
+    }).then(() => {
+      if (scanBtn) { scanBtn.disabled = false; scanBtn.textContent = "Scan leads"; }
+      if (cancelBtn) cancelBtn.style.display = "none";
+      if (queueState) queueState.canceled = ctrl.signal.aborted;
+      renderSummary();
+      if (ctrl.signal.aborted) V61.Toast.info("Scan cancelled");
+      else V61.Toast.success("Contact discovery finished — " + ((queueState && queueState.counts.found) || 0) + " found, " + ((queueState && queueState.counts.none) || 0) + " none, " + ((queueState && queueState.counts.blocked) || 0) + " blocked");
+      queueState = null;
+    });
+  }
+
+  function cancelQueue() {
+    if (queueState && queueState.ctrl) queueState.ctrl.abort();
+  }
+
+  function renderProgress() {
+    const el = document.getElementById("cd-progress");
+    if (!el || !queueState) return;
+    const pct = queueState.total ? Math.round((queueState.done / queueState.total) * 100) : 0;
+    el.innerHTML = '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Scanning websites…</span><b>' + queueState.done + " / " + queueState.total + "</b></div>" +
+      '<div class="progress" style="margin-bottom:10px"><i style="width:' + pct + '%;background:var(--accent)"></i></div>';
+  }
+
+  function renderSummary() {
+    const el = document.getElementById("cd-summary");
+    if (!el || !queueState) return;
+    const c = queueState.counts;
+    const label = { found: "Contacts found", partial: "Partial", none: "No contacts", blocked: "Blocked site", error: "Error" };
+    const colors = { found: "#3f9d5f", partial: "#e0a53e", none: "#8a8a90", blocked: "#e5484d", error: "#e5484d" };
+    const keys = Object.keys(label).filter((k) => c[k]);
+    el.innerHTML = keys.length
+      ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' + keys.map((k) => UI.badge(label[k] + ": " + c[k], colors[k], true)).join("") + (queueState.canceled ? '<span class="tag">Cancelled</span>' : "") + "</div>"
+      : '<div style="font-size:12.5px;color:var(--text-3)">Scan finished — results are saved to each lead. Open a lead to review and apply its channels.</div>';
   }
 
   function runSearch(el) {

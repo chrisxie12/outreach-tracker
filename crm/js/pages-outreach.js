@@ -150,12 +150,39 @@ V61.Pages = V61.Pages || {};
         const max = Math.max(1, ...Object.values(byChannel));
         return '<div><div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>' + U().escapeHtml(ch) + '</span><b>' + n + "</b></div><div class='progress'><i style='width:" + Math.round((n / max) * 100) + "%;background:var(--accent)'></i></div></div>";
       }).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No channels yet.</div>') + "</div></div></div>" +
+      discoveryCoveragePanel() +
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.rocket + ' Quick actions</div></div><div class="panel-body">' +
       '<div class="stack"><button class="btn block" data-cmd="pickLeadOutreach">' + I.send + " Log an outreach activity</button>" +
       '<button class="btn block" data-cmd="pickLeadFollowup">' + I.calendar + " Schedule a follow-up</button>" +
       '<button class="btn block" data-cmd="pickLeadDraft">' + I.pencil + " Generate an outreach message</button></div></div></div>" +
       "</div></div>";
     UI.bind(el);
+  }
+
+  /* ── Phase 6: contact discovery coverage summary ── */
+  function discoveryCoveragePanel() {
+    const counts = { found: 0, partial: 0, none: 0, blocked: 0, error: 0, not_scanned: 0 };
+    S().leadRows().forEach((r) => {
+      const d = r.business && r.business.contactDiscovery;
+      if (!d) { counts.not_scanned++; return; }
+      const k = d.status || "none";
+      counts[k in counts ? k : "none"]++;
+    });
+    const rows = [
+      ["Contacts found", counts.found, "#3f9d5f"],
+      ["Partial (indirect only)", counts.partial, "#e0a53e"],
+      ["No contacts found", counts.none, "#8a8a90"],
+      ["Blocked site", counts.blocked, "#e5484d"],
+      ["Not scanned", counts.not_scanned, "#8a8a90"],
+    ].filter((r) => r[1] > 0);
+    return '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.users + " Contact discovery</div></div><div class='panel-body'>" +
+      '<div class="stack">' +
+      (rows.length ? rows.map(([lab, n, color]) =>
+        '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px"><span>' + U().escapeHtml(lab) + '</span>' + UI.badge(String(n), color, true) + "</div>"
+      ).join("") : '<div style="font-size:12.5px;color:var(--text-3)">No lead websites scanned yet.</div>') +
+      "</div>" +
+      '<a class="btn block" style="margin-top:10px" href="#/discovery">' + I.scan + " Scan leads for contacts</a>" +
+      "</div></div>";
   }
 
   /* ── Follow-ups queue (Part 8) ── */

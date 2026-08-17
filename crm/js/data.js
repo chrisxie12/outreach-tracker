@@ -572,6 +572,41 @@
     db.contacts.push(c);
     return c;
   }
+  /* ── Phase 6: contact discovery records (stored on the business) ── */
+  function discoveryOf(businessId) {
+    const biz = byId("businesses", businessId);
+    return biz && biz.contactDiscovery ? biz.contactDiscovery : null;
+  }
+  /* Persist a discovery result. Never touches top-level contact fields, so
+     manually entered or Google-sourced data is never overwritten. */
+  function saveDiscovery(businessId, discovery) {
+    const biz = byId("businesses", businessId);
+    if (!biz) return null;
+    const d = Object.assign({ status: "error", checkedAt: U().now(), sourceWebsite: null }, discovery || {});
+    biz.contactDiscovery = d;
+    biz.updatedAt = U().now();
+    save();
+    return d;
+  }
+  /* Copy a discovered channel onto the top-level business field, but ONLY when
+     that field is empty — existing manual / Google data always wins. */
+  function applyContactChannel(businessId, key) {
+    const biz = byId("businesses", businessId);
+    if (!biz) return null;
+    const d = biz.contactDiscovery;
+    if (!d) return null;
+    const c = key === "contactForm" ? d.contactForm : d[key];
+    if (!c) return null;
+    const value = key === "contactForm" ? c.url : c.value;
+    if (!value) return null;
+    const field = { phone: "phone", whatsapp: "whatsapp", email: "email", instagram: "instagramUrl", facebook: "facebookUrl", tiktok: "tiktokUrl", linkedin: "linkedinUrl" }[key];
+    if (!field) return null;
+    if (biz[field]) return null; // never overwrite
+    biz[field] = value;
+    biz.updatedAt = U().now();
+    save();
+    return value;
+  }
   function upsertAudit(businessId, partial) {
     let a = auditOf(businessId);
     if (!a) { a = emptyAudit(businessId); db.audits.push(a); }
@@ -1017,6 +1052,7 @@
     outreachFor, followupsFor, tasksFor, notesFor, activityFor, projectOf, projectsFor,
     projectTasksFor, milestonesFor, invoicesFor, invoiceItemsFor, approvalsFor, revisionsFor,
     addActivity, addBusiness, addLead, addContact, upsertAudit,
+    discoveryOf, saveDiscovery, applyContactChannel,
     addDiscoveredBusiness, businessByGooglePlace, businessByOsm, businessByName,
     nextFollowup, nextTask, addProject, projectTaskOf, addProjectTask,
     milestoneOf, addMilestone,

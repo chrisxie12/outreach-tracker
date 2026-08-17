@@ -9,10 +9,24 @@ V61.Pages = V61.Pages || {};
   const UI = V61.UI;
 
   const state = { view: "table", query: "", cat: "all", loc: "all", stage: "all", contact: "all", temp: "all", sort: "newest", selected: new Set(), tempDrop: null,
-    dmin: 0, lmin: 0, omin: 0, prior: "all", website: "all", google: "all", audited: "all", high: false, tag: "all" };
+    dmin: 0, lmin: 0, omin: 0, prior: "all", website: "all", google: "all", audited: "all", high: false, tag: "all", cdisc: "all" };
 
   function catList() { return [...new Set(S().db.businesses.map((b) => b.category).filter(Boolean))].sort(); }
   function locList() { return [...new Set(S().db.businesses.map((b) => b.city).filter(Boolean))].sort(); }
+
+  /* Phase 6: contact-discovery snapshot for a lead row.
+     status: not_scanned | found | partial | none | blocked | error */
+  function cdiscSnapshot(r) {
+    const d = (r.business && r.business.contactDiscovery) || null;
+    if (!d) return { status: "not_scanned", whatsapp: false, phone: false, email: false, social: false, d: null };
+    const has = (k) => !!(d[k] && d[k].value);
+    return {
+      status: d.status || "none",
+      whatsapp: has("whatsapp"), phone: has("phone"), email: has("email"),
+      social: ["instagram", "facebook", "tiktok", "linkedin"].some(has),
+      d,
+    };
+  }
 
   function filteredRows() {
     let rows = S().leadRows();
@@ -49,6 +63,17 @@ V61.Pages = V61.Pages || {};
       if (state.contact === "not_contacted") return ["new", "researching"].includes(c);
       return true;
     });
+    if (state.cdisc !== "all") rows = rows.filter((r) => {
+      const s = cdiscSnapshot(r);
+      if (state.cdisc === "whatsapp") return s.whatsapp;
+      if (state.cdisc === "phone") return s.phone;
+      if (state.cdisc === "email") return s.email;
+      if (state.cdisc === "social") return s.social;
+      if (state.cdisc === "none") return s.status === "none";
+      if (state.cdisc === "blocked") return s.status === "blocked";
+      if (state.cdisc === "not_scanned") return s.status === "not_scanned";
+      return true;
+    });
     const key = { newest: (r) => -r.lead.createdAt, name: (r) => (r.business && r.business.name || "").toLowerCase(), score: (r) => -r.leadScore, digital: (r) => -r.digitalScore, opps: (r) => -oppsFor(r).length, value: (r) => -(r.lead.estimatedValue || 0), contact: (r) => -(r.lead.lastContacted || 0), followup: (r) => (nextDue(r.lead.id) || Number.MAX_SAFE_INTEGER) }[state.sort];
     return rows.slice().sort((a, b) => (key(a) < key(b) ? -1 : 1));
   }
@@ -57,7 +82,7 @@ V61.Pages = V61.Pages || {};
   function nextDue(leadId) { const f = S().nextFollowup(leadId); return f ? f.dueDate || 0 : 0; }
 
   function filtersActive() {
-    return state.query || state.cat !== "all" || state.loc !== "all" || state.stage !== "all" || state.temp !== "all" || state.contact !== "all" || state.dmin || state.lmin || state.omin || state.prior !== "all" || state.website !== "all" || state.google !== "all" || state.audited !== "all" || state.high;
+    return state.query || state.cat !== "all" || state.loc !== "all" || state.stage !== "all" || state.temp !== "all" || state.contact !== "all" || state.dmin || state.lmin || state.omin || state.prior !== "all" || state.website !== "all" || state.google !== "all" || state.audited !== "all" || state.high || state.cdisc !== "all";
   }
 
   function copyNumbers() {
@@ -156,6 +181,7 @@ V61.Pages = V61.Pages || {};
       '<select class="select" id="flt-stage"><option value="all">All stages</option>' + S().STAGES.map((s) => '<option value="' + s.key + '"' + (state.stage === s.key ? " selected" : "") + ">" + s.label + "</option>").join("") + "</select>" +
       '<select class="select" id="flt-temp"><option value="all">Any temperature</option>' + S().TEMPERATURES.map((t) => '<option value="' + t.key + '"' + (state.temp === t.key ? " selected" : "") + ">" + t.label + "</option>").join("") + "</select>" +
       '<select class="select" id="flt-contact"><option value="all">Any contact</option><option value="contacted" ' + (state.contact === "contacted" ? "selected" : "") + '>Contacted</option><option value="not_contacted" ' + (state.contact === "not_contacted" ? "selected" : "") + '>Not contacted</option></select>' +
+      '<select class="select" id="flt-cdisc" title="Filter by contact discovery status (Phase 6)"><option value="all"' + (state.cdisc === "all" ? " selected" : "") + '>Contact discovery: any</option><option value="whatsapp"' + (state.cdisc === "whatsapp" ? " selected" : "") + '>Has WhatsApp</option><option value="phone"' + (state.cdisc === "phone" ? " selected" : "") + '>Has phone</option><option value="email"' + (state.cdisc === "email" ? " selected" : "") + '>Has email</option><option value="social"' + (state.cdisc === "social" ? " selected" : "") + '>Has social</option><option value="none"' + (state.cdisc === "none" ? " selected" : "") + '>No contact found</option><option value="blocked"' + (state.cdisc === "blocked" ? " selected" : "") + '>Blocked site</option><option value="not_scanned"' + (state.cdisc === "not_scanned" ? " selected" : "") + '>Not scanned</option></select>' +
       '<select class="select" id="flt-prior"><option value="all"' + (state.prior === "all" ? " selected" : "") + '>Any priority</option><option value="high"' + (state.prior === "high" ? " selected" : "") + '>HIGH</option><option value="medium"' + (state.prior === "medium" ? " selected" : "") + '>MEDIUM</option><option value="low"' + (state.prior === "low" ? " selected" : "") + '>LOW</option></select>' +
       '<select class="select" id="flt-website"><option value="all"' + (state.website === "all" ? " selected" : "") + '>Any website</option><option value="yes"' + (state.website === "yes" ? " selected" : "") + '>Has website</option><option value="no"' + (state.website === "no" ? " selected" : "") + '>No website</option></select>' +
       '<select class="select" id="flt-audited"><option value="all"' + (state.audited === "all" ? " selected" : "") + '>Audit: any</option><option value="yes"' + (state.audited === "yes" ? " selected" : "") + '>Audited</option><option value="no"' + (state.audited === "no" ? " selected" : "") + '>Not audited</option></select>' +
@@ -187,11 +213,28 @@ V61.Pages = V61.Pages || {};
       v ? '<span title="' + t + '" style="color:var(--ok);display:inline-flex">' + ic + "</span>" : '<span title="No ' + t + '" style="color:var(--text-3);opacity:.28;display:inline-flex">' + ic + "</span>"
     ).join("") + "</span>";
   }
+  /* Phase 6: compact contact-discovery cell for the leads table */
+  function contactsCell(r) {
+    const s = cdiscSnapshot(r);
+    if (s.status === "not_scanned") return '<span class="cell-sub">—</span>';
+    if (s.status === "blocked") return '<span class="tag" title="' + U().escapeHtml((s.d && s.d.message) || "Analysis unavailable — this website blocks browser access.") + '" style="background:rgba(229,72,77,.13);color:#e5484d">Blocked</span>';
+    if (s.status === "error") return '<span class="tag" style="background:rgba(229,72,77,.13);color:#e5484d">Error</span>';
+    if (s.status === "none") return '<span class="tag" style="color:var(--text-3)">No contacts</span>';
+    const items = [];
+    if (s.whatsapp) items.push([I.whatsapp, "WhatsApp"]);
+    if (s.phone) items.push([I.phone, "Phone"]);
+    if (s.email) items.push([I.mail, "Email"]);
+    if (s.social) items.push([I.instagram, "Social profile"]);
+    return '<span class="asset-icons" style="display:inline-flex;gap:5px">' + items.map(([ic, t]) =>
+      '<span title="' + t + '" style="color:var(--ok);display:inline-flex">' + ic + "</span>"
+    ).join("") + "</span>";
+  }
+
   function tableHtml(rows) {
     if (!rows.length) return UI.emptyState("users", "Your pipeline is empty.", "Start by adding your first business prospect.", '<button class="btn btn-primary" data-cmd="addLead">' + I.plus + " Add Lead</button>");
     const b = (r) => r.business || {};
     return '<div class="table-wrap"><table class="data"><thead><tr>' +
-      "<th></th><th>Business</th><th>Category</th><th>Location</th><th>Digital</th><th>Lead</th><th>Priority</th><th>Opps</th><th>Assets</th><th>Stage</th><th>Last contact</th><th>Next follow-up</th><th>Deal value</th><th></th>" +
+      "<th></th><th>Business</th><th>Category</th><th>Location</th><th>Digital</th><th>Lead</th><th>Priority</th><th>Opps</th><th>Assets</th><th>Contacts</th><th>Stage</th><th>Last contact</th><th>Next follow-up</th><th>Deal value</th><th></th>" +
       "</tr></thead><tbody>" + rows.map((r) => {
         const fu = S().nextFollowup(r.lead.id);
         const bz = b(r);
@@ -205,6 +248,7 @@ V61.Pages = V61.Pages || {};
           '<td>' + UI.badge(pri.label, pri.color, false) + "</td>" +
           '<td><span class="cell-sub">' + oppsN + "</span></td>" +
           "<td>" + assetsHtml(bz) + "</td>" +
+          "<td>" + contactsCell(r) + "</td>" +
           '<td>' + UI.stageBadge(r.lead.stage) + "</td>" +
           '<td><span class="cell-sub">' + (r.lead.lastContacted ? U().relativeTime(r.lead.lastContacted) : "—") + "</span></td>" +
           '<td>' + (fu ? '<span class="kb-due ' + (fu.dueDate < U().todayStart() ? "overdue" : "") + '">' + I.clock + U().relativeDue(fu.dueDate) + "</span>" : '<span class="cell-sub">—</span>') + "</td>" +
@@ -266,7 +310,7 @@ V61.Pages = V61.Pages || {};
     const el = document.getElementById("content");
     const q = el.querySelector("#lead-search");
     if (q) q.addEventListener("input", U().debounce((e) => { state.query = e.target.value; render(); }, 180));
-    ["flt-cat", "flt-loc", "flt-stage", "flt-contact", "flt-sort", "flt-temp", "flt-prior", "flt-website", "flt-audited", "flt-dmin", "flt-lmin", "flt-omin"].forEach((id) => {
+    ["flt-cat", "flt-loc", "flt-stage", "flt-contact", "flt-sort", "flt-temp", "flt-prior", "flt-website", "flt-audited", "flt-dmin", "flt-lmin", "flt-omin", "flt-cdisc"].forEach((id) => {
       const s = el.querySelector("#" + id);
       if (s) s.addEventListener("change", (e) => {
         const k = id.replace("flt-", "");
@@ -281,7 +325,7 @@ V61.Pages = V61.Pages || {};
     const clear = el.querySelector("#clear-filters");
     if (clear) clear.addEventListener("click", () => {
       state.query = ""; state.cat = "all"; state.loc = "all"; state.stage = "all"; state.temp = "all"; state.contact = "all";
-      state.dmin = 0; state.lmin = 0; state.omin = 0; state.prior = "all"; state.website = "all"; state.google = "all"; state.audited = "all"; state.high = false;
+      state.dmin = 0; state.lmin = 0; state.omin = 0; state.prior = "all"; state.website = "all"; state.google = "all"; state.audited = "all"; state.high = false; state.cdisc = "all";
       render();
     });
     el.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => { state.view = b.dataset.v; render(); }));
@@ -549,6 +593,8 @@ UI.bind(el);
       "</div>" + (biz.notes ? '<div style="margin-top:12px;padding:11px 13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--text-2)"><b style="color:var(--text)">Notes:</b> ' + U().escapeHtml(biz.notes) + "</div>" : "") +
       "</div></div>" +
 
+      contactDiscoveryPanel(biz, lead) +
+
       /* website intelligence (AI extraction of the real site) */
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.globe + " Website Intelligence" + (biz.enrich && biz.enrich.fields ? '<span class="sub">Detected from website</span>' : "") + "</div>" +
       '<button class="btn btn-sm" data-cmd="aiExtract:' + lead.id + '">' + (biz.enrich && biz.enrich.fields ? I.refresh + " Re-run" : I.scan + " AI Extract website") + "</button></div>" +
@@ -701,6 +747,73 @@ UI.bind(el);
         (biz.enrich.at ? " · Detected " + U().relativeTime(biz.enrich.at) : "") + " · AI extraction — verify before using.</div>"
       : "";
     return body + meta;
+  }
+
+  /* ── Phase 6: Contact Discovery panel (lead detail) ── */
+  const CD_CHANNELS = [
+    { key: "whatsapp", label: "WhatsApp", icon: "whatsapp", field: "whatsapp", link: (v) => U().waLink(v) },
+    { key: "phone", label: "Phone", icon: "phone", field: "phone", link: (v) => "tel:" + U().phoneDigits(v) },
+    { key: "email", label: "Email", icon: "mail", field: "email", link: (v) => "mailto:" + v },
+    { key: "instagram", label: "Instagram", icon: "instagram", field: "instagramUrl", link: (v) => v },
+    { key: "facebook", label: "Facebook", icon: "facebook", field: "facebookUrl", link: (v) => v },
+    { key: "tiktok", label: "TikTok", icon: "tiktok", field: "tiktokUrl", link: (v) => v },
+    { key: "linkedin", label: "LinkedIn", icon: "linkedin", field: "linkedinUrl", link: (v) => v },
+  ];
+  const CD_STATUS = {
+    found: { label: "Contacts found", color: "#3f9d5f" },
+    partial: { label: "Partial — indirect only", color: "#e0a53e" },
+    none: { label: "No contacts found", color: "#8a8a90" },
+    blocked: { label: "Website blocked access", color: "#e5484d" },
+    error: { label: "Scan error", color: "#e5484d" },
+  };
+  function cdConfBadge(c) {
+    return c === "HIGH"
+      ? '<span class="tag" style="background:rgba(63,157,95,.14);color:#3f9d5f">HIGH</span>'
+      : '<span class="tag" style="background:rgba(224,165,62,.15);color:#e0a53e">MEDIUM</span>';
+  }
+  function contactDiscoveryPanel(biz, lead) {
+    const CD = V61.ContactDiscovery;
+    const d = S().discoveryOf(biz.id);
+    const esc = U().escapeHtml;
+    const head = '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.users + " Contact Discovery" +
+      (d ? '<span class="sub">' + (CD ? CD.presentChannels(d).length : 0) + " channels · checked " + U().relativeTime(d.checkedAt) + "</span>" : '<span class="sub">From the business website</span>') + "</div>" +
+      '<button class="btn btn-sm" data-cmd="contactDiscover:' + lead.id + '">' + (d ? I.refresh + " Re-scan" : I.scan + " Scan website") + "</button></div><div class='panel-body'>";
+    if (!d) {
+      return head +
+        '<div style="font-size:12.5px;color:var(--text-3);line-height:1.7">' + I.globe +
+        ' No contact discovery yet. Scan the business website to find its public phone, WhatsApp, email, social profiles and contact form. Discovery is deterministic — no AI, and only channels that actually exist on the site are reported.</div></div></div>';
+    }
+    const st = CD_STATUS[d.status] || CD_STATUS.none;
+    let body = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">' + UI.badge(st.label, st.color, true) +
+      (d.message ? '<span style="font-size:12px;color:var(--text-3)">' + esc(d.message) + "</span>" : "") + "</div>";
+    if (d.sourceWebsite) {
+      body += '<div style="font-size:11.5px;color:var(--text-3);margin-bottom:12px">Source: <a target="_blank" rel="noopener" href="' + esc(d.sourceWebsite) + '">' + esc(d.sourceWebsite) + "</a></div>";
+    }
+    const rows = [];
+    CD_CHANNELS.forEach((c) => {
+      const channel = d[c.key];
+      if (!channel || !channel.value) return;
+      const applyable = c.field && !biz[c.field];
+      rows.push({ key: c.key, label: c.label, icon: c.icon, value: channel.value, href: c.link(channel.value), conf: channel.confidence, srcUrl: channel.sourceUrl, applyable });
+    });
+    if (d.contactForm && d.contactForm.url) {
+      rows.push({ key: "contactForm", label: "Contact form", icon: "send", value: d.contactForm.url, href: d.contactForm.url, conf: d.contactForm.confidence, srcUrl: d.contactForm.sourceUrl, applyable: false });
+    }
+    if (rows.length) {
+      body += '<div class="stack">' + rows.map((r) =>
+        '<div class="row-card" style="padding:10px 12px"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">' +
+        '<span style="color:var(--text-2);display:inline-flex">' + I[r.icon] + "</span>" +
+        '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:650;margin-bottom:1px">' + r.label + "</div>" +
+        '<a target="_blank" rel="noopener" href="' + esc(r.href) + '" style="font-size:12.5px;color:var(--accent);word-break:break-all">' + esc(r.value) + "</a></div>" +
+        cdConfBadge(r.conf) +
+        (r.srcUrl ? '<a target="_blank" rel="noopener" href="' + esc(r.srcUrl) + '" title="Source page" style="color:var(--text-3);font-size:11px">' + I.link + "</a>" : "") +
+        (r.applyable ? '<button class="btn btn-sm btn-ghost" data-cmd="applyContact:' + lead.id + ':' + r.key + '" title="Copy into the business contact fields (only fills empty fields)">Apply</button>' : "") +
+        "</div></div>"
+      ).join("") + "</div>";
+    } else {
+      body += '<div style="font-size:12.5px;color:var(--text-3)">' + esc(d.message || "No channels found.") + "</div>";
+    }
+    return head + body + "</div></div>";
   }
 
   function nextStepCallout(lead, followups, tasks, wa, biz) {
@@ -1003,6 +1116,35 @@ UI.bind(el);
     },
     aiFollowup: (leadId) => {
       V61.AI.generateFollowup(leadId).then((res) => V61.AI.present("follow-up", res, "AI Follow-up Draft"));
+    },
+    /* Phase 6: contact discovery — deterministic website scan */
+    contactDiscover: (leadId) => {
+      const row = S().leadRows().find((r) => r.lead.id === leadId);
+      if (!row || !row.business) return;
+      const biz = row.business;
+      if (!V61.ContactDiscovery) { V61.Toast.error("Contact discovery is unavailable"); return; }
+      if (!(biz.website || "").trim()) { V61.Toast.warn("This business has no website to scan"); return; }
+      V61.Toast.info("Scanning " + (biz.name || "") + "…");
+      V61.ContactDiscovery.analyze(biz).then((res) => {
+        S().saveDiscovery(biz.id, res);
+        const n = V61.ContactDiscovery.presentChannels(res).length;
+        if (res.status === "blocked") V61.Toast.warn(res.message);
+        else if (res.status === "error") V61.Toast.error(res.message);
+        else if (res.status === "none") V61.Toast.info("No public contact channels found on " + biz.name);
+        else V61.Toast.success("Found " + n + " contact channel" + (n === 1 ? "" : "s") + " on " + biz.name);
+        V61.App.nav("#/leads/" + leadId);
+      }).catch((e) => { V61.Toast.error((e && e.message) || "Scan failed"); });
+    },
+    applyContact: (arg) => {
+      const parts = arg.split(":");
+      if (parts.length < 3) return;
+      const leadId = parts[0], key = parts[1];
+      const lead = S().byId("leads", leadId);
+      if (!lead) return;
+      const applied = S().applyContactChannel(lead.businessId, key);
+      if (applied) V61.Toast.success("Applied " + key + " to " + (S().businessOf(lead) ? S().businessOf(lead).name : "the business"));
+      else V61.Toast.info("Not applied — that field already has a value (manual or Google data wins).");
+      V61.App.nav("#/leads/" + leadId);
     },
   });
 

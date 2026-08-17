@@ -14,6 +14,7 @@ require("./phase5-mobile-console.test.js");
 require("./discovery-providers.test.js");
 require("./ai.test.js");
 require("./sync.test.js");
+require("./phase6-contact-discovery.test.js");
 require("./ui-ux.test.js");
 require("./website.test.js");
 

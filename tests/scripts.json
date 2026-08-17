@@ -6,6 +6,7 @@
  "crm/js/services/googlePlaces.js",
  "crm/js/services/openstreetmap.js",
  "crm/js/services/websiteAnalyzer.js",
+ "crm/js/services/contactDiscovery.js",
  "crm/js/services/scoring.js",
  "crm/js/services/opportunities.js",
  "crm/js/services/outreach.js",
