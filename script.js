@@ -100,6 +100,9 @@
       var waUrl = "https://wa.me/" + WA_NUMBER + "?text=" + encodeURIComponent(body);
       var mailtoUrl = "mailto:" + EMAIL + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
 
+      if (window.trackEvent) {
+        window.trackEvent("contact_form_submit", { form_name: "main_contact", method: "whatsapp" });
+      }
       window.open(waUrl, "_blank", "noopener");
       if (status) {
         status.textContent = "Opening WhatsApp with your details pre-filled…";
@@ -356,15 +359,85 @@
     if (resultEl) resultEl.hidden = true;
     var norm = normalizeUrl(input.value);
     if (!norm) { setStatus("Please enter a valid website address, like www.yourbusiness.com", true); return; }
+    if (window.trackEvent) {
+      window.trackEvent("audit_start", { method: "free_digital_audit" });
+    }
     setStatus("Checking " + norm.host + "…");
     if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
     analyze(norm).then(function (r) {
       finalize();
       setStatus("");
+      if (r && r.status === "ok" && window.trackEvent) {
+        window.trackEvent("audit_complete", { method: "free_digital_audit" });
+      }
       render(r);
     }).catch(function () {
       finalize();
       setStatus("Something went wrong — please try again.", true);
     });
   });
+})();
+
+/* ── Analytics (GA4) ─────────────────────────────────────────
+   Minimal, privacy-safe event tracking for the marketing site.
+   Events never include visitor-entered personal data, message
+   contents or URLs. All calls are safe no-ops when Google
+   Analytics is unavailable and can never break the website. */
+(function () {
+  "use strict";
+
+  function trackEvent(eventName, parameters) {
+    try {
+      if (window.gtag && typeof window.gtag === "function") {
+        window.gtag("event", eventName, parameters || {});
+      }
+    } catch (e) { /* analytics must never break the site */ }
+  }
+  window.trackEvent = trackEvent;
+
+  function locationOf(el) {
+    var node = el;
+    while (node && node.nodeType === 1) {
+      if (node.classList) {
+        if (node.classList.contains("nav")) return "navigation";
+        if (node.classList.contains("hero")) return "hero";
+      }
+      if (node.id === "audit") return "audit";
+      if (node.id === "contact") return "contact";
+      if (node.tagName === "FOOTER") return "footer";
+      node = node.parentNode;
+    }
+    return "other";
+  }
+
+  document.addEventListener("click", function (ev) {
+    var a = ev.target && ev.target.closest ? ev.target.closest("a[href]") : null;
+    if (!a) return;
+    var href = (a.getAttribute("href") || "").trim();
+    var loc = locationOf(a);
+    if (/^https?:\/\/(wa\.me|api\.whatsapp\.com)\//i.test(href)) {
+      trackEvent("contact_whatsapp", { method: "whatsapp", location: loc });
+    } else if (/^mailto:/i.test(href)) {
+      trackEvent("contact_email", { method: "email", location: loc });
+    }
+  });
+
+  document.addEventListener("click", function (ev) {
+    var card = ev.target && ev.target.closest ? ev.target.closest(".svc-card") : null;
+    if (!card) return;
+    var h3 = card.querySelector("h3");
+    var name = h3 ? h3.textContent.trim() : "";
+    if (name) trackEvent("service_interest", { service_name: name });
+  });
+
+  var contactForm = document.getElementById("contact-form");
+  if (contactForm) {
+    var formStartFired = false;
+    contactForm.addEventListener("focusin", function () {
+      if (!formStartFired) {
+        formStartFired = true;
+        trackEvent("contact_form_start", { form_name: "main_contact" });
+      }
+    });
+  }
 })();
