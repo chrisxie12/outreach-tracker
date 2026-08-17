@@ -62,7 +62,7 @@
   if (form) {
     var status = document.getElementById("form-status");
     var WA_NUMBER = "233201599949";
-    var EMAIL = "hello@vision61studios.com";
+    var EMAIL = "hello@vision61studios.online";
 
     form.addEventListener("submit", function (ev) {
       ev.preventDefault();

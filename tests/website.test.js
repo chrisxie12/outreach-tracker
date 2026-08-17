@@ -128,7 +128,7 @@ suite("website landing page", () => {
 
   test("contact CTAs link out to WhatsApp and email", () => {
     const wa = d.querySelector('a[href^="https://wa.me/233201599949"]');
-    const mail = d.querySelector('a[href^="mailto:hello@vision61studios.com"]');
+    const mail = d.querySelector('a[href^="mailto:hello@vision61studios.online"]');
     notNull(wa, "WhatsApp CTA to real number exists");
     notNull(mail, "mailto CTA to studio email exists");
     ok(/\?text=/.test(wa.getAttribute("href")), "WhatsApp link has a pre-filled message");
@@ -167,7 +167,7 @@ suite("website landing page", () => {
     notNull(status, "status element exists");
     ok(/Opening WhatsApp/.test(status.textContent), "status confirms WhatsApp open");
     notNull(d.querySelector(".form-fallback"), "mailto fallback link provided");
-    notNull(d.querySelector('a[href^="mailto:hello@vision61studios.com"]'), "no fake backend, email used");
+    notNull(d.querySelector('a[href^="mailto:hello@vision61studios.online"]'), "no fake backend, email used");
   });
 
   test("footer year is filled in by JS", () => {
