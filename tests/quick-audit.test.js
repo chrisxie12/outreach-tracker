@@ -103,4 +103,71 @@ suite("Quick add — business by name → run audit", () => {
     const modal = app.window.document.querySelector(".modal-overlay");
     notNull(modal, "modal stays open to correct the input");
   });
+
+  test("pasting a Google Maps profile link auto-fills the business name", async () => {
+    const app = freshApp();
+    await settle(app);
+    app.V61.Pages.audits();
+    const doc = openQuickAudit(app);
+    const placeInput = doc.querySelector("#qba-place");
+    notNull(placeInput, "Google Maps link field present");
+    placeInput.value = "https://www.google.com/maps/place/Sarfo%27s+Kitchen/@5.55,-0.19,17z";
+    placeInput.dispatchEvent(new app.window.Event("input", { bubbles: true }));
+    eq(doc.querySelector("#qba-name").value, "Sarfo's Kitchen", "name auto-filled from link path");
+  });
+
+  test("quick add resolves a pasted Google Maps link via findPlaceFromQuery and applies place details", async () => {
+    const app = freshApp();
+    await settle(app);
+    const S = app.V61.Store;
+    S.db.settings.googleMapsApiKey = "AIzaTEST000000000000000000000000";
+    app.V61.GooglePlaces.findPlaceFromQuery = async (query) => {
+      ok(query.indexOf("Sarfo") >= 0, "resolves using the business name from the link");
+      return { placeId: "ChIJresolvedPlace", name: "Sarfo's Kitchen" };
+    };
+    app.V61.GooglePlaces.placeDetails = async (placeId) => {
+      ok(placeId === "ChIJresolvedPlace", "fetches details for the resolved place");
+      return {
+        name: "Sarfo's Kitchen", address: "12 Osu High Street, Accra", category: "Restaurant",
+        city: "Accra", phone: "+233 24 555 0001", website: "https://sarfos.example",
+        rating: 4.6, reviews: 210, hours: true, photos: 3, lat: 5.55, lng: -0.19,
+      };
+    };
+    app.V61.Pages.audits();
+    const doc = openQuickAudit(app);
+    doc.querySelector("#qba-place").value = "https://www.google.com/maps/place/Sarfo%27s+Kitchen/@5.55,-0.19,17z";
+    clickEl(app.window, doc.querySelector("[data-go]"));
+    await new Promise((r) => setTimeout(r, 40));
+    const biz = S.db.businesses.find((b) => b.name === "Sarfo's Kitchen");
+    notNull(biz, "business created from resolved place");
+    eq(biz.googlePlaceId, "ChIJresolvedPlace", "resolved place id stored");
+    eq(biz.category, "Restaurant", "category auto-filled from place details");
+    eq(biz.city, "Accra", "city auto-filled from place details");
+    eq(biz.phone, "+233 24 555 0001", "phone auto-filled from place details");
+    eq(biz.website, "https://sarfos.example", "website auto-filled from place details");
+    eq(biz.placeRating, 4.6, "rating stored");
+    eq(biz.placeReviews, 210, "review count stored");
+    const audit = S.auditOf(biz.id);
+    notNull(audit, "audit created");
+    ok(audit.google && audit.google.exists, "google listing facts applied from place details");
+    eq(audit.google.rating, true, "rating >= 4 counted as pass");
+    eq(audit.seo && audit.seo.maps, true, "maps presence applied");
+  });
+
+  test("quick add with no Google key still creates the business from a link's business name", async () => {
+    const app = freshApp();
+    await settle(app);
+    const S = app.V61.Store;
+    let resolved = false;
+    app.V61.GooglePlaces.findPlaceFromQuery = async () => { resolved = true; return { placeId: "ChIxxx", name: "X" }; };
+    app.V61.Pages.audits();
+    const doc = openQuickAudit(app);
+    doc.querySelector("#qba-place").value = "https://www.google.com/maps/place/No+Key+Caf%C3%A9/@1,2,17z";
+    clickEl(app.window, doc.querySelector("[data-go]"));
+    await new Promise((r) => setTimeout(r, 30));
+    const biz = S.db.businesses.find((b) => b.name === "No Key Café");
+    notNull(biz, "business created using the name parsed from the link");
+    eq(biz.googlePlaceId, "", "no place id without a Google key (nothing invented)");
+    ok(!resolved, "does not attempt findPlaceFromQuery without a key");
+  });
 });

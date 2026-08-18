@@ -112,12 +112,32 @@ window.V61 = window.V61 || {};
           hours: !!(p.opening_hours && p.opening_hours.periods && p.opening_hours.periods.length),
           photos: (p.photos && p.photos.length) || 0,
           url: p.url || "", types: p.types || [], category: normalizeType(p.types),
+          city: extractCity(p),
           lat: p.geometry && p.geometry.location ? p.geometry.location.lat() : null,
           lng: p.geometry && p.geometry.location ? p.geometry.location.lng() : null,
           photo: photo,
         });
         }
         else reject(new Error("Place details error: " + status));
+      });
+    }));
+  }
+
+  /* findPlaceFromQuery: resolve a single best-match Google place for a query
+     (used when the user pastes a Google Maps link we can't read a place id
+     from, or just a business name). Returns { placeId, name } or null when
+     Google reports no match — never a fabricated result. */
+  function findPlaceFromQuery(query) {
+    return placesReady().then(() => new Promise((resolve, reject) => {
+      const svc = placesService();
+      svc.findPlaceFromQuery({ query, fields: ["place_id", "name", "formatted_address"] }, (results, status) => {
+        if (status === "OK" && results && results[0]) {
+          resolve({ placeId: results[0].place_id, name: results[0].name || "" });
+        } else if (status === "ZERO_RESULTS" || status === "NOT_FOUND") {
+          resolve(null);
+        } else {
+          reject(new Error("Places API error: " + status));
+        }
       });
     }));
   }
@@ -147,6 +167,6 @@ window.V61 = window.V61 || {};
     search: discoverySearchAny, details: discoveryDetails, catMetaOptions,
   };
 
-  V61.GooglePlaces = { discoveryKey, placesReady, placesService, normalizeType, extractCity, discoverySearch, placeDetails, catMetaOptions, photoFor, cachePhoto, capturePhoto };
+  V61.GooglePlaces = { discoveryKey, placesReady, placesService, normalizeType, extractCity, discoverySearch, placeDetails, findPlaceFromQuery, catMetaOptions, photoFor, cachePhoto, capturePhoto };
   V61.Discovery = Discovery;
 })();

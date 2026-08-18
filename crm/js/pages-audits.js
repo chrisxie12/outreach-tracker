@@ -269,7 +269,25 @@ V61.Pages = V61.Pages || {};
     });
   }
 
-  /* ── Quick add: a business by name → add to CRM → run the digital audit ── */
+  /* ── Quick add: a business by name or Google Maps link → add to CRM → run the audit ── */
+  /* Extract a place id and/or a business name from a pasted Google Maps link.
+     Handles place_id:… URLs, bare ChI… ids, /maps/place/<Name>/@… profile URLs
+     and ?q=<Name> queries. Returns { placeId, name } — nothing is invented. */
+  function mapsLinkInfo(input) {
+    const s = String(input || "").trim();
+    if (!s) return { placeId: "", name: "" };
+    const pid = (s.match(/place_id:([A-Za-z0-9_\-]+)/) || [])[1] || "";
+    const placeId = pid || (/^ChI[A-Za-z0-9_\-]+$/.test(s) ? s : "");
+    let name = "";
+    const pm = s.match(/\/maps\/place\/([^@?/]+)/);
+    if (pm) name = decodeURIComponent(pm[1].replace(/\+/g, " ")).trim();
+    else {
+      const qm = s.match(/[?&](?:q|query)=([^&#]+)/);
+      if (qm && qm[1].indexOf("place_id:") !== 0) name = decodeURIComponent(qm[1].replace(/\+/g, " ")).trim();
+    }
+    return { placeId, name };
+  }
+
   function placeIdFromInput(input) {
     const s = String(input || "").trim();
     if (!s) return "";
@@ -282,45 +300,71 @@ V61.Pages = V61.Pages || {};
   function addBusinessAudit() {
     const m = UI.openModal({ title: "Add Business & Run Audit", icon: I.plus, size: "lg" });
     m.setBody(
-      '<div class="field"><label>Business name *</label><input class="input" id="qba-name" placeholder="e.g. Sarfo&rsquo;s Kitchen"></div>' +
+      '<div class="field"><label>Google Maps link or Place ID</label><input class="input" id="qba-place" placeholder="Paste a Google Maps link — e.g. https://www.google.com/maps/place/Sarfo%27s+Kitchen/…"></div>' +
+      '<div class="field"><label>Business name</label><input class="input" id="qba-name" placeholder="Auto-filled from the link, or type it"></div>' +
       '<div class="field-row"><div class="field"><label>Category</label><input class="input" id="qba-cat" list="qba-cat-list" placeholder="e.g. Restaurant"><datalist id="qba-cat-list">' + GP().catMetaOptions() + "</datalist></div>" +
       '<div class="field"><label>City / Area</label><input class="input" id="qba-city" placeholder="e.g. Osu, Accra"></div></div>' +
       '<div class="field"><label>Website</label><input class="input" id="qba-website" placeholder="e.g. example.com"></div>' +
-      '<div class="field"><label>Google Maps URL or Place ID</label><input class="input" id="qba-place" placeholder="Optional — paste a Google Maps link to auto-fill the audit"></div>' +
       '<div class="field-row"><div class="field"><label>Phone / WhatsApp</label><input class="input" id="qba-phone" placeholder="+233 ..."></div>' +
       '<div class="field"><label>Email</label><input class="input" id="qba-email" placeholder=""></div></div>'
     );
     m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-go>' + I.scan + " Add & Run Audit</button>");
     m.q("[data-cancel]").addEventListener("click", () => m.close());
-    m.q("[data-go]").addEventListener("click", () => {
-      const name = m.body.querySelector("#qba-name").value.trim();
-      if (!name) { V61.Toast.error("Business name is required"); return; }
-      const gmaps = m.body.querySelector("#qba-place").value.trim();
-      const placeId = placeIdFromInput(gmaps);
+    const nameField = m.body.querySelector("#qba-name");
+    const placeField = m.body.querySelector("#qba-place");
+    placeField.addEventListener("input", () => {
+      const link = mapsLinkInfo(placeField.value);
+      if (link.name && !nameField.value.trim()) nameField.value = link.name;
+    });
+    m.q("[data-go]").addEventListener("click", async () => {
+      const btn = m.q("[data-go]");
+      const name = nameField.value.trim();
+      const gmaps = placeField.value.trim();
+      const link = mapsLinkInfo(gmaps);
+      if (!name && !link.name) { V61.Toast.error("Enter a business name or paste a Google Maps link"); return; }
+      btn.disabled = true; btn.textContent = "Resolving…";
+      let placeId = link.placeId;
+      let details = null;
+      const lookupName = name || link.name;
+      if (D().key() && !placeId && lookupName) {
+        try {
+          const hit = await GP().findPlaceFromQuery(lookupName);
+          if (hit && hit.placeId) placeId = hit.placeId;
+        } catch (e) { /* keep manual — no invented data */ }
+      }
+      if (placeId && D().key()) {
+        try { details = await GP().placeDetails(placeId); } catch (e) { details = null; }
+      }
       const biz = S().addBusiness({
-        name,
-        category: m.body.querySelector("#qba-cat").value.trim(),
-        city: m.body.querySelector("#qba-city").value.trim(),
-        website: m.body.querySelector("#qba-website").value.trim(),
-        phone: m.body.querySelector("#qba-phone").value.trim(),
-        whatsapp: m.body.querySelector("#qba-phone").value.trim(),
+        name: (details && details.name) || lookupName || "Untitled business",
+        category: (details && details.category) || m.body.querySelector("#qba-cat").value.trim(),
+        city: (details && details.city) || m.body.querySelector("#qba-city").value.trim(),
+        address: (details && details.address) || "",
+        website: (details && details.website) || m.body.querySelector("#qba-website").value.trim(),
+        phone: (details && details.phone) || m.body.querySelector("#qba-phone").value.trim(),
+        whatsapp: (details && details.phone) || m.body.querySelector("#qba-phone").value.trim(),
         email: m.body.querySelector("#qba-email").value.trim(),
         googlePlaceId: placeId || "",
         googleProfileUrl: placeId ? "https://www.google.com/maps/place/?q=place_id:" + placeId : gmaps,
+        placeRating: details ? details.rating : null,
+        placeReviews: details ? details.reviews : null,
+        placeLat: details ? details.lat : null,
+        placeLng: details ? details.lng : null,
       });
       const lead = S().addLead(biz.id, { source: "manual" });
       S().addActivity(lead.id, "note", "Business added — running digital audit.");
       S().save();
       m.close();
-      runBusinessAudit(lead.id);
+      runBusinessAudit(lead.id, details);
     });
   }
 
   /* Auto-fill and save an audit for a freshly added business, then open the
      audit detail page. Uses the same real data sources as batch auditing:
      Google/OSM listing facts when a place is known, plus website analysis
-     when a URL is provided. Nothing is invented. */
-  function runBusinessAudit(leadId) {
+     when a URL is provided. Nothing is invented. A prefetchedDetails object
+     (already resolved from the pasted link) is applied directly. */
+  function runBusinessAudit(leadId, prefetchedDetails) {
     const lead = S().byId("leads", leadId);
     if (!lead || !S().businessOf(lead)) { V61.App.nav("#/audits"); return; }
     const biz = S().businessOf(lead);
@@ -338,7 +382,9 @@ V61.Pages = V61.Pages || {};
     (async () => {
       const srcPromise = (biz.osmId || (biz.googlePlaceId && D().key()))
         ? (listEl.insertAdjacentHTML("beforeend", rowHtml("Listing facts", "fetching…")),
-            D().details(biz.osmId || biz.googlePlaceId)
+            (prefetchedDetails
+              ? Promise.resolve(prefetchedDetails)
+              : D().details(biz.osmId || biz.googlePlaceId))
               .then((d) => { applyDetails(audit, d, detailsSourceFor(biz)); listEl.lastElementChild.innerHTML = rowHtml("Listing facts", "filled ✓"); })
               .catch(() => { listEl.lastElementChild.innerHTML = rowHtml("Listing facts", "not available"); }))
         : Promise.resolve();
