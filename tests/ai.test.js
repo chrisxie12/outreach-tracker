@@ -846,6 +846,38 @@ suite("AI — website extract (worker)", () => {
     ok(/STRICT JSON/i.test(sys), "extract prompt must demand strict JSON");
     ok(/NEVER invent/i.test(sys), "extract prompt must forbid invention");
     ok(groqBody.max_tokens <= 900, "extract must stay within the token budget");
+    ok(groqBody.response_format && groqBody.response_format.type === "json_object", "extract must use Groq JSON mode");
+  });
+
+  test("/v1/extract explains when the site blocks automated access", async () => {
+    await withGroq(async (url) => {
+      if (String(url).includes("amaskitchen.example")) return new Response("forbidden", { status: 403 });
+      throw new Error("unexpected fetch: " + url);
+    }, async () => {
+      const res = await callWorker("extract", { env: extractEnv(), body: { business: { name: "Ama's Kitchen" }, url: "https://www.amaskitchen.example" } });
+      eq(res.status, 502);
+      ok(/403/.test((await res.json()).message), "message explains the block");
+    });
+  });
+
+  test("/v1/extract retries once when the model returns empty content", async () => {
+    let calls = 0;
+    await withGroq(async (url) => {
+      if (String(url).includes("amaskitchen.example")) return pageRes();
+      if (String(url).includes("chat/completions")) {
+        calls++;
+        if (calls === 1) return groqRes(200, { choices: [{ message: { content: "" } }] });
+        return groqRes(200, { choices: [{ message: { content: JSON.stringify(FIELDS) } }] });
+      }
+      throw new Error("unexpected fetch: " + url);
+    }, async () => {
+      const res = await callWorker("extract", { env: extractEnv(), body: { business: { name: "Ama's Kitchen" }, url: "https://www.amaskitchen.example" } });
+      eq(res.status, 200);
+      const d = await res.json();
+      eq(d.ok, true);
+      eq(d.fields.phone, "0201599949");
+      eq(calls, 2, "must have retried once after the empty response");
+    });
   });
 
   test("/v1/extract requires a website URL", async () => {

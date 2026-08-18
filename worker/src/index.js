@@ -52,6 +52,9 @@ const EXTRACT_TIMEOUT_MS = 10000;        // hard fetch timeout
 const MAX_EXTRACT_BYTES = 250 * 1024;    // cap on downloaded page bytes
 const MAX_EXTRACT_TEXT = 6000;           // chars of cleaned text sent to Groq
 const MAX_EXTRACT_TOKENS = 900;          // room for a structured JSON answer
+/* A real browser User-Agent: many sites (Cloudflare/WAF) return 403 to
+   "bot" user agents, which would otherwise make /v1/extract useless. */
+const EXTRACT_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 /* /v1/sync (cloud sync via a Durable Object). */
 const MAX_SYNC_BODY_BYTES = 2 * 1024 * 1024;   // the whole CRM database as JSON
 
@@ -321,7 +324,7 @@ async function handleExtract(ctx, env, allowed, model) {
     res = await fetch(target.toString(), {
       redirect: "follow",
       signal: ctrl ? ctrl.signal : undefined,
-      headers: { "User-Agent": "Vision61CRM/1.0 (+https://chrisxie12.github.io/outreach-tracker/crm/)" },
+      headers: { "User-Agent": EXTRACT_UA, "Accept": "text/html,application/xhtml+xml,*/*;q=0.8" },
     });
   } catch (e) {
     if (timer) clearTimeout(timer);
@@ -330,7 +333,10 @@ async function handleExtract(ctx, env, allowed, model) {
   if (timer) clearTimeout(timer);
 
   if (!res.ok) {
-    return json({ ok: false, error: "fetch_failed", message: "The website did not respond (HTTP " + res.status + ")." }, 502, allowed);
+    const blocked = res.status === 403 || res.status === 429;
+    return json({ ok: false, error: "fetch_failed", message: blocked
+      ? "The website blocked this request (HTTP " + res.status + ") — it appears to be protected against automated access. Try a different page or site."
+      : "The website did not respond (HTTP " + res.status + ")." }, 502, allowed);
   }
   const ctype = (res.headers.get("Content-Type") || "").toLowerCase();
   const page = await readBoundedText(res, MAX_EXTRACT_BYTES);
@@ -348,35 +354,44 @@ async function handleExtract(ctx, env, allowed, model) {
     ],
     temperature: 0.2,
     max_tokens: MAX_EXTRACT_TOKENS,
+    /* Native JSON mode — gpt-oss-20b supports it and it forces a well-formed
+       object instead of reasoning chatter or an empty answer. */
+    response_format: { type: "json_object" },
   };
 
-  let gres;
-  try {
-    gres = await fetch(GROQ_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + env.GROQ_API_KEY },
-      body: JSON.stringify(groqPayload),
-    });
-  } catch (e) {
-    return json({ ok: false, error: "upstream_unreachable", message: "AI is temporarily unavailable. Deterministic tools remain available." }, 502, allowed);
-  }
+  let content = null;
+  for (let attempt = 0; attempt < 2 && !content; attempt++) {
+    let gres;
+    try {
+      gres = await fetch(GROQ_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + env.GROQ_API_KEY },
+        body: JSON.stringify(groqPayload),
+      });
+    } catch (e) {
+      return json({ ok: false, error: "upstream_unreachable", message: "AI is temporarily unavailable. Deterministic tools remain available." }, 502, allowed);
+    }
 
-  if (gres.status === 401 || gres.status === 403) {
-    return json({ ok: false, error: "auth_failed", message: "AI provider rejected the gateway credentials. Deterministic tools remain available." }, 502, allowed);
-  }
-  if (gres.status === 429) {
-    return json({ ok: false, error: "rate_limited", message: "AI is rate-limited right now. Deterministic tools remain available." }, 429, allowed);
-  }
-  if (gres.status >= 500) {
-    return json({ ok: false, error: "provider_error", message: "AI provider is having issues. Deterministic tools remain available." }, 502, allowed);
-  }
+    if (gres.status === 401 || gres.status === 403) {
+      return json({ ok: false, error: "auth_failed", message: "AI provider rejected the gateway credentials. Deterministic tools remain available." }, 502, allowed);
+    }
+    if (gres.status === 429) {
+      return json({ ok: false, error: "rate_limited", message: "AI is rate-limited right now. Deterministic tools remain available." }, 429, allowed);
+    }
+    if (gres.status >= 500) {
+      return json({ ok: false, error: "provider_error", message: "AI provider is having issues. Deterministic tools remain available." }, 502, allowed);
+    }
 
-  let gdata = null;
-  try { gdata = await gres.json(); } catch (e) {
-    return json({ ok: false, error: "malformed_response", message: "AI returned an unreadable response. Deterministic tools remain available." }, 502, allowed);
-  }
-  const content = gdata && gdata.choices && gdata.choices[0] && gdata.choices[0].message && gdata.choices[0].message.content;
-  if (!content || typeof content !== "string") {
+    let gdata = null;
+    try { gdata = await gres.json(); } catch (e) { gdata = null; }
+    if (!gdata) {
+      if (attempt === 0) continue;
+      return json({ ok: false, error: "malformed_response", message: "AI returned an unreadable response. Deterministic tools remain available." }, 502, allowed);
+    }
+    const c = gdata && gdata.choices && gdata.choices[0] && gdata.choices[0].message && gdata.choices[0].message.content;
+    if (c && typeof c === "string") { content = c; break; }
+    if (attempt === 0) continue;   /* retry once — reasoning models occasionally return empty */
+    console.log("[DEBUG-extract] groq", gres.status, JSON.stringify(gdata && gdata.choices && gdata.choices[0] && gdata.choices[0].message).slice(0, 800));
     return json({ ok: false, error: "empty_response", message: "AI returned an empty response. Deterministic tools remain available." }, 502, allowed);
   }
 
