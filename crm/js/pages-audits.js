@@ -94,6 +94,7 @@ V61.Pages = V61.Pages || {};
       '<h1 class="page-title">Digital Audits</h1><p class="page-sub">' + audited + " of " + allRows.length + " leads audited · median score " + median(allRows.filter((r) => r.audit).map((r) => r.digitalScore)) + " · " + oppCount + " opportunities detected</p></div>" +
       '<div class="page-actions">' +
       (state.batch.size ? '<button class="btn btn-primary" data-cmd="batchAudit">' + I.scan + " Run Digital Audit (" + state.batch.size + ")</button>" : "") +
+      '<button class="btn btn-primary" data-cmd="addBusinessAudit">' + I.plus + " Add Business & Audit</button>" +
       '<button class="btn" data-cmd="highOpps">' + (state.high ? I.filter : I.zap) + (state.high ? " All leads" : " High Opportunities") + "</button></div></div>" +
       '<div class="panel" style="margin-bottom:16px"><div class="filterbar">' +
       '<select class="select" id="aud-flt-digital"><option value="0">Any digital score</option>' + [30, 40, 50, 60, 70, 80].map((v) => '<option value="' + v + '"' + (state.flt.digital === v ? " selected" : "") + ">Digital ≥ " + v + "</option>").join("") + "</select>" +
@@ -121,7 +122,7 @@ V61.Pages = V61.Pages || {};
             '<td><span class="cell-sub">' + (r.audit ? "Audited · " + U().relativeTime(r.audit.updatedAt || r.audit.createdAt) : '<span style="color:var(--warn)">Not audited</span>') + "</span></td>" +
             '<td><button class="btn btn-sm btn-ghost" data-cmd="openAudit:' + r.lead.id + '">' + (r.audit ? I.pencil + " Edit" : I.plus + " Audit") + "</button></td></tr>";
         }).join("") + "</tbody></table></div>" :
-        UI.emptyState("scan", "No leads match these filters.", state.high ? "No businesses currently meet the High Opportunity bar." : "Add leads first, then run digital audits to score their online presence.")) ;
+        UI.emptyState("scan", "No leads match these filters.", state.high ? "No businesses currently meet the High Opportunity bar." : "Add a business below, then run a digital audit to score its online presence.", '<button class="btn btn-primary" data-cmd="addBusinessAudit">' + I.plus + " Add Business & Audit</button>")) ;
     UI.bind(el);
     bindList();
   }
@@ -266,6 +267,103 @@ V61.Pages = V61.Pages || {};
         V61.Toast.success(webMsg ? "Auto-fill done — " + webMsg + ". Review the rest manually." : "Audit auto-filled — review the rest manually.");
       });
     });
+  }
+
+  /* ── Quick add: a business by name → add to CRM → run the digital audit ── */
+  function placeIdFromInput(input) {
+    const s = String(input || "").trim();
+    if (!s) return "";
+    const m = s.match(/place_id:([A-Za-z0-9_\-]+)/);
+    if (m) return m[1];
+    if (/^ChI[A-Za-z0-9_\-]+$/.test(s)) return s;
+    return "";
+  }
+
+  function addBusinessAudit() {
+    const m = UI.openModal({ title: "Add Business & Run Audit", icon: I.plus, size: "lg" });
+    m.setBody(
+      '<div class="field"><label>Business name *</label><input class="input" id="qba-name" placeholder="e.g. Sarfo&rsquo;s Kitchen"></div>' +
+      '<div class="field-row"><div class="field"><label>Category</label><input class="input" id="qba-cat" list="qba-cat-list" placeholder="e.g. Restaurant"><datalist id="qba-cat-list">' + GP().catMetaOptions() + "</datalist></div>" +
+      '<div class="field"><label>City / Area</label><input class="input" id="qba-city" placeholder="e.g. Osu, Accra"></div></div>' +
+      '<div class="field"><label>Website</label><input class="input" id="qba-website" placeholder="e.g. example.com"></div>' +
+      '<div class="field"><label>Google Maps URL or Place ID</label><input class="input" id="qba-place" placeholder="Optional — paste a Google Maps link to auto-fill the audit"></div>' +
+      '<div class="field-row"><div class="field"><label>Phone / WhatsApp</label><input class="input" id="qba-phone" placeholder="+233 ..."></div>' +
+      '<div class="field"><label>Email</label><input class="input" id="qba-email" placeholder=""></div></div>'
+    );
+    m.setFoot('<button class="btn" data-cancel>Cancel</button><button class="btn btn-primary" data-go>' + I.scan + " Add & Run Audit</button>");
+    m.q("[data-cancel]").addEventListener("click", () => m.close());
+    m.q("[data-go]").addEventListener("click", () => {
+      const name = m.body.querySelector("#qba-name").value.trim();
+      if (!name) { V61.Toast.error("Business name is required"); return; }
+      const gmaps = m.body.querySelector("#qba-place").value.trim();
+      const placeId = placeIdFromInput(gmaps);
+      const biz = S().addBusiness({
+        name,
+        category: m.body.querySelector("#qba-cat").value.trim(),
+        city: m.body.querySelector("#qba-city").value.trim(),
+        website: m.body.querySelector("#qba-website").value.trim(),
+        phone: m.body.querySelector("#qba-phone").value.trim(),
+        whatsapp: m.body.querySelector("#qba-phone").value.trim(),
+        email: m.body.querySelector("#qba-email").value.trim(),
+        googlePlaceId: placeId || "",
+        googleProfileUrl: placeId ? "https://www.google.com/maps/place/?q=place_id:" + placeId : gmaps,
+      });
+      const lead = S().addLead(biz.id, { source: "manual" });
+      S().addActivity(lead.id, "note", "Business added — running digital audit.");
+      S().save();
+      m.close();
+      runBusinessAudit(lead.id);
+    });
+  }
+
+  /* Auto-fill and save an audit for a freshly added business, then open the
+     audit detail page. Uses the same real data sources as batch auditing:
+     Google/OSM listing facts when a place is known, plus website analysis
+     when a URL is provided. Nothing is invented. */
+  function runBusinessAudit(leadId) {
+    const lead = S().byId("leads", leadId);
+    if (!lead || !S().businessOf(lead)) { V61.App.nav("#/audits"); return; }
+    const biz = S().businessOf(lead);
+    const m = UI.openModal({ title: "Running audit — " + (biz ? biz.name : "Business"), icon: I.scan });
+    m.setBody('<div style="font-size:13.5px;color:var(--text-2);margin-bottom:14px">Analyzing <b>' + U().escapeHtml(biz ? biz.name : "") + "</b>…</div>" +
+      '<div class="progress"><i id="qba-bar" style="width:0%"></i></div>' +
+      '<div id="qba-list" style="margin-top:14px;display:flex;flex-direction:column;gap:6px"></div>');
+    const listEl = m.body.querySelector("#qba-list");
+    const bar = m.body.querySelector("#qba-bar");
+    const rowHtml = (label, status) => '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + U().escapeHtml(label) + '</span><span style="color:var(--text-3)">' + U().escapeHtml(status) + "</span></div>";
+    let audit = S().auditOf(biz.id);
+    const existing = !!audit;
+    if (!audit) { audit = S().emptyAudit(biz.id); S().db.audits.push(audit); }
+
+    (async () => {
+      const srcPromise = (biz.osmId || (biz.googlePlaceId && D().key()))
+        ? (listEl.insertAdjacentHTML("beforeend", rowHtml("Listing facts", "fetching…")),
+            D().details(biz.osmId || biz.googlePlaceId)
+              .then((d) => { applyDetails(audit, d, detailsSourceFor(biz)); listEl.lastElementChild.innerHTML = rowHtml("Listing facts", "filled ✓"); })
+              .catch(() => { listEl.lastElementChild.innerHTML = rowHtml("Listing facts", "not available"); }))
+        : Promise.resolve();
+      const webPromise = biz.website
+        ? (listEl.insertAdjacentHTML("beforeend", rowHtml("Website analysis", "fetching…")),
+            V61.WebsiteAnalyzer.analyze(biz, { timeout: 12000 })
+              .then((wa) => {
+                S().saveWebsiteAudit(biz.id, wa);
+                audit.website = audit.website || {};
+                audit.website.exists = wa.status !== "not_available";
+                listEl.lastElementChild.innerHTML = rowHtml("Website analysis", wa.status === "ok" ? "Detected " + wa.score + "/100 ✓" : (wa.summary || wa.status));
+              })
+              .catch(() => { listEl.lastElementChild.innerHTML = rowHtml("Website analysis", "unavailable"); }))
+        : Promise.resolve();
+      bar.style.width = "40%";
+      await Promise.all([srcPromise, webPromise]);
+      audit.updatedAt = U().now();
+      const finalScore = S().digitalScore(audit);
+      S().saveAuditSnapshot(biz.id, { digitalScore: finalScore, websiteScore: Score().websiteScoreFor(biz, audit, S().latestWebsiteAudit(biz.id)), leadScore: S().leadScore(lead, biz, audit), opportunities: S().opportunities(audit, biz).map((o) => o.title) });
+      S().save();
+      bar.style.width = "100%";
+      m.close();
+      V61.Toast.success((existing ? "Audit updated" : "Audit run") + " — Digital Score " + finalScore + "/100");
+      V61.App.nav("#/audits/" + leadId);
+    })();
   }
 
   /* ── Batch digital audit (sequential, cancellable, progress) ── */
@@ -601,13 +699,13 @@ V61.Pages = V61.Pages || {};
     });
   }
 
-  V61.Pages.audit = Object.assign(V61.Pages.audit || {}, { render, openAudit, renderOpportunities });
+  V61.Pages.audit = Object.assign(V61.Pages.audit || {}, { render, openAudit, renderOpportunities, addBusinessAudit, runBusinessAudit });
   V61.Pages.audits = render;
   V61.Pages.opportunities = renderOpportunities;
   V61.Pages.auditDetail = auditDetail;
   V61.Pages.batchAudit = runBatchAudit;
   V61.Cmd = V61.Cmd || {};
-  Object.assign(V61.Cmd, { batchAudit: runBatchAudit, highOpps: () => { state.high = !state.high; render(); }, aiExplain: (leadId) => {
+  Object.assign(V61.Cmd, { addBusinessAudit, batchAudit: runBatchAudit, highOpps: () => { state.high = !state.high; render(); }, aiExplain: (leadId) => {
     const row = S().leadRows().find((r) => r.lead.id === leadId);
     if (!row) return;
     V61.AI.explainAudit(row).then((res) => V61.AI.present("audit explanation", res, "AI Audit Explanation — " + ((row.business && row.business.name) || "Business")));

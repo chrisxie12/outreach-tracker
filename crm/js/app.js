@@ -197,6 +197,7 @@
       const items = [];
       const push = (group, icon, title, sub, action) => items.push({ group, icon, title, sub, action });
       if (!q) {
+        push("Actions", "plus", "Add business & audit", "Add a business by name and run its digital audit", () => V61.Cmd.addBusinessAudit());
         push("Actions", "plus", "Add lead", "Open the new lead form", () => V61.Cmd.addLead());
         push("Actions", "scan", "Lead Discovery", "Import or find businesses", () => V61.App.nav("#/discovery"));
         push("Actions", "clipboard", "Run a digital audit", "Score a lead's online presence", () => V61.App.nav("#/audits"));
@@ -266,6 +267,7 @@
   function openQuickAdd(anchor) {
     V61.UI.menuPop(anchor, [
       { label: "Quick add" },
+      { text: "Add business & audit", icon: I.scan, action: () => V61.Cmd.addBusinessAudit() },
       { text: "Add lead", icon: I.users, action: () => V61.Cmd.addLead() },
       { text: "Add contact", icon: I.users, action: () => { V61.Toast.warn("Open a lead first to add a contact"); } },
       { text: "Add task", icon: I.checkSquare, action: () => { V61.Toast.warn("Open a lead first to add a task"); } },
