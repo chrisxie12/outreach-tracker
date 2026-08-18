@@ -15,7 +15,25 @@
       a.addEventListener("click", function () {
         links.classList.remove("open");
         burger.classList.remove("open");
+        var item = a.closest(".nav-item");
+        if (item) item.classList.remove("open");
       });
+    });
+  }
+
+  var dropToggle = document.querySelector(".drop-toggle");
+  if (dropToggle) {
+    var dropItem = dropToggle.parentNode;
+    dropToggle.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      var open = dropItem.classList.toggle("open");
+      dropToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    document.addEventListener("click", function (ev) {
+      if (!dropItem.contains(ev.target)) {
+        dropItem.classList.remove("open");
+        dropToggle.setAttribute("aria-expanded", "false");
+      }
     });
   }
 
@@ -42,7 +60,7 @@
   try { reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { /* ignore */ }
 
   var reveal = Array.prototype.slice.call(
-    document.querySelectorAll(".svc-card, .pkg-card, .why-card, .proc, .fact, .example-card")
+    document.querySelectorAll(".svc-card, .pkg-card, .why-card, .proc, .fact, .example-card, .dept-card")
   );
   if (hasIO && !reduced) {
     var ro = new IntersectionObserver(function (entries, obs) {

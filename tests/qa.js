@@ -18,6 +18,7 @@ require("./phase6-contact-discovery.test.js");
 require("./ui-ux.test.js");
 require("./website.test.js");
 require("./analytics.test.js");
+require("./departments.test.js");
 
 runAll().then((results) => {
 
