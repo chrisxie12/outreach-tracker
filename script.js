@@ -469,3 +469,63 @@
     });
   }
 })();
+
+/* ── Page loader ───────────────────────────────────────────
+   Brief, non-blocking intro overlay that fades once the page
+   finishes loading (or after a hard cap). Skipped entirely for
+   prefers-reduced-motion users. Never blocks interaction. */
+(function () {
+  "use strict";
+  var loader = document.getElementById("page-loader");
+  if (!loader) return;
+  var reduced = false;
+  try { reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { /* ignore */ }
+  if (reduced) return;
+  var hide = function () { loader.classList.add("done"); };
+  loader.classList.add("show");
+  if (document.readyState === "complete") {
+    hide();
+  } else {
+    window.addEventListener("load", hide);
+    setTimeout(hide, 2000);
+  }
+})();
+
+/* ── Cookie consent ────────────────────────────────────────
+   Privacy-first GA4 consent mode. Analytics cookies stay
+   denied until the visitor accepts; the choice is remembered
+   in localStorage so the banner shows only once. */
+(function () {
+  "use strict";
+  var banner = document.getElementById("cookie-banner");
+  if (!banner) return;
+  var KEY = "v61-consent-v1";
+  var stored = null;
+  try { stored = window.localStorage.getItem(KEY); } catch (e) { /* ignore */ }
+  if (stored === "accepted" || stored === "essential") return;
+
+  function setConsent(decision) {
+    var granted = decision === "accepted";
+    try {
+      if (window.gtag && typeof window.gtag === "function") {
+        window.gtag("consent", "update", {
+          ad_storage: granted ? "granted" : "denied",
+          analytics_storage: granted ? "granted" : "denied",
+          personalization_storage: granted ? "granted" : "denied",
+          functionality_storage: granted ? "granted" : "denied"
+        });
+      }
+    } catch (e) { /* analytics must never break the site */ }
+    try { window.localStorage.setItem(KEY, decision); } catch (e) { /* ignore */ }
+    if (window.trackEvent) {
+      window.trackEvent("cookie_decision", { decision: granted ? "accept_all" : "essential_only" });
+    }
+    banner.hidden = true;
+  }
+
+  banner.hidden = false;
+  var accept = document.getElementById("cookie-accept");
+  var essential = document.getElementById("cookie-essential");
+  if (accept) accept.addEventListener("click", function () { setConsent("accepted"); });
+  if (essential) essential.addEventListener("click", function () { setConsent("essential"); });
+})();

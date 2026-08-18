@@ -17,6 +17,14 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
+    gtag('consent', 'default', {
+      ad_storage: 'denied',
+      analytics_storage: 'denied',
+      personalization_storage: 'denied',
+      functionality_storage: 'denied',
+      security_storage: 'granted',
+      wait_for_update: 500
+    });
 
     gtag('config', 'G-SPVGPEL8W5');
   </script>
@@ -26,13 +34,14 @@
   <meta property="og:site_name" content="Vision 61 Studios">
   <meta property="og:locale" content="en_GH">
   <meta property="og:url" content="https://vision61studios.online/photography/">
-  <meta property="og:image" content="https://vision61studios.online/images/vision61-logo.jpeg">
-  <meta property="og:image:width" content="1254">
-  <meta property="og:image:height" content="1254">
+  <meta property="og:image" content="https://vision61studios.online/images/work/photo-hero.jpg">
+  <meta property="og:image:width" content="1600">
+  <meta property="og:image:height" content="1600">
+  <meta property="og:image:alt" content="Illustrative photo of a modern digital camera">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Photography | Vision 61 Studios">
   <meta name="twitter:description" content="Portrait, event, product and lifestyle photography from Vision 61 Studios in Accra, Ghana.">
-  <meta name="twitter:image" content="https://vision61studios.online/images/vision61-logo.jpeg">
+  <meta name="twitter:image" content="https://vision61studios.online/images/work/photo-hero.jpg">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -52,6 +61,9 @@
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
+
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="page-loader" id="page-loader" aria-hidden="true"><span></span></div>
 
   <header class="nav" id="top">
     <div class="wrap nav-inner">
@@ -82,7 +94,7 @@
     </div>
   </header>
 
-  <main>
+  <main id="main">
 
     <section class="hero dept-hero">
       <div class="hero-bg" aria-hidden="true"></div>
@@ -234,6 +246,14 @@
       <p class="footer-legal">© <span id="year">2026</span> Vision 61 Studios. All rights reserved.</p>
     </div>
   </footer>
+
+  <div class="cookie-banner" id="cookie-banner" role="region" aria-label="Cookie preferences" hidden>
+    <p>We use cookies to understand how visitors use this site and to improve it. Analytics stay off until you accept them.</p>
+    <div class="cookie-actions">
+      <button class="btn btn-primary" type="button" id="cookie-accept">Accept all</button>
+      <button class="btn btn-ghost" type="button" id="cookie-essential">Essential only</button>
+    </div>
+  </div>
 
   <script src="../script.js"></script>
 </body>
