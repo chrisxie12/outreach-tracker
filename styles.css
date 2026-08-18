@@ -265,10 +265,10 @@ h1 em { font-style: italic; color: var(--accent); }
   animation: float 7s ease-in-out infinite;
 }
 .hero-frame img { width: 100%; display: block; aspect-ratio: 4 / 3; object-fit: cover; }
-.hero-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 52%, rgba(13, 13, 15, .78) 100%); pointer-events: none; }
-.hero-frame figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 28px 22px 18px; display: flex; flex-direction: column; gap: 5px; }
-.hero-frame .frame-title { font-family: var(--display); font-size: 18px; font-weight: 600; color: #fffdf8; }
-.hero-frame .frame-sub { font-size: 12px; color: rgba(255, 255, 255, .82); letter-spacing: .02em; }
+.hero-frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 46%, rgba(10, 10, 14, .62) 80%, rgba(8, 8, 12, .96) 100%); pointer-events: none; }
+.hero-frame figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 30px 22px 18px; display: flex; flex-direction: column; gap: 5px; }
+.hero-frame .frame-title { font-family: var(--display); font-size: 18px; font-weight: 600; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .6), 0 2px 10px rgba(0, 0, 0, .45); }
+.hero-frame .frame-sub { font-size: 12px; color: rgba(255, 255, 255, .95); letter-spacing: .02em; text-shadow: 0 1px 2px rgba(0, 0, 0, .65); }
 
 /* ── pricing ─────────────────────────────────────────────── */
 .pricing-sec { background: radial-gradient(1200px 500px at 80% 0%, var(--accent-soft), transparent 60%), var(--bg-2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
@@ -366,10 +366,10 @@ h1 em { font-style: italic; color: var(--accent); }
 .who-card:hover { border-color: var(--accent-border); box-shadow: 0 22px 44px rgba(96, 72, 32, .16); }
 .who-card img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s var(--ease); }
 .who-card:hover img { transform: scale(1.05); }
-.who-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, rgba(13, 13, 15, .88) 100%); pointer-events: none; }
-.who-card figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 30px 16px 14px; }
-.who-card figcaption b { display: block; font-family: var(--display); font-size: 15px; font-weight: 600; color: #fffdf8; }
-.who-card figcaption span { font-size: 12px; color: rgba(255, 255, 255, .78); }
+.who-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 34%, rgba(10, 10, 14, .6) 72%, rgba(8, 8, 12, .95) 100%); pointer-events: none; }
+.who-card figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 34px 16px 14px; }
+.who-card figcaption b { display: block; font-family: var(--display); font-size: 15px; font-weight: 600; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .4); }
+.who-card figcaption span { font-size: 12px; color: rgba(255, 255, 255, .94); text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
 .who-note { margin-top: 20px; text-align: center; font-size: 12.5px; color: var(--text-3); }
 
 /* ── studio showcase ─────────────────────────────────────── */
@@ -383,10 +383,10 @@ h1 em { font-style: italic; color: var(--accent); }
 .show-card:hover { border-color: var(--accent-border); box-shadow: 0 22px 44px rgba(96, 72, 32, .16); }
 .show-card img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s var(--ease); }
 .show-card:hover img { transform: scale(1.05); }
-.show-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, rgba(13, 13, 15, .88) 100%); pointer-events: none; }
-.show-card figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 30px 16px 14px; }
-.show-card figcaption b { display: block; font-family: var(--display); font-size: 15px; font-weight: 600; color: #fffdf8; }
-.show-card figcaption span { font-size: 12px; color: rgba(255, 255, 255, .78); }
+.show-card::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 34%, rgba(10, 10, 14, .6) 72%, rgba(8, 8, 12, .95) 100%); pointer-events: none; }
+.show-card figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 34px 16px 14px; }
+.show-card figcaption b { display: block; font-family: var(--display); font-size: 15px; font-weight: 600; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .4); }
+.show-card figcaption span { font-size: 12px; color: rgba(255, 255, 255, .94); text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
 
 /* ── example audit ───────────────────────────────────────── */
 .example-sec { border-bottom: 1px solid var(--border); }
