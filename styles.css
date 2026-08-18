@@ -209,6 +209,7 @@ h1 em { font-style: italic; color: var(--accent); }
 
 /* ── services ────────────────────────────────────────────── */
 .svc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.svc-grid > *, .dept-grid > *, .pkg-grid > *, .who-grid > *, .show-grid > *, .why-grid > *, .example-grid > * { min-width: 0; }
 .svc-card {
   background: linear-gradient(170deg, var(--surface), var(--surface-2));
   border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;
@@ -500,6 +501,7 @@ h1 em { font-style: italic; color: var(--accent); }
   .dept-hero .hero-inner { grid-template-columns: 1fr; gap: 40px; }
   .hero { padding: 64px 0 56px; }
   .svc-grid { grid-template-columns: 1fr 1fr; }
+  .svc-grid.dept { grid-template-columns: 1fr 1fr; }
   .audit-inner { grid-template-columns: 1fr; gap: 40px; }
   .contact-grid { grid-template-columns: 1fr; }
   .pkg-grid { grid-template-columns: 1fr; max-width: 460px; margin: 0 auto; }
@@ -512,6 +514,7 @@ h1 em { font-style: italic; color: var(--accent); }
 
 @media (max-width: 640px) {
   .svc-grid { grid-template-columns: 1fr; }
+  .svc-grid.dept { grid-template-columns: 1fr; }
   .dept-grid { grid-template-columns: 1fr; }
   .section { padding: 72px 0; }
   .hero-visual { max-width: 420px; margin: 0 auto; }
