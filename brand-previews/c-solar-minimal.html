@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Direction C — Solar Minimal | Vision 61 Studios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f2ea; --surface:#fffdf8; --surface-2:#efe7d9;
+  --border:#e2d8c6; --border-2:#cdc0a8;
+  --ink:#22201b; --ink-2:#57503f; --ink-3:#8a826f;
+  --terra:#c0532f; --terra-2:#a8431f;
+  --font:"Inter",sans-serif; --display:"Fraunces",serif;
+  --radius:14px; --ease:cubic-bezier(.4,0,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--terra);color:#fffdf8}
+
+.nav{padding:26px 0;border-bottom:1px solid var(--border)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand img{width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid var(--border-2)}
+.brand b{font-family:var(--display);font-weight:600;font-size:19px}
+.brand b em{color:var(--terra);font-style:normal}
+.links{display:flex;gap:28px;align-items:center;color:var(--ink-2);font-size:14px;font-weight:500}
+.links a:hover{color:var(--terra)}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 20px;border-radius:10px;font-weight:600;font-size:14px;cursor:pointer;border:1px solid transparent;transition:transform .2s var(--ease),background .2s var(--ease),color .2s var(--ease)}
+.btn-terra{background:var(--terra);color:#fffdf8}
+.btn-terra:hover{background:var(--terra-2);transform:translateY(-1px)}
+.btn-ghost{border-color:var(--border-2);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--terra);color:var(--terra)}
+
+.hero{padding:110px 0 84px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;top:-120px;right:-120px;width:520px;height:520px;border-radius:50%;background:radial-gradient(50% 50% at 50% 50%,rgba(192,83,47,.14),transparent 70%);pointer-events:none}
+.hero-inner{display:grid;grid-template-columns:1.05fr .95fr;gap:72px;align-items:center;position:relative}
+.eyebrow{font-size:12.5px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:var(--terra);margin-bottom:24px}
+h1{font-family:var(--display);font-weight:600;font-size:clamp(40px,5.4vw,62px);line-height:1.05;letter-spacing:-.5px;margin-bottom:22px}
+h1 em{color:var(--terra);font-style:italic}
+.lede{color:var(--ink-2);font-size:18px;max-width:500px;margin-bottom:34px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:30px}
+.btn-lg{padding:15px 26px;font-size:15px}
+.trust{color:var(--ink-3);font-size:13.5px;letter-spacing:.5px;margin-bottom:42px}
+.stats{display:flex;gap:44px;border-top:1px solid var(--border);padding-top:24px}
+.hstat b{display:block;font-family:var(--display);font-weight:600;font-size:22px;color:var(--ink);margin-bottom:2px}
+.hstat span{color:var(--ink-3);font-size:13px}
+
+.card{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:26px;box-shadow:0 1px 0 var(--border)}
+.audit-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px}
+.audit-eyebrow{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--terra);font-weight:600;margin-bottom:4px}
+.audit-name{font-family:var(--display);font-weight:600;font-size:18px}
+.ring{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:600;font-size:17px;background:conic-gradient(var(--terra) calc(var(--p)*1%),var(--surface-2) 0);color:var(--ink)}
+.bar{margin-bottom:14px}
+.bar span{font-size:12.5px;color:var(--ink-2);display:flex;justify-content:space-between}
+.bar b{color:var(--ink);font-weight:600}
+.track{height:5px;background:var(--surface-2);border-radius:99px;margin-top:6px;overflow:hidden}
+.track i{display:block;height:100%;background:var(--terra);border-radius:99px}
+.tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.tag{font-size:11.5px;padding:4px 10px;border-radius:99px;font-weight:500;border:1px solid var(--border-2);color:var(--ink-2);background:var(--surface)}
+.tag.ok{border-color:rgba(192,83,47,.45);color:var(--terra)}
+
+.sec{padding:96px 0}
+.sec-head{margin-bottom:50px}
+.sec-head.center{text-align:center}
+h2{font-family:var(--display);font-weight:600;font-size:clamp(30px,3.8vw,42px);line-height:1.12;letter-spacing:-.3px;margin-bottom:14px}
+.sub{color:var(--ink-2);max-width:620px;font-size:16px}
+.center .sub{margin:0 auto}
+
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.svc{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:24px;transition:border-color .2s var(--ease),transform .2s var(--ease),box-shadow .2s var(--ease)}
+.svc:hover{border-color:var(--terra);transform:translateY(-3px);box-shadow:0 8px 24px rgba(192,83,47,.08)}
+.svc h3{font-family:var(--display);font-weight:600;font-size:18px;margin-bottom:8px}
+.svc p{color:var(--ink-2);font-size:13.5px;margin-bottom:16px;min-height:60px}
+.svc-meta{display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:12px}
+.price{color:var(--terra);font-weight:600;font-size:14px}
+.time{color:var(--ink-3);font-size:13px}
+
+.pkg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:28px}
+.pkg{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:28px;position:relative}
+.pkg.featured{border-color:var(--terra);box-shadow:0 8px 30px rgba(192,83,47,.1)}
+.pkg-badge{position:absolute;top:-12px;left:24px;background:var(--terra);color:#fffdf8;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:4px 12px;border-radius:99px}
+.pkg-name{font-family:var(--display);font-weight:600;font-size:20px;display:block;margin-bottom:8px}
+.pkg-price b{font-family:var(--display);font-weight:600;font-size:23px;color:var(--terra)}
+.pkg-for{color:var(--ink-2);font-size:13.5px;margin:10px 0 16px}
+.pkg-list{list-style:none;margin-bottom:22px}
+.pkg-list li{color:var(--ink-2);font-size:13.5px;padding:7px 0;border-bottom:1px dashed var(--border)}
+.pkg-list li:last-child{border-bottom:0}
+.btn.block{width:100%}
+
+.cta{border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--surface);text-align:center;padding:84px 0}
+.cta h2{margin-bottom:14px}
+.cta p{color:var(--ink-2);margin-bottom:28px}
+.cta .btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+
+.footer{border-top:1px solid var(--border);padding:36px 0}
+.footer-inner{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.foot-brand{display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:13.5px}
+.foot-brand img{width:32px;height:32px;border-radius:50%;object-fit:cover}
+.foot-links{display:flex;gap:22px;color:var(--ink-3);font-size:13px}
+.foot-links a:hover{color:var(--terra)}
+.legal{color:var(--ink-3);font-size:12.5px}
+
+@media(max-width:960px){.hero-inner{grid-template-columns:1fr;gap:48px}.grid-4{grid-template-columns:repeat(2,1fr)}.pkg-grid{grid-template-columns:1fr}}
+@media(max-width:640px){.links{display:none}.grid-4{grid-template-columns:1fr}.stats{flex-wrap:wrap;gap:22px}.hero{padding:76px 0 60px}}
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap nav-inner">
+  <a class="brand" href="#"><img src="../images/vision61-logo.jpeg" alt="Vision 61 Studios logo"><b>Vision 61 <em>Studios</em></b></a>
+  <nav class="links"><a href="#">Home</a><a href="#services">Services</a><a href="#pricing">Pricing</a><a href="#audit">Free Audit</a><a class="btn btn-terra" href="#audit">Get free audit</a></nav>
+</div></header>
+
+<section class="hero"><div class="wrap hero-inner">
+  <div>
+    <p class="eyebrow">Digital studio · Accra, Ghana</p>
+    <h1>Your business deserves to be <em>seen online</em>.</h1>
+    <p class="lede">Vision 61 Studios helps businesses across Ghana improve their websites, Google presence, branding and digital visibility — without unnecessary complexity.</p>
+    <div class="hero-cta">
+      <a class="btn btn-terra btn-lg" href="#audit">Get my free digital audit</a>
+      <a class="btn btn-ghost btn-lg" href="#services">View services</a>
+    </div>
+    <p class="trust">Websites · Google Business · Local SEO · Branding</p>
+    <div class="stats">
+      <div class="hstat"><b>From GH₵400</b><span>service starting prices</span></div>
+      <div class="hstat"><b>14 days</b><span>typical website build</span></div>
+      <div class="hstat"><b>Free</b><span>no-obligation audit</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="audit-head">
+      <div><div class="audit-eyebrow">Digital Audit · Demo</div><div class="audit-name">Sample business</div></div>
+      <div class="ring" style="--p:58"><span>58</span></div>
+    </div>
+    <div class="bar"><span>Website<b>46</b></span><div class="track"><i style="width:46%"></i></div></div>
+    <div class="bar"><span>Google profile<b>38</b></span><div class="track"><i style="width:38%"></i></div></div>
+    <div class="bar"><span>Mobile experience<b>52</b></span><div class="track"><i style="width:52%"></i></div></div>
+    <div class="bar"><span>Local visibility<b>41</b></span><div class="track"><i style="width:41%"></i></div></div>
+    <div class="tags"><span class="tag ok">Website found</span><span class="tag">No WhatsApp button</span><span class="tag">Not verified on Google</span></div>
+  </div>
+</div></section>
+
+<section class="sec" id="services"><div class="wrap">
+  <div class="sec-head center"><p class="eyebrow">Services</p><h2>Everything you need to build your digital presence.</h2><p class="sub">Start with one service or let us help you build the complete digital foundation for your business.</p></div>
+  <div class="grid-4">
+    <div class="svc"><h3>Website Development</h3><p>Professional, mobile-first business websites designed to turn visitors into customers.</p><div class="svc-meta"><span class="price">From GH₵3,500</span><span class="time">≈14 days</span></div></div>
+    <div class="svc"><h3>Landing Page Development</h3><p>Focused landing pages designed around one offer, campaign or conversion goal.</p><div class="svc-meta"><span class="price">From GH₵1,500</span><span class="time">≈5 days</span></div></div>
+    <div class="svc"><h3>Google Business Setup</h3><p>Get your business properly established on Google Search and Google Maps.</p><div class="svc-meta"><span class="price">From GH₵500</span><span class="time">≈2 days</span></div></div>
+    <div class="svc"><h3>Local SEO Setup</h3><p>Build the foundation for appearing in local searches and reaching customers near your business.</p><div class="svc-meta"><span class="price">From GH₵1,000</span><span class="time">≈5 days</span></div></div>
+  </div>
+</div></section>
+
+<section class="sec" id="pricing"><div class="wrap">
+  <div class="sec-head center"><p class="eyebrow">Pricing</p><h2>Clear starting prices. No guesswork.</h2></div>
+  <div class="pkg-grid">
+    <div class="pkg"><span class="pkg-name">Digital Starter</span><div class="pkg-price"><b>From GH₵2,500</b></div><p class="pkg-for">For businesses that need to establish their online presence.</p><ul class="pkg-list"><li>Landing Page</li><li>Google Business Profile Setup</li><li>Business Email Setup</li></ul><a class="btn btn-ghost block" href="#contact">Start a project</a></div>
+    <div class="pkg featured"><span class="pkg-badge">Most popular</span><span class="pkg-name">Business Presence</span><div class="pkg-price"><b>From GH₵4,500</b></div><p class="pkg-for">For businesses ready for a stronger online presence.</p><ul class="pkg-list"><li>Website Development</li><li>Google Business Profile Setup</li><li>Business Email Setup</li></ul><a class="btn btn-terra block" href="#contact">Start a project</a></div>
+    <div class="pkg"><span class="pkg-name">Digital Growth</span><div class="pkg-price"><b>Custom quote</b></div><p class="pkg-for">For businesses that need a website, SEO, Google optimization, branding and ongoing improvements.</p><ul class="pkg-list"><li>Website &amp; redesign work</li><li>SEO &amp; Google optimization</li><li>Branding &amp; ongoing improvements</li></ul><a class="btn btn-ghost block" href="#contact">Talk to us</a></div>
+  </div>
+</div></section>
+
+<section class="cta"><div class="wrap">
+  <p class="eyebrow">Ready to build a better digital presence?</p>
+  <h2>Start with a free audit.</h2>
+  <p>We'll show you where your business can improve and what to do next.</p>
+  <div class="btns">
+    <a class="btn btn-terra btn-lg" href="#audit">Get my free audit</a>
+    <a class="btn btn-ghost btn-lg" href="#contact">Talk to Vision 61</a>
+  </div>
+</div></section>
+
+<footer class="footer"><div class="wrap footer-inner">
+  <div class="foot-brand"><img src="../images/vision61-logo.jpeg" alt=""><b>Vision 61 Studios</b></div>
+  <nav class="foot-links"><a href="#">Services</a><a href="#pricing">Pricing</a><a href="#audit">Free Audit</a><a href="#contact">Contact</a></nav>
+  <span class="legal">© <span id="year"></span> Vision 61 Studios. All rights reserved.</span>
+</div></footer>
+<script>document.getElementById("year").textContent=String(new Date().getFullYear());</script>
+</body>
+</html>
