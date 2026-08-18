@@ -462,8 +462,9 @@
             <p class="sub">We fetch your live site and check what matters — mobile readiness, contact options, WhatsApp, booking and SEO basics. If your site blocks browser inspection, we'll tell you honestly. We never guess.</p>
           </div>
           <form class="ia-form" id="ia-form" novalidate>
-            <input class="input ia-input" id="ia-url" name="url" type="url" placeholder="www.yourbusiness.com" aria-label="Your website address" required>
-            <button class="btn btn-primary" id="ia-btn" type="submit">Check my website</button>
+            <input class="input ia-name" id="ia-name" name="biz" type="text" placeholder="Business name (optional) — e.g. Aroma Coffee House" aria-label="Business name" autocomplete="organization">
+            <input class="input ia-input" id="ia-url" name="url" type="url" placeholder="www.yourbusiness.com" aria-label="Your website address">
+            <button class="btn btn-primary" id="ia-btn" type="submit">Run my audit</button>
           </form>
           <p class="ia-status" id="ia-status" role="status"></p>
           <div class="ia-result" id="ia-result" hidden>
@@ -477,7 +478,7 @@
             <ul class="ia-facts" id="ia-facts"></ul>
             <p class="ia-caveat">Detected from your live page — not assumed.</p>
             <div class="ia-cta">
-              <a class="btn btn-ghost" href="#contact">Want the full audit? Talk to us</a>
+              <a class="btn btn-ghost" id="ia-cta-link" href="#contact">Want the full audit? Talk to us</a>
             </div>
           </div>
         </div>

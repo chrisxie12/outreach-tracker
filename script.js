@@ -155,6 +155,7 @@
   if (!form) return;
 
   var input = document.getElementById("ia-url");
+  var nameEl = document.getElementById("ia-name");
   var btn = document.getElementById("ia-btn");
   var statusEl = document.getElementById("ia-status");
   var resultEl = document.getElementById("ia-result");
@@ -163,6 +164,7 @@
   var gradeEl = document.getElementById("ia-grade");
   var urlLine = document.getElementById("ia-url-line");
   var factsEl = document.getElementById("ia-facts");
+  var ctaLink = document.getElementById("ia-cta-link");
 
   var WEIGHTS = {
     https: 4, reachable: 4, viewport: 4, mobile: 4, titleOk: 4,
@@ -312,11 +314,21 @@
     factsEl.appendChild(li);
   }
 
-  function render(r) {
+  function render(r, bizName) {
     resultEl.hidden = false;
-    urlLine.textContent = r.url || "";
+    urlLine.textContent = (bizName ? bizName + " — " : "") + (r.url || "");
     if (scoreRing) scoreRing.style.setProperty("--p", (r.status === "ok" && r.score != null) ? r.score : 0);
     if (scoreNum) scoreNum.textContent = (r.status === "ok" && r.score != null) ? String(r.score) : "–";
+    if (ctaLink) {
+      if (r.status === "ok" && r.score != null && bizName) {
+        var follow = "Hi Vision 61 Studios! My business, " + bizName + ", scored " + r.score + "/100 on your free audit. I'd like the full audit.";
+        ctaLink.href = "https://wa.me/233201599949?text=" + encodeURIComponent(follow);
+        ctaLink.textContent = "Send my result to the studio";
+      } else {
+        ctaLink.href = "#contact";
+        ctaLink.textContent = "Want the full audit? Talk to us";
+      }
+    }
     if (r.status === "ok" && r.score != null && r.signals) {
       var g = gradeFor(r.score);
       gradeEl.textContent = "Website score: " + r.score + "/100 — " + g.label;
@@ -385,8 +397,29 @@
   form.addEventListener("submit", function (ev) {
     ev.preventDefault();
     if (resultEl) resultEl.hidden = true;
+    var bizName = nameEl ? nameEl.value.trim() : "";
     var norm = normalizeUrl(input.value);
-    if (!norm) { setStatus("Please enter a valid website address, like www.yourbusiness.com", true); return; }
+    if (!norm) {
+      if (bizName) {
+        var ask = "Hi Vision 61 Studios! Please run a free digital audit for my business: " + bizName + ". I'll share my website details when you reply.";
+        var waAsk = "https://wa.me/233201599949?text=" + encodeURIComponent(ask);
+        var mailAsk = "mailto:hello@vision61studios.online?subject=" + encodeURIComponent("Free digital audit request — " + bizName) + "&body=" + encodeURIComponent("Please run a free digital audit for my business:\n\nBusiness name: " + bizName);
+        if (window.trackEvent) {
+          window.trackEvent("audit_start", { method: "manual_audit_request" });
+        }
+        window.open(waAsk, "_blank", "noopener");
+        setStatus("Opening WhatsApp so we can run your audit…");
+        var fb = document.createElement("a");
+        fb.textContent = "WhatsApp didn't open? Send the request by email instead.";
+        fb.href = mailAsk;
+        fb.className = "form-fallback";
+        statusEl.appendChild(document.createElement("br"));
+        statusEl.appendChild(fb);
+        return;
+      }
+      setStatus("Enter a business name or a website address, like www.yourbusiness.com", true);
+      return;
+    }
     if (window.trackEvent) {
       window.trackEvent("audit_start", { method: "free_digital_audit" });
     }
@@ -398,7 +431,7 @@
       if (r && r.status === "ok" && window.trackEvent) {
         window.trackEvent("audit_complete", { method: "free_digital_audit" });
       }
-      render(r);
+      render(r, bizName);
     }).catch(function () {
       finalize();
       setStatus("Something went wrong — please try again.", true);

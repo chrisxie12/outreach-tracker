@@ -126,6 +126,22 @@ suite("website landing page", () => {
     eq(d.getElementById("ia-score-num").textContent, "–", "no score fabricated");
   });
 
+  test("audit form forwards a business name without a URL to WhatsApp for a manual audit", () => {
+    let opened = null;
+    dom.window.open = (url) => { opened = url; return null; };
+    const status = d.getElementById("ia-status");
+    status.textContent = "";
+    d.getElementById("ia-name").value = "Aroma Coffee House";
+    d.getElementById("ia-url").value = "";
+    d.getElementById("ia-form").dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
+    ok(opened, "a link was opened");
+    ok(/wa\.me\/233201599949/.test(opened), "WhatsApp uses the real number");
+    ok(decodeURIComponent(opened).indexOf("Aroma Coffee House") >= 0, "business name included in the request");
+    ok(/Opening WhatsApp/.test(status.textContent), "status confirms the manual audit request");
+    notNull(d.querySelector("#ia-status .form-fallback"), "email fallback provided");
+    ok(d.getElementById("ia-result").hidden, "no fabricated result shown for a name-only request");
+  });
+
   test("contact CTAs link out to WhatsApp and email", () => {
     const wa = d.querySelector('a[href^="https://wa.me/233201599949"]');
     const mail = d.querySelector('a[href^="mailto:hello@vision61studios.online"]');
