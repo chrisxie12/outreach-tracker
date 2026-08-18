@@ -60,15 +60,25 @@
   try { reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { /* ignore */ }
 
   var reveal = Array.prototype.slice.call(
-    document.querySelectorAll(".svc-card, .pkg-card, .why-card, .proc, .fact, .example-card, .dept-card")
+    document.querySelectorAll(".svc-card, .pkg-card, .why-card, .proc, .fact, .example-card, .dept-card, .who-card, .show-card")
   );
   if (hasIO && !reduced) {
     var ro = new IntersectionObserver(function (entries, obs) {
       entries.forEach(function (e) {
-        if (e.isIntersecting) { e.target.classList.add("in"); obs.unobserve(e.target); }
+        if (e.isIntersecting) {
+          e.target.classList.add("in");
+          obs.unobserve(e.target);
+          setTimeout(function () { e.target.style.transitionDelay = ""; }, 1300);
+        }
       });
     }, { threshold: 0.12 });
-    reveal.forEach(function (el) { el.classList.add("reveal"); ro.observe(el); });
+    reveal.forEach(function (el, i) {
+      el.classList.add("reveal");
+      if (el.classList.contains("who-card") || el.classList.contains("show-card")) {
+        el.style.transitionDelay = ((i % 6) * 70) + "ms";
+      }
+      ro.observe(el);
+    });
   } else {
     reveal.forEach(function (el) { el.classList.add("in"); });
   }
