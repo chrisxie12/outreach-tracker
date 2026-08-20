@@ -561,7 +561,7 @@ h1 em { font-style: italic; color: var(--accent); }
 
 /* ── contact ─────────────────────────────────────────────── */
 .contact-sec { background: radial-gradient(900px 420px at 50% 100%, var(--accent-soft), transparent 60%); border-top: 1px solid var(--border); }
-.contact-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 40px; align-items: start; }
+.contact-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 40px; align-items: start; grid-auto-flow: dense; }
 .contact-form { background: linear-gradient(170deg, var(--surface), var(--surface-2)); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; display: flex; flex-direction: column; gap: 16px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .field { display: flex; flex-direction: column; gap: 7px; }
@@ -585,6 +585,12 @@ h1 em { font-style: italic; color: var(--accent); }
 .info-label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); flex-shrink: 0; }
 .info-row a { font-weight: 600; }
 .info-row span:not(.info-label) { text-align: right; color: var(--text-2); }
+
+/* ── contact booking (Cal.com inline) ───────────────────── */
+.contact-booking { grid-column: 1 / -1; }
+.contact-booking .info-card { padding: 28px; }
+.contact-booking h3 { font-family: var(--display); font-size: 24px; font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
+.contact-booking .sub { margin-top: 6px; font-size: 15px; color: var(--text-2); max-width: 520px; }
 
 /* ── footer ──────────────────────────────────────────────── */
 .footer { border-top: 1px solid var(--border); padding: 28px 0; }

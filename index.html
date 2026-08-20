@@ -734,6 +734,15 @@
             <p class="form-note">Opens WhatsApp with your details pre-filled — this site doesn't store your data.</p>
           </form>
 
+          <div class="contact-booking">
+            <div class="info-card">
+              <h3 style="margin-bottom: 0.5rem;">Prefer to just pick a time?</h3>
+              <p class="sub" style="margin-bottom: 1rem;">Book a free 15-min call directly — no back and forth.</p>
+              <a class="btn btn-ghost" href="https://cal.com/vision61studios/15min" target="_blank" rel="noopener" style="margin-bottom: 1rem;">Book a time directly</a>
+              <div id="cal-inline" style="width:100%;min-height:500px;overflow:auto;"></div>
+            </div>
+          </div>
+
           <div class="contact-info">
             <div class="info-card">
               <div class="info-row"><span class="info-label">WhatsApp</span><a href="https://wa.me/233201599949?text=Hi%20Vision%2061!%20I%27d%20like%20a%20free%20digital%20audit%20for%20my%20business." target="_blank" rel="noopener">+233 20 159 9949</a></div>
@@ -781,5 +790,23 @@
   </div>
 
   <script src="script.js"></script>
+
+  <script>
+    (function (C, A, L) { let p = function (a, ar) { a.q.push(ar); }; let d = C.document;
+    C.Cal = C.Cal || function () { let cal = C.Cal; let ar = arguments;
+    if (!cal.loaded) { cal.ns = {}; cal.q = cal.q || []; d.head.appendChild(d.createElement("script")).src = A;
+    cal.loaded = true; } if (ar[0] === L) { const api = function () { p(api, arguments); };
+    const namespace = ar[1]; api.q = api.q || []; if(typeof namespace === "string"){
+    cal.ns[namespace] = cal.ns[namespace] || api; p(cal.ns[namespace], ar); p(cal, ["initNamespace", namespace]);
+    } else p(cal, ar); return; } p(cal, ar); }; })(window, "https://app.cal.com/embed/embed.js", "init");
+
+    Cal("init", { origin: "https://cal.com" });
+
+    Cal("inline", {
+      elementOrSelector: "#cal-inline",
+      calLink: "vision61studios/15min",
+      config: { theme: "light" }
+    });
+  </script>
 </body>
 </html>
