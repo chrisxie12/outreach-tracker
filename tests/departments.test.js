@@ -66,7 +66,7 @@ suite("website departments — homepage expansion", () => {
   });
 
   test("homepage still has all core sections and catalog (no regression)", () => {
-    eq(d.querySelectorAll("section[id]").length, 9, "nine anchor sections preserved");
+    eq(d.querySelectorAll("section[id]").length, 10, "ten anchor sections preserved");
     eq(d.querySelectorAll(".svc-card").length, 12, "twelve service cards preserved");
     eq(d.querySelectorAll(".pkg-card").length, 3, "three pricing packages preserved");
     eq(d.querySelectorAll(".faq-item").length, 7, "seven FAQ items preserved");

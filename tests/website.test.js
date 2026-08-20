@@ -29,11 +29,11 @@ suite("website landing page", () => {
     ok(/Ghana/i.test(d.querySelector('meta[name="description"]').content), "description mentions Ghana");
   });
 
-  test("all nine sections render with primary nav anchors", () => {
+  test("all ten sections render with primary nav anchors", () => {
     const ids = Array.from(d.querySelectorAll("section[id]")).map((s) => s.id);
-    eq(ids.length, 9, "nine sections");
+    eq(ids.length, 10, "ten sections");
     const anchors = Array.from(d.querySelectorAll(".nav-links a")).map((a) => a.getAttribute("href"));
-    ["services", "pricing", "audit", "about"].forEach((id) =>
+    ["services", "work", "pricing", "audit", "about"].forEach((id) =>
       ok(anchors.indexOf("#" + id) >= 0, "nav links to #" + id)
     );
   });

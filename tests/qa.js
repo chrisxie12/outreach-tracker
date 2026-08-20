@@ -18,6 +18,7 @@ require("./phase6-contact-discovery.test.js");
 require("./ui-ux.test.js");
 require("./quick-audit.test.js");
 require("./website.test.js");
+require("./portfolio.test.js");
 require("./analytics.test.js");
 require("./departments.test.js");
 

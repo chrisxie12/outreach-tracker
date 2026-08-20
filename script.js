@@ -562,3 +562,328 @@
   if (accept) accept.addEventListener("click", function () { setConsent("accepted"); });
   if (essential) essential.addEventListener("click", function () { setConsent("essential"); });
 })();
+
+/* ── Portfolio / Our Work ────────────────────────────────────
+   Data-driven portfolio for the #work section. Add a project by
+   adding one object to portfolioProjects below — the featured
+   block, category filters, cards, modal and CTA update
+   automatically. Only real work is listed; internal projects and
+   concepts are clearly labelled. */
+(function () {
+  "use strict";
+  var root = document.getElementById("work");
+  if (!root) return;
+  var featuredEl = document.getElementById("portfolio-featured");
+  var filtersEl = document.getElementById("portfolio-filters");
+  var gridEl = document.getElementById("portfolio-grid");
+  if (!featuredEl || !filtersEl || !gridEl) return;
+
+  var PORTFOLIO_CATEGORY_ORDER = ["websites", "branding", "content", "social media", "digital marketing", "audits"];
+  var PORTFOLIO_CATEGORY_LABELS = { websites: "Websites", branding: "Branding", content: "Content", "social media": "Social media", "digital marketing": "Digital marketing", audits: "Audits" };
+  var PORTFOLIO_TYPE_LABELS = { internal: "Vision 61 Studios \u2014 internal", concept: "Concept" };
+
+  var portfolioProjects = [
+    {
+      title: "Vision 61 Studios",
+      category: "websites",
+      type: "internal",
+      image: "images/portfolio/vision61-site.webp",
+      imageSmall: "images/portfolio/vision61-site-640.webp",
+      width: 1280, height: 800,
+      alt: "Screenshot of the Vision 61 Studios website homepage",
+      description: "A conversion-focused digital studio website built around a clean, premium visual system.",
+      overview: "Designed and built in-house, this is the studio's own public home. It combines the Solar Minimal visual system, a full services catalogue, an instant free digital audit tool and this portfolio \u2014 mobile-first, fast and built to turn attention into enquiries.",
+      services: ["Web Design", "Development", "SEO", "Analytics"],
+      url: "https://vision61studios.online/",
+      cta: "Visit the live site",
+      featured: true
+    },
+    {
+      title: "Kente Brand Direction",
+      category: "branding",
+      type: "concept",
+      image: "images/portfolio/kente-direction.webp",
+      imageSmall: "images/portfolio/kente-direction-640.webp",
+      width: 1280, height: 800,
+      alt: "Screenshot of the Kente brand direction concept",
+      description: "A woven, heritage-inspired brand direction exploring pattern, gold and rust.",
+      overview: "An internal brand direction concept exploring a Kente-inspired identity \u2014 woven pattern bands, gold and rust accents on a dark canvas. Produced by the studio as a creative exploration, not client work.",
+      services: ["Brand Strategy", "Art Direction", "Visual Identity"],
+      url: null,
+      cta: "Concept exploration"
+    },
+    {
+      title: "Accra Nights Brand Direction",
+      category: "branding",
+      type: "concept",
+      image: "images/portfolio/accra-nights-direction.webp",
+      imageSmall: "images/portfolio/accra-nights-direction-640.webp",
+      width: 1280, height: 800,
+      alt: "Screenshot of the Accra Nights brand direction concept",
+      description: "A bold, nocturnal brand direction concept with a distinctive evening palette.",
+      overview: "An internal brand direction concept built around the energy of Accra after dark \u2014 strong contrast, confident type and a memorable night palette. Produced by the studio as a creative exploration, not client work.",
+      services: ["Brand Strategy", "Art Direction", "Visual Identity"],
+      url: null,
+      cta: "Concept exploration"
+    },
+    {
+      title: "Solar Minimal Brand Direction",
+      category: "branding",
+      type: "concept",
+      image: "images/portfolio/solar-minimal-direction.webp",
+      imageSmall: "images/portfolio/solar-minimal-direction-640.webp",
+      width: 1280, height: 800,
+      alt: "Screenshot of the Solar Minimal brand direction concept",
+      description: "The studio's own warm, minimal visual system \u2014 paper, terracotta and Fraunces.",
+      overview: "The Solar Minimal system that powers this website, explored as a standalone brand direction. Warm paper tones, a terracotta accent and editorial Fraunces typography. Produced by the studio, not client work.",
+      services: ["Brand Strategy", "Art Direction", "Visual Identity"],
+      url: null,
+      cta: "Concept exploration"
+    }
+  ];
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text) node.textContent = text;
+    return node;
+  }
+
+  function badgeFor(p) {
+    return el("span", "portfolio-badge", PORTFOLIO_TYPE_LABELS[p.type] || p.type);
+  }
+
+  function catLabel(c) { return PORTFOLIO_CATEGORY_LABELS[c] || c; }
+
+  function imgFor(p, isLazy) {
+    var img = el("img");
+    img.src = p.image;
+    img.setAttribute("srcset", p.imageSmall + " 640w, " + p.image + " 1280w");
+    img.setAttribute("sizes", "(max-width: 640px) 640px, 1280px");
+    img.alt = p.alt;
+    img.setAttribute("loading", isLazy ? "lazy" : "eager");
+    img.setAttribute("width", p.width);
+    img.setAttribute("height", p.height);
+    return img;
+  }
+
+  function tagsFor(p) {
+    var wrap = el("div", "portfolio-tags");
+    p.services.forEach(function (s) { wrap.appendChild(el("span", null, s)); });
+    return wrap;
+  }
+
+  function ctaFor(p, cls) {
+    var a;
+    if (p.url) {
+      a = el("a", cls, p.cta);
+      a.href = p.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+    } else {
+      a = el("a", cls, "Start a project");
+      a.href = "#contact";
+    }
+    return a;
+  }
+
+  function mediaWrap(p, cls, isLazy) {
+    var media = el("div", cls);
+    media.appendChild(imgFor(p, isLazy));
+    media.appendChild(badgeFor(p));
+    return media;
+  }
+
+  function renderFeatured(p) {
+    featuredEl.textContent = "";
+    var card = el("article", "portfolio-featured-card reveal");
+    var media = mediaWrap(p, "portfolio-featured-media", true);
+    var img = media.querySelector("img");
+    img.setAttribute("sizes", "(max-width: 960px) 100vw, 720px");
+    var body = el("div", "portfolio-featured-body");
+    body.appendChild(el("span", "portfolio-cat", catLabel(p.category)));
+    body.appendChild(el("h3", null, p.title));
+    body.appendChild(el("p", null, p.overview));
+    body.appendChild(tagsFor(p));
+    body.appendChild(ctaFor(p, "btn btn-primary"));
+    card.appendChild(media);
+    card.appendChild(body);
+    featuredEl.appendChild(card);
+  }
+
+  function cardFor(p) {
+    var card = el("article", "portfolio-card reveal");
+    card.setAttribute("data-category", p.category);
+    card.setAttribute("data-project", p.title);
+    card.appendChild(mediaWrap(p, "portfolio-media", true));
+    var body = el("div", "portfolio-body");
+    body.appendChild(el("span", "portfolio-cat", catLabel(p.category)));
+    body.appendChild(el("h3", null, p.title));
+    body.appendChild(el("p", null, p.description));
+    body.appendChild(tagsFor(p));
+    var view = el("button", "portfolio-view");
+    view.type = "button";
+    view.appendChild(el("span", null, "View project"));
+    view.appendChild(el("span", "pf-arrow", "\u2192"));
+    view.addEventListener("click", function () { openModal(p); });
+    body.appendChild(view);
+    card.appendChild(body);
+    return card;
+  }
+
+  /* reveal — mirrors the page's existing reveal pattern */
+  var reduced = false;
+  try { reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { /* ignore */ }
+  var hasIO = "IntersectionObserver" in window;
+  var revealIO = null;
+  if (hasIO && !reduced) {
+    revealIO = new IntersectionObserver(function (entries, obs) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { en.target.classList.add("in"); obs.unobserve(en.target); }
+      });
+    }, { threshold: 0.12 });
+  }
+  function revealEls(els) {
+    if (!revealIO) { els.forEach(function (n) { n.classList.add("in"); }); return; }
+    els.forEach(function (n) { revealIO.observe(n); });
+  }
+
+  var currentFilter = "all";
+
+  function render() {
+    var featured = null;
+    portfolioProjects.forEach(function (p) { if (p.featured) featured = p; });
+    if (featured && (currentFilter === "all" || currentFilter === featured.category)) {
+      renderFeatured(featured);
+      featuredEl.hidden = false;
+      revealEls(Array.prototype.slice.call(featuredEl.querySelectorAll(".portfolio-featured-card")));
+    } else {
+      featuredEl.hidden = true;
+    }
+    gridEl.textContent = "";
+    var cards = [];
+    portfolioProjects.forEach(function (p) {
+      if (p.featured) return;
+      if (currentFilter === "all" || currentFilter === p.category) cards.push(cardFor(p));
+    });
+    cards.forEach(function (c) { gridEl.appendChild(c); });
+    gridEl.hidden = cards.length === 0;
+    revealEls(cards);
+  }
+
+  function setFilter(value, btn) {
+    currentFilter = value;
+    var buttons = Array.prototype.slice.call(filtersEl.querySelectorAll(".portfolio-filter"));
+    buttons.forEach(function (b) {
+      var on = b === btn;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    render();
+  }
+
+  function buildFilters() {
+    filtersEl.textContent = "";
+    var present = {};
+    portfolioProjects.forEach(function (p) { present[p.category] = true; });
+    function makeFilter(label, value, active) {
+      var b = el("button", "portfolio-filter" + (active ? " active" : ""), label);
+      b.type = "button";
+      b.setAttribute("aria-pressed", active ? "true" : "false");
+      b.addEventListener("click", function () { setFilter(value, b); });
+      return b;
+    }
+    filtersEl.appendChild(makeFilter("All", "all", true));
+    PORTFOLIO_CATEGORY_ORDER.forEach(function (c) {
+      if (present[c]) filtersEl.appendChild(makeFilter(catLabel(c), c, false));
+    });
+  }
+
+  /* modal */
+  var modal = null, modalMedia = null, modalCat = null, modalTitle = null, modalOverview = null, modalServices = null, modalCta = null, modalClose = null, lastFocused = null;
+
+  function buildModal() {
+    if (document.getElementById("portfolio-modal")) return;
+    modal = el("div", "portfolio-modal");
+    modal.id = "portfolio-modal";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-labelledby", "portfolio-modal-title");
+    modal.hidden = true;
+    var backdrop = el("div", "portfolio-modal-backdrop");
+    backdrop.addEventListener("click", closeModal);
+    modal.appendChild(backdrop);
+    var panel = el("div", "portfolio-modal-panel");
+    modalClose = el("button", "portfolio-modal-close", "\u00d7");
+    modalClose.type = "button";
+    modalClose.setAttribute("aria-label", "Close project details");
+    modalClose.addEventListener("click", closeModal);
+    panel.appendChild(modalClose);
+    modalMedia = el("div", "portfolio-modal-media");
+    panel.appendChild(modalMedia);
+    var content = el("div", "portfolio-modal-content");
+    modalCat = el("span", "portfolio-cat");
+    content.appendChild(modalCat);
+    modalTitle = el("h3", null, "");
+    modalTitle.id = "portfolio-modal-title";
+    content.appendChild(modalTitle);
+    modalOverview = el("p", "portfolio-modal-overview");
+    content.appendChild(modalOverview);
+    modalServices = el("div", "portfolio-modal-services");
+    content.appendChild(modalServices);
+    modalCta = el("a", "btn btn-primary portfolio-modal-cta");
+    content.appendChild(modalCta);
+    panel.appendChild(content);
+    modal.appendChild(panel);
+    document.body.appendChild(modal);
+  }
+
+  function onModalKey(e) {
+    if (e.key === "Escape" || e.key === "Esc") { e.preventDefault(); closeModal(); }
+  }
+
+  function openModal(p) {
+    buildModal();
+    if (modal.hidden !== true) return;
+    lastFocused = document.activeElement;
+    modalCat.textContent = catLabel(p.category);
+    modalTitle.textContent = p.title;
+    modalOverview.textContent = p.overview || p.description;
+    modalMedia.textContent = "";
+    var img = imgFor(p, false);
+    modalMedia.appendChild(img);
+    modalMedia.appendChild(badgeFor(p));
+    modalServices.textContent = "";
+    modalServices.appendChild(el("b", null, "Services"));
+    modalServices.appendChild(tagsFor(p));
+    if (p.url) {
+      modalCta.href = p.url;
+      modalCta.target = "_blank";
+      modalCta.rel = "noopener";
+      modalCta.textContent = p.cta || "Visit project";
+    } else {
+      modalCta.href = "#contact";
+      modalCta.removeAttribute("target");
+      modalCta.removeAttribute("rel");
+      modalCta.textContent = "Start a project";
+    }
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    if (modalClose) modalClose.focus();
+    document.addEventListener("keydown", onModalKey);
+    if (window.trackEvent) {
+      window.trackEvent("portfolio_project_view", { project_name: p.title, category: catLabel(p.category) });
+    }
+  }
+
+  function closeModal() {
+    if (!modal || modal.hidden) return;
+    modal.hidden = true;
+    document.body.style.overflow = "";
+    document.removeEventListener("keydown", onModalKey);
+    if (lastFocused && lastFocused.focus) lastFocused.focus();
+  }
+
+  buildFilters();
+  render();
+})();
