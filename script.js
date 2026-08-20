@@ -145,6 +145,21 @@
   }
 })();
 
+/* ── Service cards — mobile tap-to-expand ────────────────
+   On small screens the description is hidden; tapping a card
+   expands it. Harmless no-op on larger viewports where the
+   description is always visible. */
+(function () {
+  "use strict";
+  var cards = document.querySelectorAll(".svc-card");
+  if (!cards.length) return;
+  Array.prototype.forEach.call(cards, function (card) {
+    card.addEventListener("click", function () {
+      card.classList.toggle("expanded");
+    });
+  });
+})();
+
 /* ── Instant website check ───────────────────────────────
    Lightweight, self-contained version of the CRM's Website Analyzer.
    Honesty rules (same as the CRM): never fabricate results. A site that
@@ -317,7 +332,16 @@
   function render(r, bizName) {
     resultEl.hidden = false;
     urlLine.textContent = (bizName ? bizName + " — " : "") + (r.url || "");
-    if (scoreRing) scoreRing.style.setProperty("--p", (r.status === "ok" && r.score != null) ? r.score : 0);
+    if (scoreRing) {
+      scoreRing.style.setProperty("--p", (r.status === "ok" && r.score != null) ? r.score : 0);
+      var band = "bad";
+      if (r.status === "ok" && r.score != null) {
+        if (r.score >= 61) band = "ok";
+        else if (r.score >= 41) band = "warn";
+      }
+      scoreRing.classList.remove("ok", "warn", "bad");
+      scoreRing.classList.add(band);
+    }
     if (scoreNum) scoreNum.textContent = (r.status === "ok" && r.score != null) ? String(r.score) : "–";
     if (ctaLink) {
       if (r.status === "ok" && r.score != null && bizName) {
