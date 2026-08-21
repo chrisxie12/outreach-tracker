@@ -4,23 +4,23 @@
    ═══════════════════════════════════════════════════════════ */
 
 :root {
-  --bg: #f7f2ea;
-  --bg-2: #efe7d9;
-  --surface: #fffdf8;
-  --surface-2: #efe7d9;
-  --surface-3: #e4dac7;
-  --border: #e2d8c6;
-  --border-2: #cdc0a8;
-  --text: #22201b;
-  --text-2: #57503f;
-  --text-3: #6f6757;
-  --accent: #ad4526;
-  --accent-strong: #933a1b;
-  --accent-soft: rgba(173, 69, 38, .12);
-  --accent-border: rgba(173, 69, 38, .35);
+  --bg: #E6D5B7;
+  --bg-2: #1E223D;
+  --surface: #F5F5F0;
+  --surface-2: #E6D5B7;
+  --surface-3: #F54F1B;
+  --border: #1E223D;
+  --border-2: #F54F1B;
+  --text: #1E223D;
+  --text-2: #E6D5B7;
+  --text-3: #F54F1B;
+  --accent: #F54F1B;
+  --accent-strong: #E6D5B7;
+  --accent-soft: rgba(245, 79, 27, .12);
+  --accent-border: rgba(245, 79, 27, .35);
   --ok: #3f7d5f;
   --warn: #a8722a;
-  --hover: rgba(34, 32, 27, .05);
+  --hover: rgba(30, 34, 61, .05);
   --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --display: "Fraunces", Georgia, "Times New Roman", serif;
   --radius: 14px;
@@ -53,10 +53,10 @@ body {
 body::before {
   content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(760px 520px at 12% -4%, rgba(216, 164, 96, .42), transparent 66%),
-    radial-gradient(840px 600px at 92% 16%, rgba(173, 69, 38, .22), transparent 62%),
-    radial-gradient(700px 520px at 6% 52%, rgba(214, 183, 126, .38), transparent 66%),
-    radial-gradient(920px 660px at 90% 72%, rgba(173, 69, 38, .2), transparent 60%),
+    radial-gradient(760px 520px at 12% -4%, rgba(230, 213, 183, .42), transparent 66%),
+    radial-gradient(840px 600px at 92% 16%, rgba(245, 79, 27, .22), transparent 62%),
+    radial-gradient(700px 520px at 6% 52%, rgba(229, 212, 179, .38), transparent 66%),
+    radial-gradient(920px 660px at 90% 72%, rgba(245, 79, 27, .2), transparent 60%),
     radial-gradient(560px 440px at 45% 45%, rgba(245, 235, 214, .55), transparent 70%);
 }
 body > * { position: relative; z-index: 1; }
@@ -77,7 +77,7 @@ a:hover { color: var(--accent-strong); }
   cursor: pointer; transition: all var(--t); white-space: nowrap;
 }
 .btn-lg { padding: 15px 26px; font-size: 15px; }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #fffdf8; box-shadow: 0 8px 24px rgba(192, 83, 47, .18); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fffdf8; box-shadow: 0 8px 24px rgba(245, 79, 27, .18); }
 .btn-primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: #fffdf8; transform: translateY(-1px); }
 .btn-ghost { background: transparent; border-color: var(--border-2); color: var(--text-2); }
 .btn-ghost:hover { background: var(--hover); border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
@@ -615,7 +615,7 @@ h1 em { font-style: italic; color: var(--accent); }
 @keyframes loader-spin { to { transform: rotate(360deg); } }
 
 .who-card img, .show-card img, .hero-frame img {
-  background: linear-gradient(100deg, #ede5d7 30%, #f7f2ea 50%, #ede5d7 70%);
+  background: linear-gradient(100deg, #E6D5B7 30%, #F5F5F0 50%, #E6D5B7 70%);
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.4s linear infinite;
 }
