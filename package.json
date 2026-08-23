@@ -6,9 +6,15 @@
   "scripts": {
     "test": "node tests/qa.js",
     "test:gen-scripts": "node tests/gen-scripts.js",
-    "verify": "node tests/gen-scripts.js && node tests/qa.js"
+    "verify": "node tests/gen-scripts.js && node tests/qa.js",
+    "build": "npm run build:css && npm run build:js && npm run build:crm",
+    "build:css": "esbuild styles.css --minify --outfile=styles.min.css",
+    "build:js": "esbuild script.js --minify --outfile=script.min.js",
+    "build:crm": "esbuild crm/js/app.js --bundle --minify --outfile=crm/js/app.min.js --format=esm",
+    "dev": "npm run build -- --watch"
   },
   "devDependencies": {
+    "esbuild": "^0.20.0",
     "jsdom": "^30.0.1"
   }
 }

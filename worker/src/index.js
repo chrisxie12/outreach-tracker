@@ -500,7 +500,7 @@ export default {
       if (request.method !== "POST") return badRequest("Method not allowed.", allowed);
       const { parsed, error } = await readJson(request, allowed);
       if (error) return error;
-      const origin = (request.headers.get("Origin") || (parsed && parsed.origin) || "").trim();
+      const origin = (request.headers.get("Origin") || "").trim();
       if (origin !== allowed) {
         return json({ ok: false, error: "forbidden_origin", message: "Origin not permitted." }, 403, allowed);
       }

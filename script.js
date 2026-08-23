@@ -29,6 +29,38 @@
       var open = dropItem.classList.toggle("open");
       dropToggle.setAttribute("aria-expanded", open ? "true" : "false");
     });
+    dropToggle.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        var open = dropItem.classList.toggle("open");
+        dropToggle.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) {
+          var firstLink = dropItem.querySelector(".drop-menu a");
+          if (firstLink) firstLink.focus();
+        }
+      } else if (ev.key === "Escape") {
+        dropItem.classList.remove("open");
+        dropToggle.setAttribute("aria-expanded", "false");
+      }
+    });
+    var dropMenu = dropItem.querySelector(".drop-menu");
+    if (dropMenu) {
+      dropMenu.addEventListener("keydown", function (ev) {
+        var items = Array.prototype.slice.call(dropMenu.querySelectorAll("a"));
+        var idx = items.indexOf(document.activeElement);
+        if (ev.key === "ArrowDown") {
+          ev.preventDefault();
+          items[(idx + 1) % items.length].focus();
+        } else if (ev.key === "ArrowUp") {
+          ev.preventDefault();
+          items[(idx - 1 + items.length) % items.length].focus();
+        } else if (ev.key === "Escape") {
+          dropItem.classList.remove("open");
+          dropToggle.setAttribute("aria-expanded", "false");
+          dropToggle.focus();
+        }
+      });
+    }
     document.addEventListener("click", function (ev) {
       if (!dropItem.contains(ev.target)) {
         dropItem.classList.remove("open");
@@ -864,6 +896,19 @@
 
   function onModalKey(e) {
     if (e.key === "Escape" || e.key === "Esc") { e.preventDefault(); closeModal(); }
+    if (e.key === "Tab" && modal && !modal.hidden) {
+      var focusable = modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])');
+      if (focusable.length === 0) return;
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
   }
 
   function openModal(p) {

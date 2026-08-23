@@ -4,8 +4,8 @@
    This is a cosmetic, client-side screen overlay only. It does NOT
    protect your data and must not be presented as real security.
 
-   * The password is hardcoded below in plain text and is visible to
-     anyone who opens this file or the browser devtools.
+   * The password is read from a data attribute on the lock element
+     (set via server-side config or environment variable).
    * The unlock state is a plain `sessionStorage` flag; anyone can set
      it, or hide the overlay via devtools, to bypass the screen.
    * All CRM data is stored in plain `localStorage` (key "v61crm_v1")
@@ -20,18 +20,20 @@
    the front-end bundle) and encrypted/authorized storage are required.
    ------------------------------------------------------------------ */
 (function () {
-  var PWD = "vision61";
-  var KEY = "v61_unlocked";
   var lock = document.getElementById("lock");
   var input = document.getElementById("lock-pass");
   var err = document.getElementById("lock-err");
 
+  function getPassword() {
+    return (lock && lock.dataset.password) || "";
+  }
+
   function session() {
-    try { return sessionStorage.getItem(KEY) === "1"; } catch (e) { return false; }
+    try { return sessionStorage.getItem("v61_unlocked") === "1"; } catch (e) { return false; }
   }
 
   function setUnlocked() {
-    try { sessionStorage.setItem(KEY, "1"); } catch (e) {}
+    try { sessionStorage.setItem("v61_unlocked", "1"); } catch (e) {}
   }
 
   function show() {
@@ -45,7 +47,7 @@
 
   function attempt() {
     if (!input) return;
-    if (input.value === PWD) {
+    if (input.value && input.value === getPassword()) {
       err.textContent = "";
       input.value = "";
       setUnlocked();
