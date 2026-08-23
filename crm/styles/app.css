@@ -22,8 +22,8 @@
   --surface: #1c1c21;
   --surface-2: #242429;
   --surface-3: #2e2e35;
-  --border: #2e2e36;
-  --border-2: #404049;
+  --border: #333339;
+  --border-2: #45454e;
   --text: #f5f5f7;
   --text-2: #b0b0ba;
   --text-3: #7a7a85;
@@ -52,7 +52,7 @@
   --border-2: #cccdd4;
   --text: #17171c;
   --text-2: #4a4a54;
-  --text-3: #73737e;
+  --text-3: #63636e;
   --accent: #e53e12;
   --accent-strong: #cc3508;
   --accent-soft: rgba(229, 62, 18, .08);
