@@ -121,8 +121,6 @@
   var form = document.getElementById("contact-form");
   if (form) {
     var status = document.getElementById("form-status");
-    var WA_NUMBER = "233201599949";
-    var EMAIL = "hello@vision61studios.online";
 
     form.addEventListener("submit", function (ev) {
       ev.preventDefault();
@@ -131,48 +129,35 @@
         return el ? el.value.trim() : "";
       };
       var name = val("cf-name");
-      var business = val("cf-business");
-      var phone = val("cf-phone");
-      var email = val("cf-email");
-      var type = val("cf-type");
-      var need = val("cf-need");
-      var message = val("cf-message");
 
-      if (!name && !message) {
+      if (!name && !val("cf-message")) {
         var firstField = document.getElementById("cf-name");
         if (firstField) firstField.focus();
         if (status) status.textContent = "Please add your name or a message.";
         return;
       }
 
-      var lines = [];
-      function push(label, value) { if (value) { lines.push(label + ": " + value); } }
-      push("Name", name);
-      push("Business", business);
-      push("Phone / WhatsApp", phone);
-      push("Email", email);
-      push("Business type", type);
-      push("I need help with", need);
-      if (message) { lines.push(""); lines.push(message); }
-      var body = "Hi Vision 61 Studios! I'd like to talk about my business.\n\n" + lines.join("\n");
-      var subject = "Project enquiry" + (name ? " — " + name : "");
+      var btn = form.querySelector('button[type="submit"]');
+      if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+      if (status) status.textContent = "";
 
-      var waUrl = "https://wa.me/" + WA_NUMBER + "?text=" + encodeURIComponent(body);
-      var mailtoUrl = "mailto:" + EMAIL + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
-
-      if (window.trackEvent) {
-        window.trackEvent("contact_form_submit", { form_name: "main_contact", method: "whatsapp" });
-      }
-      window.open(waUrl, "_blank", "noopener");
-      if (status) {
-        status.textContent = "Opening WhatsApp with your details pre-filled…";
-        var fb = document.createElement("a");
-        fb.textContent = "WhatsApp didn't open? Send the same message by email instead.";
-        fb.href = mailtoUrl;
-        fb.className = "form-fallback";
-        status.appendChild(document.createElement("br"));
-        status.appendChild(fb);
-      }
+      var fd = new FormData(form);
+      fetch(form.action, { method: "POST", body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.success) {
+            if (status) status.textContent = "Thanks! We'll be in touch shortly.";
+            form.reset();
+          } else {
+            if (status) status.textContent = "Something went wrong. Please try again or contact us directly.";
+          }
+        })
+        .catch(function () {
+          if (status) status.textContent = "Network error. Please try again or contact us directly.";
+        })
+        .finally(function () {
+          if (btn) { btn.disabled = false; btn.textContent = "Start my project"; }
+        });
     });
   }
 })();

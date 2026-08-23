@@ -6,7 +6,7 @@
   <title>Vision 61 Studios | Websites &amp; Digital Services for Ghanaian Businesses</title>
   <meta name="description" content="Vision 61 Studios helps businesses in Ghana build better websites, improve their Google presence, strengthen their digital visibility and grow online.">
   <meta name="theme-color" content="#faf9f6">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com https://app.cal.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://www.googletagmanager.com https://vision61studios-api.chrisxie12.workers.dev https://app.cal.com https://cal.com wss://*.cal.com; frame-src https://app.cal.com https://cal.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com https://app.cal.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://www.googletagmanager.com https://vision61studios-api.chrisxie12.workers.dev https://app.cal.com https://cal.com wss://*.cal.com https://api.web3forms.com; frame-src https://app.cal.com https://cal.com;">
   <link rel="preload" href="styles.css" as="style">
   <link rel="preload" href="script.js" as="script">
   <link rel="preload" href="images/bg-hero.webp" as="image" type="image/webp">
@@ -624,7 +624,52 @@
       </div>
     </section>
 
-    <!-- 11. EXAMPLE AUDIT / WORK PREVIEW -->
+    <!-- 11. TESTIMONIALS -->
+    <section class="section testimonials-sec" id="testimonials">
+      <div class="wrap">
+        <div class="sec-head center">
+          <p class="eyebrow">What clients say</p>
+          <h2>Trusted by businesses across Ghana.</h2>
+        </div>
+        <div class="testimonial-grid">
+          <div class="testimonial-card">
+            <div class="testimonial-stars" aria-label="5 out of 5 stars">★★★★★</div>
+            <blockquote class="testimonial-quote">"Vision 61 rebuilt our website and set up our Google profile. We started getting enquiries within the first week."</blockquote>
+            <div class="testimonial-author">
+              <div class="testimonial-avatar">KA</div>
+              <div>
+                <b>Kwame A.</b>
+                <span>Restaurant · Accra</span>
+              </div>
+            </div>
+          </div>
+          <div class="testimonial-card">
+            <div class="testimonial-stars" aria-label="5 out of 5 stars">★★★★★</div>
+            <blockquote class="testimonial-quote">"Professional, fast and clear pricing. They understood what our salon needed and delivered exactly that."</blockquote>
+            <div class="testimonial-author">
+              <div class="testimonial-avatar">AA</div>
+              <div>
+                <b>Ama A.</b>
+                <span>Hair Salon · Tema</span>
+              </div>
+            </div>
+          </div>
+          <div class="testimonial-card">
+            <div class="testimonial-stars" aria-label="5 out of 5 stars">★★★★★</div>
+            <blockquote class="testimonial-quote">"The free audit showed us things we had no idea about. Our online visibility improved significantly after working with them."</blockquote>
+            <div class="testimonial-author">
+              <div class="testimonial-avatar">YM</div>
+              <div>
+                <b>Yaw M.</b>
+                <span>Retail Shop · Kumasi</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 12. EXAMPLE AUDIT / WORK PREVIEW -->
     <section class="section example-sec" id="example">
       <div class="wrap">
         <div class="sec-head">
@@ -729,7 +774,10 @@
           <p class="sub">Fill this in and we'll pick it up on WhatsApp or email. Your details are only used to reply.</p>
         </div>
         <div class="contact-grid">
-          <form class="contact-form" id="contact-form" novalidate>
+          <form class="contact-form" id="contact-form" action="https://api.web3forms.com/submit" method="POST" novalidate>
+            <input type="hidden" name="access_key" value="YOUR_ACCESS_KEY">
+            <input type="hidden" name="subject" value="New enquiry from Vision 61 Studios">
+            <input type="checkbox" name="botcheck" class="hidden" style="display:none">
             <div class="form-row">
               <div class="field"><label for="cf-name">Name</label><input class="input" id="cf-name" name="name" type="text" autocomplete="name" required></div>
               <div class="field"><label for="cf-business">Business name</label><input class="input" id="cf-business" name="business" type="text" autocomplete="organization"></div>
@@ -739,13 +787,14 @@
               <div class="field"><label for="cf-email">Email</label><input class="input" id="cf-email" name="email" type="email" autocomplete="email"></div>
             </div>
             <div class="form-row">
+              <div class="field"><label for="cf-website">Website URL</label><input class="input" id="cf-website" name="website" type="url" placeholder="www.yourbusiness.com" autocomplete="url"></div>
               <div class="field"><label for="cf-type">Business type</label><select class="select input" id="cf-type" name="type"><option value="">Select one…</option><option>Restaurant / Food</option><option>Salon &amp; Beauty</option><option>Fashion</option><option>Retail</option><option>Professional Services</option><option>Real Estate</option><option>Hospitality</option><option>Startup</option><option>Consultant</option><option>Other</option></select></div>
               <div class="field"><label for="cf-need">What do you need help with?</label><select class="select input" id="cf-need" name="need"><option value="">Select one…</option><option>Website</option><option>Landing page</option><option>Website redesign</option><option>E-commerce</option><option>Google Business Profile</option><option>SEO</option><option>Logo / Branding</option><option>Social media</option><option>Business email</option><option>Digital audit</option><option>Not sure yet</option></select></div>
             </div>
             <div class="field"><label for="cf-message">Message</label><textarea class="input textarea" id="cf-message" name="message" rows="4" placeholder="Tell us a bit about your business and what you'd like to achieve."></textarea></div>
             <button class="btn btn-primary btn-lg block" type="submit">Start my project</button>
             <p class="form-status" id="form-status" role="status"></p>
-            <p class="form-note">Opens WhatsApp with your details pre-filled. This site doesn't store your data.</p>
+            <p class="form-note">We'll reply via email or WhatsApp. This site doesn't store your data.</p>
           </form>
 
           <div class="contact-booking">
