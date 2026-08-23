@@ -73,7 +73,7 @@ a:hover { color: var(--accent-strong); }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   font: 600 14px/1 var(--font); letter-spacing: .01em;
-  padding: 12px 20px; border-radius: var(--radius-sm); border: 1px solid transparent;
+  padding: 13px 22px; border-radius: var(--radius-sm); border: 1px solid transparent;
   cursor: pointer; transition: all var(--t); white-space: nowrap;
 }
 .btn-lg { padding: 15px 26px; font-size: 15px; }
@@ -105,7 +105,7 @@ a:hover { color: var(--accent-strong); }
 .nav-links a:not(.nav-cta) { color: var(--text-2); font-size: 13.5px; font-weight: 500; padding: 8px 12px; border-radius: 8px; transition: all var(--t); }
 .nav-links a:not(.nav-cta):hover { color: var(--text); background: var(--hover); }
 .nav-cta { margin-left: 10px; padding: 10px 16px; }
-.nav-burger { display: none; background: transparent; border: 1px solid var(--border-2); border-radius: 8px; width: 40px; height: 40px; margin-left: auto; flex-direction: column; align-items: center; justify-content: center; gap: 5px; cursor: pointer; }
+.nav-burger { display: none; background: transparent; border: 1px solid var(--border-2); border-radius: 8px; width: 44px; height: 44px; margin-left: auto; flex-direction: column; align-items: center; justify-content: center; gap: 5px; cursor: pointer; }
 .nav-burger span { display: block; width: 18px; height: 2px; background: var(--text-2); border-radius: 2px; transition: all var(--t); }
 
 /* departments dropdown */
@@ -620,13 +620,15 @@ h1 em { font-style: italic; color: var(--accent); }
 .partner-arrow { flex-shrink: 0; color: var(--text-3); transition: color .2s, transform .15s; }
 .partner-card:hover .partner-arrow { color: var(--accent); transform: translateX(3px); }
 
+img { max-width: 100%; height: auto; }
+
 /* ── newsletter ──────────────────────────────────────────── */
 .newsletter-sec { background: var(--bg-2); border-top: 1px solid var(--border); padding: 48px 0; }
 .newsletter-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
 .newsletter-copy h3 { font-family: var(--display); font-size: 20px; font-weight: 700; color: var(--text); margin: 0 0 4px; }
 .newsletter-copy p { font-size: 14px; color: var(--text-3); margin: 0; }
-.newsletter-form { display: flex; gap: 8px; }
-.newsletter-input { min-width: 260px; }
+.newsletter-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.newsletter-input { min-width: 260px; flex: 1 1 200px; }
 .newsletter-status { width: 100%; font-size: 13px; color: var(--text-2); margin-top: 4px; }
 
 /* ── footer ──────────────────────────────────────────────── */
