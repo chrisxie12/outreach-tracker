@@ -7,6 +7,9 @@
   <meta name="description" content="Social media management, personal branding, digital marketing and creative direction from Vision 61 Studios in Accra, Ghana.">
   <meta name="theme-color" content="#faf9f6">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: https:;">
+  <link rel="preload" href="../styles.css" as="style">
+  <link rel="preload" href="../script.js" as="script">
+  <link rel="preload" href="../images/vision61-logo.webp" as="image" type="image/webp">
   <link rel="canonical" href="https://vision61studios.online/branding/">
   <link rel="icon" href="../favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
@@ -58,7 +61,7 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
@@ -69,7 +72,7 @@
   <header class="nav" id="top">
     <div class="wrap nav-inner">
       <a class="brand" href="../">
-        <img class="brand-logo" src="../images/vision61-logo.jpeg" alt="Vision 61 Studios logo">
+        <picture><source srcset="../images/vision61-logo.webp" type="image/webp"><img class="brand-logo" src="../images/vision61-logo.jpeg" alt="Vision 61 Studios logo" width="34" height="34"></picture>
         <span class="brand-text"><b>Vision 61</b><span>Studios</span></span>
       </a>
       <nav class="nav-links" id="nav-links" aria-label="Main navigation">
@@ -112,7 +115,7 @@
         </div>
         <div class="hero-visual dept-visual">
           <figure class="hero-frame">
-            <img src="../images/work/brand-hero.jpg" alt="Illustrative photo of a marketing slogan on paper" loading="eager">
+            <picture><source srcset="../images/work/brand-hero-640.webp 640w, ../images/work/brand-hero.webp 1280w" type="image/webp" sizes="(max-width: 640px) 100vw, 50vw"><img src="../images/work/brand-hero.jpg" alt="Illustrative photo of a marketing slogan on paper" loading="eager" width="640" height="427"></picture>
             <figcaption>
               <span class="frame-title">Brand &amp; Social</span>
               <span class="frame-sub">Social · Branding · Campaigns</span>
@@ -167,27 +170,27 @@
         </div>
         <div class="who-grid">
           <figure class="who-card">
-            <img src="../images/work/brand-strategy.jpg" alt="Illustrative photo of brand strategy documents on a desk" loading="lazy">
+            <picture><source srcset="../images/work/brand-strategy-640.webp 640w, ../images/work/brand-strategy.webp 1280w" type="image/webp" sizes="(max-width: 640px) 100vw, 33vw"><img src="../images/work/brand-strategy.jpg" alt="Illustrative photo of brand strategy documents on a desk" loading="lazy" width="640" height="427"></picture>
             <figcaption><b>Brand strategy</b><span>Illustrative preview</span></figcaption>
           </figure>
           <figure class="who-card">
-            <img src="../images/work/brand-letters.jpg" alt="Illustrative photo of branding and marketing text on a white surface" loading="lazy">
+            <picture><source srcset="../images/work/brand-letters-640.webp 640w, ../images/work/brand-letters.webp 1280w" type="image/webp" sizes="(max-width: 640px) 100vw, 33vw"><img src="../images/work/brand-letters.jpg" alt="Illustrative photo of branding and marketing text on a white surface" loading="lazy" width="640" height="427"></picture>
             <figcaption><b>Brand words</b><span>Illustrative preview</span></figcaption>
           </figure>
           <figure class="who-card">
-            <img src="../images/work/brand-logo-paper.jpg" alt="Illustrative photo of logos on a white paper sheet" loading="lazy">
+            <picture><source srcset="../images/work/brand-logo-paper-640.webp 640w, ../images/work/brand-logo-paper.webp 1280w" type="image/webp" sizes="(max-width: 640px) 100vw, 33vw"><img src="../images/work/brand-logo-paper.jpg" alt="Illustrative photo of logos on a white paper sheet" loading="lazy" width="640" height="427"></picture>
             <figcaption><b>Identity</b><span>Illustrative preview</span></figcaption>
           </figure>
           <figure class="who-card">
-            <img src="../images/work/brand-text.jpg" alt="Illustrative photo of text on white paper" loading="lazy">
+            <picture><source srcset="../images/work/brand-text-640.webp 640w, ../images/work/brand-text.webp 1280w" type="image/webp" sizes="(max-width: 640px) 100vw, 33vw"><img src="../images/work/brand-text.jpg" alt="Illustrative photo of text on white paper" loading="lazy" width="640" height="427"></picture>
             <figcaption><b>Messaging</b><span>Illustrative preview</span></figcaption>
           </figure>
           <figure class="who-card">
-            <img src="../images/work/brand-marketing.jpg" alt="Illustrative photo of marketing strategy text on paper" loading="lazy">
+            <picture><source srcset="../images/work/brand-marketing-640.webp 640w, ../images/work/brand-marketing.webp 1280w" type="image/webp" sizes="(max-width: 640px) 100vw, 33vw"><img src="../images/work/brand-marketing.jpg" alt="Illustrative photo of marketing strategy text on paper" loading="lazy" width="640" height="427"></picture>
             <figcaption><b>Campaign plan</b><span>Illustrative preview</span></figcaption>
           </figure>
           <figure class="who-card">
-            <img src="../images/work/brand-mockup.jpg" alt="Illustrative photo of a brand strategy mockup" loading="lazy">
+            <picture><source srcset="../images/work/brand-mockup-640.webp 640w, ../images/work/brand-mockup.webp 1280w" type="image/webp" sizes="(max-width: 640px) 100vw, 33vw"><img src="../images/work/brand-mockup.jpg" alt="Illustrative photo of a brand strategy mockup" loading="lazy" width="640" height="427"></picture>
             <figcaption><b>Mockups</b><span>Illustrative preview</span></figcaption>
           </figure>
         </div>
@@ -228,7 +231,7 @@
 
   <footer class="footer">
     <div class="wrap footer-inner">
-      <div class="footer-brand"><img class="footer-logo" src="../images/vision61-logo.jpeg" alt="Vision 61 Studios logo"><span><b>Vision 61 Studios</b><em>Building better digital experiences for businesses in Ghana.</em></span></div>
+      <div class="footer-brand"><picture><source srcset="../images/vision61-logo.webp" type="image/webp"><img class="footer-logo" src="../images/vision61-logo.jpeg" alt="Vision 61 Studios logo" width="22" height="22"></picture><span><b>Vision 61 Studios</b><em>Building better digital experiences for businesses in Ghana.</em></span></div>
       <nav class="footer-links" aria-label="Footer navigation">
         <a href="../#services">Services</a>
         <a href="../#pricing">Pricing</a>
@@ -256,6 +259,6 @@
     </div>
   </div>
 
-  <script src="../script.js"></script>
+  <script src="../script.js" defer></script>
 </body>
 </html>
