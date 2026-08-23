@@ -592,6 +592,16 @@ h1 em { font-style: italic; color: var(--accent); }
 .contact-booking h3 { font-family: var(--display); font-size: 24px; font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
 .contact-booking .sub { margin-top: 6px; font-size: 15px; color: var(--text-2); max-width: 520px; }
 
+/* ── partners ──────────────────────────────────────────── */
+.partners-sec { padding: 80px 0; }
+.partner-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 32px; }
+.partner-card { display: flex; align-items: flex-start; gap: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; transition: box-shadow .2s, border-color .2s; }
+.partner-card:hover { border-color: var(--border-2); box-shadow: 0 4px 18px rgba(0,0,0,.04); }
+.partner-logo { flex-shrink: 0; width: 80px; height: 80px; border-radius: 12px; overflow: hidden; background: var(--surface-2); display: grid; place-items: center; }
+.partner-logo img { width: 100%; height: 100%; object-fit: contain; }
+.partner-info h3 { font-family: var(--display); font-size: 18px; font-weight: 700; color: var(--text); margin: 0 0 6px; }
+.partner-info p { font-size: 14px; color: var(--text-3); line-height: 1.5; margin: 0; }
+
 /* ── footer ──────────────────────────────────────────────── */
 .footer { border-top: 1px solid var(--border); padding: 28px 0; }
 .footer-inner { display: flex; justify-content: space-between; align-items: center; gap: 14px 24px; flex-wrap: wrap; }
