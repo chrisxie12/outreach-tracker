@@ -160,6 +160,34 @@
         });
     });
   }
+
+  var nlForm = document.getElementById("newsletter-form");
+  if (nlForm) {
+    var nlStatus = document.getElementById("newsletter-status");
+    nlForm.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var btn = nlForm.querySelector('button[type="submit"]');
+      if (btn) { btn.disabled = true; btn.textContent = "Subscribing…"; }
+      if (nlStatus) nlStatus.textContent = "";
+      var fd = new FormData(nlForm);
+      fetch(nlForm.action, { method: "POST", body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.success) {
+            if (nlStatus) nlStatus.textContent = "Thanks for subscribing!";
+            nlForm.reset();
+          } else {
+            if (nlStatus) nlStatus.textContent = "Something went wrong. Please try again.";
+          }
+        })
+        .catch(function () {
+          if (nlStatus) nlStatus.textContent = "Network error. Please try again.";
+        })
+        .finally(function () {
+          if (btn) { btn.disabled = false; btn.textContent = "Subscribe"; }
+        });
+    });
+  }
 })();
 
 /* ── Service cards — mobile tap-to-expand ────────────────

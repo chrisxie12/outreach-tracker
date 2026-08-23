@@ -571,7 +571,8 @@ h1 em { font-style: italic; color: var(--accent); }
   background: var(--surface); border: 1px solid var(--border-2); border-radius: var(--radius-sm);
   padding: 12px 14px; width: 100%; transition: border-color var(--t);
 }
-.input:focus { outline: none; border-color: var(--accent); }
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+.input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .input::placeholder { color: var(--text-3); }
 .select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%), linear-gradient(135deg, var(--text-3) 50%, transparent 50%); background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 40px; }
 .textarea { resize: vertical; min-height: 96px; }
@@ -618,6 +619,15 @@ h1 em { font-style: italic; color: var(--accent); }
 .partner-tags span { display: inline-block; font-size: 11.5px; font-weight: 500; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; white-space: nowrap; }
 .partner-arrow { flex-shrink: 0; color: var(--text-3); transition: color .2s, transform .15s; }
 .partner-card:hover .partner-arrow { color: var(--accent); transform: translateX(3px); }
+
+/* ── newsletter ──────────────────────────────────────────── */
+.newsletter-sec { background: var(--bg-2); border-top: 1px solid var(--border); padding: 48px 0; }
+.newsletter-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.newsletter-copy h3 { font-family: var(--display); font-size: 20px; font-weight: 700; color: var(--text); margin: 0 0 4px; }
+.newsletter-copy p { font-size: 14px; color: var(--text-3); margin: 0; }
+.newsletter-form { display: flex; gap: 8px; }
+.newsletter-input { min-width: 260px; }
+.newsletter-status { width: 100%; font-size: 13px; color: var(--text-2); margin-top: 4px; }
 
 /* ── footer ──────────────────────────────────────────────── */
 .footer { border-top: 1px solid var(--border); padding: 28px 0; }

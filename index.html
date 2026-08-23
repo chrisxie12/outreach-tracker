@@ -852,6 +852,25 @@
     </section>
   </main>
 
+  <!-- NEWSLETTER -->
+  <section class="newsletter-sec">
+    <div class="wrap newsletter-inner">
+      <div class="newsletter-copy">
+        <h3>Stay updated</h3>
+        <p>Get practical digital tips for your business. No spam, just useful advice.</p>
+      </div>
+      <form class="newsletter-form" id="newsletter-form" action="https://api.web3forms.com/submit" method="POST">
+        <input type="hidden" name="access_key" value="f8fa4dc3-a198-4d32-a464-f2a3fdc80ebc">
+        <input type="hidden" name="subject" value="New newsletter subscriber">
+        <input type="hidden" name="from_name" value="Vision 61 Studios Newsletter">
+        <input type="checkbox" name="botcheck" style="display:none">
+        <input class="input newsletter-input" name="email" type="email" placeholder="Your email address" aria-label="Email address" required>
+        <button class="btn btn-primary" type="submit">Subscribe</button>
+      </form>
+      <p class="newsletter-status" id="newsletter-status" role="status"></p>
+    </div>
+  </section>
+
   <footer class="footer">
     <div class="wrap footer-inner">
       <div class="footer-brand"><picture><source srcset="images/vision61-logo.webp" type="image/webp"><img class="footer-logo" src="images/vision61-logo.jpeg" alt="Vision 61 Studios logo" width="22" height="22"></picture><span><b>Vision 61 Studios</b><em>Building better digital experiences for businesses in Ghana.</em></span></div>
