@@ -240,6 +240,12 @@
   var factsEl = document.getElementById("ia-facts");
   var waLink = document.getElementById("ia-wa-link");
   var emailLink = document.getElementById("ia-email-link");
+  var consultEl = document.getElementById("ia-consult");
+  var consultForm = document.getElementById("ia-consult-form");
+  var consultStatus = document.getElementById("lc-status");
+
+  // Store last audit results for lead capture
+  var lastAudit = { url: "", mobile: null, desktop: null };
 
   function gradeFor(n) {
     if (n >= 90) return { label: "Good", cls: "ok" };
@@ -370,6 +376,12 @@
       showFacts(cats);
       buildLinks(url, mobile.score, desktop.score);
 
+      // Store audit data for lead capture
+      lastAudit = { url: url, mobile: mobile.score, desktop: desktop.score };
+
+      // Show consultation CTA
+      if (consultEl) consultEl.hidden = false;
+
       if (window.trackEvent) {
         window.trackEvent("audit_complete", { method: "psi_api", mobile: mobile.score, desktop: desktop.score });
       }
@@ -385,6 +397,76 @@
       setStatus("");
     });
   });
+
+  // ── Consultation form handler ────────────────────────────────────
+  if (consultForm) {
+    consultForm.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var val = function (id) {
+        var el = document.getElementById(id);
+        return el ? el.value.trim() : "";
+      };
+      var name = val("lc-name");
+      var email = val("lc-email");
+      if (!name || !email) {
+        if (consultStatus) consultStatus.textContent = "Please enter your name and email.";
+        return;
+      }
+
+      var btn = consultForm.querySelector('button[type="submit"]');
+      if (btn) { btn.disabled = true; btn.textContent = "Booking…"; }
+      if (consultStatus) consultStatus.textContent = "";
+
+      // Submit lead to Supabase
+      if (window.V61Leads && window.V61Leads.submit) {
+        window.V61Leads.submit({
+          name: name,
+          business_name: val("lc-business"),
+          email: email,
+          phone: val("lc-phone"),
+          website: lastAudit.url,
+          source: "audit_funnel",
+          audit_score_mobile: lastAudit.mobile,
+          audit_score_desktop: lastAudit.desktop,
+          audit_url: lastAudit.url,
+          message: "Booked consultation from audit funnel"
+        });
+      }
+
+      // Also submit to Web3Forms as backup
+      var fd = new FormData();
+      fd.append("access_key", "f8fa4dc3-a198-4d32-a464-f2a3fdc80ebc");
+      fd.append("subject", "New consultation booking from audit funnel");
+      fd.append("name", name);
+      fd.append("business", val("lc-business"));
+      fd.append("email", email);
+      fd.append("phone", val("lc-phone"));
+      fd.append("website", lastAudit.url);
+      fd.append("audit_mobile", lastAudit.mobile != null ? String(lastAudit.mobile) : "N/A");
+      fd.append("audit_desktop", lastAudit.desktop != null ? String(lastAudit.desktop) : "N/A");
+      fd.append("source", "audit_funnel");
+
+      fetch("https://api.web3forms.com/submit", { method: "POST", body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.success) {
+            if (consultStatus) consultStatus.textContent = "Thanks! We'll reach out on WhatsApp within a day.";
+            consultForm.reset();
+            if (window.trackEvent) {
+              window.trackEvent("booking", { source: "audit_funnel", service: "consultation" });
+            }
+          } else {
+            if (consultStatus) consultStatus.textContent = "Something went wrong. Please try WhatsApp instead.";
+          }
+        })
+        .catch(function () {
+          if (consultStatus) consultStatus.textContent = "Network error. Please try WhatsApp instead.";
+        })
+        .finally(function () {
+          if (btn) { btn.disabled = false; btn.textContent = "Book my free consultation"; }
+        });
+    });
+  }
 })();
 
 /* ── Analytics (GA4) ─────────────────────────────────────────
@@ -446,6 +528,41 @@
       if (!formStartFired) {
         formStartFired = true;
         trackEvent("contact_form_start", { form_name: "main_contact" });
+      }
+    });
+  }
+
+  /* ── Quote request CTA tracking ────────────────────────────── */
+  document.addEventListener("click", function (ev) {
+    var a = ev.target && ev.target.closest ? ev.target.closest("a[href*='wa.me']") : null;
+    if (!a) return;
+    var text = decodeURIComponent((a.getAttribute("href") || "").split("?text=")[1] || "");
+    if (text.toLowerCase().indexOf("interested in") !== -1) {
+      var svc = text.split("interested in ")[1];
+      if (svc) svc = svc.split(".")[0].split("%20")[0];
+      trackEvent("quote_request", { service_name: svc || "unknown", method: "whatsapp" });
+    }
+  });
+
+  /* ── Pricing page CTA tracking ──────────────────────────────── */
+  document.addEventListener("click", function (ev) {
+    var btn = ev.target && ev.target.closest ? ev.target.closest(".price-cta a, .addon-card a") : null;
+    if (!btn) return;
+    var card = btn.closest(".price-card, .addon-card");
+    if (!card) return;
+    var h3 = card.querySelector("h3, h4");
+    var name = h3 ? h3.textContent.trim() : "";
+    if (name) trackEvent("quote_request", { service_name: name, method: "whatsapp", source: "pricing_page" });
+  });
+
+  /* ── Audit start tracking ──────────────────────────────────── */
+  var iaForm = document.getElementById("ia-form");
+  if (iaForm) {
+    var auditStartFired = false;
+    iaForm.addEventListener("focusin", function () {
+      if (!auditStartFired) {
+        auditStartFired = true;
+        trackEvent("audit_start", { tool: "psi_instant" });
       }
     });
   }
@@ -540,6 +657,9 @@
       width: 1280, height: 800,
       alt: "Screenshot of the Vision 61 Studios website homepage",
       description: "A conversion-focused digital studio website built around a clean, premium visual system.",
+      problem: "Needed a professional online presence that converts visitors into enquiries for a new digital studio.",
+      whatWeDid: "Designed and built a mobile-first marketing site with instant audit tool, portfolio, services catalogue and integrated CRM.",
+      result: "A fast, conversion-optimized website with GA4 tracking, lead capture and clear CTAs across every section.",
       overview: "Designed and built in-house, this is the studio's own public home. It combines the Solar Minimal visual system, a full services catalogue, an instant free digital audit tool and this portfolio \u2014 mobile-first, fast and built to turn attention into enquiries.",
       services: ["Web Design", "Development", "SEO", "Analytics"],
       url: "https://vision61studios.online/",
@@ -555,6 +675,9 @@
       width: 1280, height: 800,
       alt: "Screenshot of the Kente brand direction concept",
       description: "A woven, heritage-inspired brand direction exploring pattern, gold and rust.",
+      problem: "Exploring how traditional Ghanaian Kente patterns could translate into a modern brand identity.",
+      whatWeDid: "Created a brand direction concept using woven pattern bands, gold and rust accents on a dark canvas.",
+      result: "A distinctive visual direction that bridges heritage and modern brand design.",
       overview: "An internal brand direction concept exploring a Kente-inspired identity \u2014 woven pattern bands, gold and rust accents on a dark canvas. Produced by the studio as a creative exploration, not client work.",
       services: ["Brand Strategy", "Art Direction", "Visual Identity"],
       url: null,
@@ -569,6 +692,9 @@
       width: 1280, height: 800,
       alt: "Screenshot of the Accra Nights brand direction concept",
       description: "A bold, nocturnal brand direction concept with a distinctive evening palette.",
+      problem: "Exploring how the energy of Accra after dark could inspire a bold, memorable brand identity.",
+      whatWeDid: "Developed a brand direction with strong contrast, confident type and a distinctive night palette.",
+      result: "A high-impact visual system that captures the vibrant energy of Accra's nightlife scene.",
       overview: "An internal brand direction concept built around the energy of Accra after dark \u2014 strong contrast, confident type and a memorable night palette. Produced by the studio as a creative exploration, not client work.",
       services: ["Brand Strategy", "Art Direction", "Visual Identity"],
       url: null,
@@ -583,6 +709,9 @@
       width: 1280, height: 800,
       alt: "Screenshot of the Solar Minimal brand direction concept",
       description: "The studio's own warm, minimal visual system \u2014 paper, terracotta and Fraunces.",
+      problem: "Creating a warm, approachable visual system that feels premium without being pretentious.",
+      whatWeDid: "Designed the Solar Minimal system with warm paper tones, a terracotta accent and editorial Fraunces typography.",
+      result: "The visual system powering this website \u2014 clean, warm and distinctly African in its palette.",
       overview: "The Solar Minimal system that powers this website, explored as a standalone brand direction. Warm paper tones, a terracotta accent and editorial Fraunces typography. Produced by the studio, not client work.",
       services: ["Brand Strategy", "Art Direction", "Visual Identity"],
       url: null,
@@ -748,7 +877,7 @@
   }
 
   /* modal */
-  var modal = null, modalMedia = null, modalCat = null, modalTitle = null, modalOverview = null, modalServices = null, modalCta = null, modalClose = null, lastFocused = null;
+  var modal = null, modalMedia = null, modalCat = null, modalTitle = null, modalFunnel = null, modalOverview = null, modalServices = null, modalCta = null, modalClose = null, lastFocused = null;
 
   function buildModal() {
     if (document.getElementById("portfolio-modal")) return;
@@ -775,6 +904,8 @@
     modalTitle = el("h3", null, "");
     modalTitle.id = "portfolio-modal-title";
     content.appendChild(modalTitle);
+    modalFunnel = el("div", "portfolio-modal-funnel");
+    content.appendChild(modalFunnel);
     modalOverview = el("p", "portfolio-modal-overview");
     content.appendChild(modalOverview);
     modalServices = el("div", "portfolio-modal-services");
@@ -810,6 +941,23 @@
     modalCat.textContent = catLabel(p.category);
     modalTitle.textContent = p.title;
     modalOverview.textContent = p.overview || p.description;
+
+    // Populate funnel format
+    modalFunnel.textContent = "";
+    if (p.problem || p.whatWeDid || p.result) {
+      var funnelSteps = [
+        { label: "Problem", text: p.problem },
+        { label: "What Vision 61 did", text: p.whatWeDid },
+        { label: "Result", text: p.result }
+      ];
+      funnelSteps.forEach(function (step) {
+        if (!step.text) return;
+        var stepEl = el("div", "funnel-step");
+        stepEl.appendChild(el("span", "funnel-label", step.label));
+        stepEl.appendChild(el("p", "funnel-text", step.text));
+        modalFunnel.appendChild(stepEl);
+      });
+    }
     modalMedia.textContent = "";
     var img = imgFor(p, false);
     modalMedia.appendChild(img);
@@ -823,10 +971,11 @@
       modalCta.rel = "noopener";
       modalCta.textContent = p.cta || "Visit project";
     } else {
-      modalCta.href = "#contact";
-      modalCta.removeAttribute("target");
-      modalCta.removeAttribute("rel");
-      modalCta.textContent = "Start a project";
+      var waMsg = "Hi Vision 61! I saw your " + p.title + " project and I'd like something similar for my business.";
+      modalCta.href = "https://wa.me/233201599949?text=" + encodeURIComponent(waMsg);
+      modalCta.target = "_blank";
+      modalCta.rel = "noopener";
+      modalCta.textContent = "Need something similar? Start a project";
     }
     modal.hidden = false;
     document.body.style.overflow = "hidden";

@@ -146,7 +146,7 @@
         </div>
         <a href="#services">Services</a>
         <a href="#work">Work</a>
-        <a href="#pricing">Pricing</a>
+        <a href="pricing/">Pricing</a>
         <a href="#audit">Free Audit</a>
         <a href="#about">About</a>
         <a class="btn btn-primary nav-cta" href="#audit">Get free audit</a>
@@ -611,6 +611,24 @@
               <a class="btn btn-primary" id="ia-wa-link" href="#" target="_blank" rel="noopener">Get the fix-list on WhatsApp</a>
               <a class="btn btn-ghost" id="ia-email-link" href="#">Email us this report</a>
             </div>
+            <div class="ia-consult" id="ia-consult" hidden>
+              <div class="ia-consult-inner">
+                <h3>Want us to fix these issues?</h3>
+                <p>Book a free 15-minute consultation. We'll walk through your scores and recommend exactly what to do next.</p>
+                <form class="ia-consult-form" id="ia-consult-form" novalidate>
+                  <div class="form-row">
+                    <div class="field"><label for="lc-name">Your name</label><input class="input" id="lc-name" name="name" type="text" autocomplete="name" required></div>
+                    <div class="field"><label for="lc-business">Business name</label><input class="input" id="lc-business" name="business" type="text" autocomplete="organization"></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="field"><label for="lc-email">Email</label><input class="input" id="lc-email" name="email" type="email" autocomplete="email" required></div>
+                    <div class="field"><label for="lc-phone">WhatsApp number</label><input class="input" id="lc-phone" name="phone" type="tel" autocomplete="tel"></div>
+                  </div>
+                  <button class="btn btn-primary btn-lg block" type="submit">Book my free consultation</button>
+                  <p class="form-status" id="lc-status" role="status"></p>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -993,7 +1011,7 @@
       <nav class="footer-links" aria-label="Footer navigation">
         <a href="#services">Services</a>
         <a href="#work">Work</a>
-        <a href="#pricing">Pricing</a>
+        <a href="pricing/">Pricing</a>
         <a href="#audit">Free Audit</a>
         <a href="#about">About</a>
         <a href="#contact">Contact</a>
@@ -1026,6 +1044,7 @@
     </div>
   </div>
 
+  <script src="leads.js" defer></script>
   <script src="script.js" defer></script>
 
   <script>
