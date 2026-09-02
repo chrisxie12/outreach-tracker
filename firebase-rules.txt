@@ -1,0 +1,23 @@
+// Firebase Security Rules for Vision 61 Leads
+// Deploy with: firebase deploy --only firestore:rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Leads collection — allow anonymous writes from the marketing site
+    match /leads/{leadId} {
+      // Anyone can create a lead (the marketing site uses the web app)
+      allow create: if true;
+
+      // Only authenticated users (CRM) can read leads
+      allow read: if request.auth != null;
+
+      // Only authenticated users (CRM) can update leads
+      allow update: if request.auth != null;
+
+      // No one can delete leads from the client
+      allow delete: if false;
+    }
+  }
+}

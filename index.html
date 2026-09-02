@@ -6,7 +6,7 @@
   <title>Website Design &amp; Digital Services Ghana | Vision 61 Studios</title>
   <meta name="description" content="Vision 61 Studios builds websites, manages Google profiles and delivers digital marketing for businesses in Ghana. Get a free audit today.">
   <meta name="theme-color" content="#faf9f6">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com https://app.cal.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://analytics.google.com https://vision61studios-api.chrisxie12.workers.dev https://app.cal.com https://cal.com wss://*.cal.com https://api.web3forms.com https://www.googleapis.com; frame-src https://app.cal.com https://cal.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com https://app.cal.com https://www.gstatic.com 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://analytics.google.com https://vision61studios-api.chrisxie12.workers.dev https://app.cal.com https://cal.com wss://*.cal.com https://api.web3forms.com https://www.googleapis.com https://firestore.googleapis.com; frame-src https://app.cal.com https://cal.com;">
   <link rel="preload" href="styles.css" as="style">
   <link rel="preload" href="script.js" as="script">
   <link rel="preload" href="images/bg-hero.webp" as="image" type="image/webp">
@@ -1044,6 +1044,19 @@
     </div>
   </div>
 
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script>
+    firebase.initializeApp({
+      apiKey: "AIzaSyAi5B2XEcA9Dgn7Q1JQvXGqt6rAMg2MVTo",
+      authDomain: "vision61-leads.firebaseapp.com",
+      projectId: "vision61-leads",
+      storageBucket: "vision61-leads.firebasestorage.app",
+      messagingSenderId: "763295628373",
+      appId: "1:763295628373:web:59b0f51422f31f355768dc"
+    });
+  </script>
   <script src="leads.js" defer></script>
   <script src="script.js" defer></script>
 

@@ -417,7 +417,7 @@
       if (btn) { btn.disabled = true; btn.textContent = "Booking…"; }
       if (consultStatus) consultStatus.textContent = "";
 
-      // Submit lead to Supabase
+      // Submit lead to Firestore
       if (window.V61Leads && window.V61Leads.submit) {
         window.V61Leads.submit({
           name: name,
