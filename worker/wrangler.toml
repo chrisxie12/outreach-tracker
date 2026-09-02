@@ -22,7 +22,7 @@ compatibility_date = "2024-11-01"
 [vars]
 # The CRM is served from https://chrisxie12.github.io/outreach-tracker/ but the
 # browser Origin is always the apex: https://chrisxie12.github.io
-ALLOWED_ORIGIN = "https://chrisxie12.github.io"
+ALLOWED_ORIGIN = "https://vision61studios.online"
 GROQ_MODEL = "openai/gpt-oss-20b"
 
 # Cloud sync: one Durable Object holds the canonical CRM database.
