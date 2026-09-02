@@ -871,3 +871,10 @@ table.data .biz-cell .b-cat { font-size: 11.5px; color: var(--text-3); }
 .td-main { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .td-who { color: var(--text-3); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .td-when { color: var(--text-3); font-size: 11.5px; white-space: nowrap; }
+
+/* ── Campaign & Sequence styles ── */
+.step-card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); margin-bottom: 12px; overflow: hidden; }
+.step-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.step-body { padding: 14px; }
+.step-body .field:last-child { margin-bottom: 0; }

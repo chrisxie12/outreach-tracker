@@ -221,6 +221,42 @@
     return pri.key === "high";
   }
 
+  /* ── Campaign & Sequence constants ── */
+  const CAMPAIGN_STATUS = [
+    { key: "draft", label: "Draft", color: "#8a8a90" },
+    { key: "ready", label: "Ready", color: "#6f8db5" },
+    { key: "running", label: "Running", color: "#335fa8" },
+    { key: "paused", label: "Paused", color: "#e0a53e" },
+    { key: "completed", label: "Completed", color: "#3f9d5f" },
+    { key: "cancelled", label: "Cancelled", color: "#c2362b" },
+  ];
+  const campaignStatusOf = (key) => CAMPAIGN_STATUS.find((s) => s.key === key) || CAMPAIGN_STATUS[0];
+
+  const SEQUENCE_STEP_TYPE = [
+    { key: "email", label: "Email" },
+    { key: "delay", label: "Delay" },
+    { key: "condition", label: "Condition" },
+  ];
+
+  const EMAIL_LOG_STATUS = [
+    { key: "queued", label: "Queued", color: "#8a8a90" },
+    { key: "sent", label: "Sent", color: "#6f8db5" },
+    { key: "delivered", label: "Delivered", color: "#335fa8" },
+    { key: "opened", label: "Opened", color: "#e0a53e" },
+    { key: "clicked", label: "Clicked", color: "#3f9d5f" },
+    { key: "replied", label: "Replied", color: "#c084fc" },
+    { key: "bounced", label: "Bounced", color: "#e5484d" },
+    { key: "failed", label: "Failed", color: "#c2362b" },
+  ];
+  const emailLogStatusOf = (key) => EMAIL_LOG_STATUS.find((s) => s.key === key) || EMAIL_LOG_STATUS[0];
+
+  const REPLY_SENTIMENT = [
+    { key: "positive", label: "Positive", color: "#3f9d5f" },
+    { key: "negative", label: "Negative", color: "#c2362b" },
+    { key: "neutral", label: "Neutral", color: "#8a8a90" },
+    { key: "auto", label: "Auto-reply", color: "#6f8db5" },
+  ];
+
   /* ── Store ── */
   const emptyDb = () => ({
     schema: 1,
@@ -229,7 +265,8 @@
     websiteAudits: [], auditSnapshots: [], meetings: [], outreachDrafts: [], outreachTemplates: [], tags: [],
     projects: [], projectTasks: [], milestones: [], invoices: [], invoiceItems: [], approvals: [], revisions: [],
     clientContacts: [],
-    settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "osm", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "groq", enabled: false, gatewayUrl: "https://vision61-ai-gateway.twumgyanchristian2.workers.dev", model: "openai/gpt-oss-20b" } },
+    campaigns: [], sequences: [], sequenceSteps: [], prospectLists: [], emailLogs: [], replyLogs: [],
+    settings: { profileName: "Christian", company: "Vision 61 Studios", theme: "dark", sidebarCollapsed: false, currency: "GHS", googleMapsApiKey: "", discoveryProvider: "osm", reviewThreshold: 15, leadTemp: { hot: 80, warm: 60 }, priority: { highScore: 75, mediumScore: 55, highOpps: 3 }, targetAreas: [], batchLimit: 10, responseOutcomes: DEFAULT_OUTCOMES.slice(), lostReasons: DEFAULT_LOST_REASONS.slice(), aiConfig: { provider: "groq", enabled: false, gatewayUrl: "https://vision61-ai-gateway.twumgyanchristian2.workers.dev", model: "openai/gpt-oss-20b" }, emailConfig: { provider: "resend", apiKey: "", fromName: "Christian", fromEmail: "", domain: "", dailyLimit: 50, warmupComplete: false } },
   });
 
   const PROJECT_STATUS = [
@@ -1038,6 +1075,181 @@
     return count;
   }
 
+  /* ── Campaign CRUD ── */
+  function addCampaign(data) {
+    const now = U().now();
+    const c = Object.assign({
+      id: U().uid("cmp"), name: "", description: "", status: "draft",
+      sequenceId: null, icp: {}, dailyLimit: 50, sentCount: 0,
+      openCount: 0, replyCount: 0, clickCount: 0, bounceCount: 0,
+      cost: 0, createdAt: now, updatedAt: now, startedAt: null, completedAt: null,
+    }, data || {});
+    db.campaigns.push(c);
+    addActivity(null, "campaign", "Campaign created: " + c.name);
+    save();
+    return c;
+  }
+  function updateCampaign(id, patch) {
+    const c = db.campaigns.find((x) => x.id === id);
+    if (!c) return null;
+    Object.assign(c, patch, { updatedAt: U().now() });
+    save();
+    return c;
+  }
+  function deleteCampaign(id) {
+    db.campaigns = db.campaigns.filter((x) => x.id !== id);
+    db.emailLogs = db.emailLogs.filter((x) => x.campaignId !== id);
+    db.replyLogs = db.replyLogs.filter((x) => x.campaignId !== id);
+    save();
+  }
+  function campaignById(id) { return db.campaigns.find((x) => x.id === id) || null; }
+  function campaignsForSequence(seqId) { return db.campaigns.filter((x) => x.sequenceId === seqId); }
+
+  /* ── Sequence CRUD ── */
+  function addSequence(data) {
+    const now = U().now();
+    const s = Object.assign({
+      id: U().uid("seq"), name: "", description: "", active: true,
+      createdAt: now, updatedAt: now,
+    }, data || {});
+    db.sequences.push(s);
+    save();
+    return s;
+  }
+  function updateSequence(id, patch) {
+    const s = db.sequences.find((x) => x.id === id);
+    if (!s) return null;
+    Object.assign(s, patch, { updatedAt: U().now() });
+    save();
+    return s;
+  }
+  function deleteSequence(id) {
+    db.sequences = db.sequences.filter((x) => x.id !== id);
+    db.sequenceSteps = db.sequenceSteps.filter((x) => x.sequenceId !== id);
+    save();
+  }
+  function sequenceById(id) { return db.sequences.find((x) => x.id === id) || null; }
+  function stepsForSequence(seqId) {
+    return db.sequenceSteps.filter((x) => x.sequenceId === seqId).sort((a, b) => (a.order || 0) - (b.order || 0));
+  }
+
+  /* ── Sequence Step CRUD ── */
+  function addSequenceStep(sequenceId, data) {
+    const existing = stepsForSequence(sequenceId);
+    const now = U().now();
+    const step = Object.assign({
+      id: U().uid("sstp"), sequenceId, type: "email", order: existing.length,
+      delayDays: 0, subject: "", body: "", variant: "A",
+      createdAt: now, updatedAt: now,
+    }, data || {});
+    db.sequenceSteps.push(step);
+    save();
+    return step;
+  }
+  function updateSequenceStep(id, patch) {
+    const step = db.sequenceSteps.find((x) => x.id === id);
+    if (!step) return null;
+    Object.assign(step, patch, { updatedAt: U().now() });
+    save();
+    return step;
+  }
+  function deleteSequenceStep(id) {
+    db.sequenceSteps = db.sequenceSteps.filter((x) => x.id !== id);
+    save();
+  }
+
+  /* ── Prospect List CRUD ── */
+  function addProspectList(data) {
+    const now = U().now();
+    const pl = Object.assign({
+      id: U().uid("pl"), campaignId: null, name: "", prospects: [],
+      createdAt: now, updatedAt: now,
+    }, data || {});
+    db.prospectLists.push(pl);
+    save();
+    return pl;
+  }
+  function updateProspectList(id, patch) {
+    const pl = db.prospectLists.find((x) => x.id === id);
+    if (!pl) return null;
+    Object.assign(pl, patch, { updatedAt: U().now() });
+    save();
+    return pl;
+  }
+  function deleteProspectList(id) {
+    db.prospectLists = db.prospectLists.filter((x) => x.id !== id);
+    save();
+  }
+  function prospectListById(id) { return db.prospectLists.find((x) => x.id === id) || null; }
+  function prospectListsForCampaign(campaignId) { return db.prospectLists.filter((x) => x.campaignId === campaignId); }
+
+  /* ── Email Log CRUD ── */
+  function addEmailLog(data) {
+    const now = U().now();
+    const log = Object.assign({
+      id: U().uid("elog"), campaignId: null, leadId: null, businessId: null,
+      sequenceStepId: null, variant: "A",
+      to: "", from: "", subject: "", body: "",
+      status: "queued", providerId: null,
+      sentAt: null, deliveredAt: null, openedAt: null, clickedAt: null, repliedAt: null, bouncedAt: null,
+      createdAt: now,
+    }, data || {});
+    db.emailLogs.push(log);
+    return log;
+  }
+  function updateEmailLog(id, patch) {
+    const log = db.emailLogs.find((x) => x.id === id);
+    if (!log) return null;
+    Object.assign(log, patch);
+    return log;
+  }
+  function emailLogsForCampaign(campaignId) { return db.emailLogs.filter((x) => x.campaignId === campaignId); }
+  function emailLogsForLead(leadId) { return db.emailLogs.filter((x) => x.leadId === leadId); }
+
+  /* ── Reply Log CRUD ── */
+  function addReplyLog(data) {
+    const now = U().now();
+    const log = Object.assign({
+      id: U().uid("rpl"), campaignId: null, leadId: null, emailLogId: null,
+      from: "", subject: "", body: "", sentiment: "neutral",
+      handled: false, autoReplied: false,
+      createdAt: now,
+    }, data || {});
+    db.replyLogs.push(log);
+    return log;
+  }
+  function updateReplyLog(id, patch) {
+    const log = db.replyLogs.find((x) => x.id === id);
+    if (!log) return null;
+    Object.assign(log, patch);
+    return log;
+  }
+  function replyLogsForCampaign(campaignId) { return db.replyLogs.filter((x) => x.campaignId === campaignId); }
+
+  /* ── Campaign Analytics Helpers ── */
+  function campaignStats(campaignId) {
+    const logs = emailLogsForCampaign(campaignId);
+    const replies = replyLogsForCampaign(campaignId);
+    const sent = logs.filter((l) => ["sent", "delivered", "opened", "clicked", "replied"].includes(l.status)).length;
+    const delivered = logs.filter((l) => ["delivered", "opened", "clicked", "replied"].includes(l.status)).length;
+    const opened = logs.filter((l) => ["opened", "clicked", "replied"].includes(l.status)).length;
+    const clicked = logs.filter((l) => l.status === "clicked").length;
+    const bounced = logs.filter((l) => l.status === "bounced").length;
+    const replyCount = replies.length;
+    const campaign = campaignById(campaignId);
+    const cost = campaign ? campaign.cost : 0;
+    return {
+      total: logs.length, sent, delivered, opened, clicked, bounced,
+      replies: replyCount,
+      openRate: sent ? Math.round((opened / sent) * 100) : 0,
+      clickRate: sent ? Math.round((clicked / sent) * 100) : 0,
+      replyRate: sent ? Math.round((replyCount / sent) * 100) : 0,
+      bounceRate: sent ? Math.round((bounced / sent) * 100) : 0,
+      costPerLead: replyCount ? Math.round(cost / replyCount) : 0,
+      costPerOpen: opened ? Math.round(cost / opened) : 0,
+    };
+  }
+
   V61.Store = {
     get db() { return db; }, get loaded() { return !!db; },
     KEY,
@@ -1065,7 +1277,6 @@
     leadRows, clientRows, clientById, clientBusiness,
     PROJECT_STATUS, projectStatusOf, TASK_STATUS, taskStatusOf, TASK_PRIORITY, INVOICE_STATUS, invoiceStatusOf, DEFAULT_PROJECT_TEMPLATES,
     exportLeadsCSV, exportClientsCSV, importCSV,
-    /* Phase 3 helpers used by pages and services (were defined but not exported) */
     lifecycleStatus, contactNameFor, recommendedServicesFor, lastInteractionFor,
     timeToFirstResponse, daysContactToMeeting, daysProposalToWin,
     markLost, markWon, reactivateLead,
@@ -1073,6 +1284,15 @@
     tagsFor, addTag, removeTag,
     outreachDraftsFor, saveOutreachDraft, activeTemplates,
     followupState, cancelFollowup, meetingsFor, upcomingMeetings, addMeeting,
+    /* Campaign & Sequence */
+    CAMPAIGN_STATUS, campaignStatusOf, SEQUENCE_STEP_TYPE, EMAIL_LOG_STATUS, emailLogStatusOf, REPLY_SENTIMENT,
+    addCampaign, updateCampaign, deleteCampaign, campaignById, campaignsForSequence,
+    addSequence, updateSequence, deleteSequence, sequenceById, stepsForSequence,
+    addSequenceStep, updateSequenceStep, deleteSequenceStep,
+    addProspectList, updateProspectList, deleteProspectList, prospectListById, prospectListsForCampaign,
+    addEmailLog, updateEmailLog, emailLogsForCampaign, emailLogsForLead,
+    addReplyLog, updateReplyLog, replyLogsForCampaign,
+    campaignStats,
     load, save, on, persist,
   };
 })();

@@ -1,15 +1,17 @@
-# Vision 61 CRM — Groq AI Gateway (Cloudflare Worker)
+# Vision 61 CRM — Groq AI Gateway + Email Sender (Cloudflare Worker)
 #
 # Deploy:   cd worker && npx wrangler deploy
 # Secrets:  npx wrangler secret put GROQ_API_KEY
 #           npx wrangler secret put V61_SHARED_SECRET
 #           npx wrangler secret put V61_SYNC_SECRET   (cloud sync passcode)
+#           npx wrangler secret put RESEND_API_KEY     (Resend email API key)
 # Local:    npx wrangler dev
 #
 # Environment variables:
 #   GROQ_API_KEY     (secret — set via `wrangler secret put`, NEVER committed)
 #   V61_SHARED_SECRET (secret — signs short-lived session tokens, NEVER committed)
 #   V61_SYNC_SECRET   (secret — the cloud sync passcode, NEVER committed)
+#   RESEND_API_KEY    (secret — Resend email sending API key, NEVER committed)
 #   GROQ_MODEL       (plain var, optional, defaults to openai/gpt-oss-20b)
 #   ALLOWED_ORIGIN   (plain var, the ONLY browser origin allowed to call the gateway)
 name = "vision61-ai-gateway"

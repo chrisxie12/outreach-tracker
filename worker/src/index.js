@@ -479,6 +479,90 @@ export class SyncObject {
   }
 }
 
+/* ── /v1/send-emails — Send emails via Resend API ─────────────────────── */
+const RESEND_ENDPOINT = "https://api.resend.com/emails";
+const MAX_BATCH_SIZE = 10; // Resend batch limit
+
+async function handleSendEmails(ctx, env, allowed) {
+  if (!env.RESEND_API_KEY || !env.RESEND_API_KEY.trim()) {
+    return json({ ok: false, error: "not_configured", message: "Resend API key not configured. Add RESEND_API_KEY as a Worker secret." }, 503, allowed);
+  }
+  if (!ctx || !Array.isArray(ctx.emails) || !ctx.emails.length) {
+    return badRequest("emails array is required and must not be empty.", allowed);
+  }
+  if (ctx.emails.length > MAX_BATCH_SIZE) {
+    return badRequest("Maximum " + MAX_BATCH_SIZE + " emails per batch.", allowed);
+  }
+
+  const results = [];
+  for (const email of ctx.emails) {
+    if (!email.to || !email.subject || !email.body) {
+      results.push({ to: email.to || "", status: "failed", error: "missing_fields" });
+      continue;
+    }
+    try {
+      const payload = {
+        from: email.from || (ctx.fromName || "Vision 61 Studios") + " <" + (ctx.fromEmail || "hello@vision61studios.online") + ">",
+        to: [email.to],
+        subject: email.subject,
+        text: email.body,
+        headers: {},
+      };
+      // Add campaign tracking headers for webhook correlation
+      if (email.campaignId) payload.headers["X-Campaign-Id"] = email.campaignId;
+      if (email.leadId) payload.headers["X-Lead-Id"] = email.leadId;
+      if (email.emailLogId) payload.headers["X-Email-Log-Id"] = email.emailLogId;
+
+      const res = await fetch(RESEND_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + env.RESEND_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && data.id) {
+        results.push({ to: email.to, status: "sent", id: data.id });
+      } else {
+        const errMsg = (data && data.message) || "Send failed (HTTP " + res.status + ")";
+        results.push({ to: email.to, status: "failed", error: errMsg });
+      }
+    } catch (e) {
+      results.push({ to: email.to, status: "failed", error: "network_error" });
+    }
+  }
+
+  const sent = results.filter((r) => r.status === "sent").length;
+  const failed = results.filter((r) => r.status === "failed").length;
+  return json({ ok: true, sent, failed, results }, 200, allowed);
+}
+
+/* ── /v1/replies/webhook — Handle incoming email events from Resend ──── */
+/* Resend webhook events: email.sent, email.delivered, email.opened,
+   email.clicked, email.bounced, email.complained, email.delivery_delayed */
+async function handleReplyWebhook(request, env, allowed) {
+  // Webhooks come from Resend, not from the browser — no origin check needed
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return json({ ok: false, error: "invalid_json" }, 400, allowed);
+  }
+
+  const event = body;
+  const type = event.type || "";
+  const data = event.data || {};
+
+  // For now, log the event. The CRM frontend will poll for updates.
+  // In production, you'd store these in a Durable Object or KV.
+  console.log("[webhook] " + type + " — " + (data.email_id || "") + " — " + (data.from || "") + " → " + JSON.stringify(data.to || []));
+
+  // Return 200 immediately to acknowledge receipt
+  return json({ ok: true, received: type }, 200, allowed);
+}
+
 export default {
   /* Also exposed for the test harness (which transforms `export class` into a
      property assignment that a later `module.exports =` would otherwise wipe). */
@@ -524,6 +608,20 @@ export default {
       }
       const id = env.SYNC_SERVICE.idFromName("crm-main");
       return env.SYNC_SERVICE.get(id).fetch(request);
+    }
+
+    /* Email webhook: POST /v1/replies/webhook — no auth needed (comes from Resend) */
+    if (request.method === "POST" && url.pathname === "/v1/replies/webhook") {
+      return handleReplyWebhook(request, env, allowed);
+    }
+
+    /* Send emails: POST /v1/send-emails — requires auth */
+    if (request.method === "POST" && url.pathname === "/v1/send-emails") {
+      const auth = await authenticate(request, env, origin, allowed);
+      if (!auth.ok) return auth.res;
+      const { parsed: sendParsed, error: sendError } = await readJson(request, allowed);
+      if (sendError) return sendError;
+      return handleSendEmails(sendParsed, env, allowed);
     }
 
     if (request.method === "GET" && url.pathname === "/v1/status") {

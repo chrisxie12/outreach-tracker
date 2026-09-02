@@ -12,6 +12,10 @@
       { id: "audits", label: "Digital Audits", icon: "clipboard", route: "#/audits" },
       { id: "opportunities", label: "Opportunities", icon: "lightbulb", route: "#/opportunities" },
     ] },
+    { group: "Autonomous Outreach", items: [
+      { id: "campaigns", label: "Campaigns", icon: "send", route: "#/campaigns" },
+      { id: "sequences", label: "Sequences", icon: "table", route: "#/sequences" },
+    ] },
     { group: "Outreach", items: [
       { id: "outreach", label: "Outreach", icon: "send", route: "#/outreach" },
       { id: "followups", label: "Follow-ups", icon: "calendar", route: "#/followups" },
@@ -31,6 +35,7 @@
       { id: "reports", label: "Growth Reports", icon: "gavel", route: "#/reports" },
     ] },
     { group: "System", items: [
+      { id: "emailSettings", label: "Email Settings", icon: "mail", route: "#/emailSettings" },
       { id: "settings", label: "Settings", icon: "settings", route: "#/settings" },
       { id: "importexport", label: "Import / Export", icon: "upload", route: "#/importexport" },
     ] },
@@ -153,6 +158,7 @@
       pipeline: P.pipeline, proposals: P.proposals, services: P.services, clients: P.clients,
       clientDetail: P.clientDetail, projects: P.projects, projectDetail: P.projectDetail,
       invoices: P.invoices, analytics: P.analytics, reports: P.reports, settings: P.settings, importexport: P.importexport,
+      campaigns: P.campaigns, sequences: P.sequences, emailSettings: P.emailSettings,
     };
     if (route === "leads" && id) { P.leads.openLead(id); return; }
     if (route === "lead" && id) { P.leads.openLead(id); return; }
@@ -166,8 +172,12 @@
     if (route === "tasks") { P.tasks(); return; }
     if (route === "invoices") { P.invoices(); return; }
     if (route === "reports") { P.reports(); return; }
+    if (route === "campaign" && id) { P.campaignDetail(id); return; }
+    if (route === "campaigns" && id) { P.campaignDetail(id); return; }
+    if (route === "sequence" && id) { P.sequenceBuilder(id); return; }
+    if (route === "sequences" && id) { P.sequenceBuilder(id); return; }
     if (routes[route]) { routes[route](); return; }
-    V61.V61.App.nav("#/dashboard");
+    V61.App.nav("#/dashboard");
   }
 
   function nav(hash) {

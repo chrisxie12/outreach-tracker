@@ -426,10 +426,45 @@ window.V61 = window.V61 || {};
     if (V61.Pages && V61.Pages.leads && V61.Pages.leads.openLead) V61.Pages.leads.openLead(leadId);
   }
 
+  /* Generic AI generation — used by EmailGenerator for campaign emails. */
+  async function generate(contextStr, systemPrompt) {
+    const c = Sess.aiConfig();
+    if (!c.enabled || !c.provider) {
+      return { ok: false, error: "not_configured", message: "AI is not configured." };
+    }
+    const s = await Sess.acquireSession();
+    if (!s.token) {
+      return { ok: false, error: "session_error", message: "Could not establish AI session." };
+    }
+    const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), TIMEOUT_MS) : null;
+    try {
+      const res = await fetch(Sess.gatewayBase() + "/v1/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + s.token },
+        body: JSON.stringify({
+          context: { custom: true, systemPrompt: systemPrompt, userContent: contextStr },
+        }),
+        signal: ctrl ? ctrl.signal : undefined,
+      });
+      if (timer) clearTimeout(timer);
+      if (res.status === 401) { Sess.clearSession(); return { ok: false, error: "unauthorized" }; }
+      let data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      if (res.ok && data && data.ok && typeof data.content === "string") {
+        return { ok: true, content: data.content.trim(), model: data.model || c.model };
+      }
+      return { ok: false, error: (data && data.error) || "gateway_error", message: (data && data.message) || "AI unavailable" };
+    } catch (e) {
+      if (timer) clearTimeout(timer);
+      return { ok: false, error: "network", message: "Could not reach AI gateway." };
+    }
+  }
+
   V61.AI = {
     aiConfig: Sess.aiConfig, isConfigured, status, DEFAULT_MODEL, TIMEOUT_MS,
     analyzeLead, generateOutreach, generateFollowup, explainAudit,
-    extractWebsiteInfo, extractModal,
+    extractWebsiteInfo, extractModal, generate,
     draftModal, present,
   };
 })();
