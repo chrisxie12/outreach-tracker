@@ -56,7 +56,7 @@ V61.Pages = V61.Pages || {};
       /* Webhook Info */
       '<div class="panel"><div class="panel-head"><div class="panel-title">' + I.clipboard + ' Webhook Configuration</div></div><div class="panel-body">' +
       '<div style="font-size:13px;color:var(--text-2);margin-bottom:8px">To track opens, clicks, and replies, configure these webhook URLs in your Resend dashboard:</div>' +
-      '<div class="field"><label>Webhook URL</label><input class="input" readonly value="' + U().escapeHtml(window.location.origin + '/worker/v1/replies/webhook') + '"></div>' +
+      '<div class="field"><label>Webhook URL</label><input class="input" readonly value="' + U().escapeHtml("https://vision61-ai-gateway.twumgyanchristian2.workers.dev/v1/replies/webhook") + '"></div>' +
       '<div style="font-size:11px;color:var(--text-3);margin-top:4px">Resend will POST email events to this URL. Configure it under Settings > Webhooks in your Resend dashboard.</div>' +
       '</div></div>' +
       /* Test Email */
